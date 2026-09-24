@@ -703,6 +703,8 @@ function brokenReason(resolution: KnowledgeEdge["resolution"]): string {
       return "Multiple notes match";
     case "missing-heading":
       return "Heading not found";
+    case "missing-block":
+      return "Block not found";
     case "resolved":
       return "Resolved";
   }
