@@ -37,7 +37,9 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   await editor.fill(`# Private\n\n${secret}`);
   await page.getByRole("button", { name: "Save" }).click();
 
-  await expect(page.getByText("Saved directly to Google Drive.")).toBeVisible();
+  await expect(
+    page.getByText("Saved to Drive and updated the local knowledge index."),
+  ).toBeVisible();
 
   expect(drive.noteContent("note-1")).toBe(`# Private\n\n${secret}`);
 

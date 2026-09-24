@@ -595,7 +595,9 @@ function KnowledgePanel({
       <h2>{noteTitle}</h2>
 
       <KnowledgeSection title="Links" empty="No outgoing links.">
-        {outgoing.map((edge, indexNumber) => (
+        {outgoing
+          .filter((edge) => edge.resolution === "resolved")
+          .map((edge, indexNumber) => (
           <EdgeRow
             edge={edge}
             label={edge.alias ?? edge.target}
