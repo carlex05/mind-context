@@ -27,7 +27,7 @@ export function WorkspaceExplorer({
   readonly provider: StorageProvider;
   readonly tree: readonly WorkspaceTreeNode[];
   readonly index: KnowledgeIndexSnapshot | undefined;
-  readonly activeNoteId?: string;
+  readonly activeNoteId: string | undefined;
   readonly selectedFolderId: string;
   readonly onSelectedFolderIdChange: (id: string) => void;
   readonly onOpenNote: (id: string) => void;
@@ -334,7 +334,7 @@ function TreeNode({
   readonly node: WorkspaceTreeNode;
   readonly depth: number;
   readonly activeNoteId?: string;
-  readonly selectedItemId?: string;
+  readonly selectedItemId: string | undefined;
   readonly selectedFolderId: string;
   readonly expanded: ReadonlySet<string>;
   readonly onToggleFolder: (id: string) => void;
