@@ -2,6 +2,7 @@
   "name": "mind-context",
   "version": "0.0.0",
   "private": true,
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=22"
   },
