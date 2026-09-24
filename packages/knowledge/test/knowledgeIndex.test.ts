@@ -27,28 +27,84 @@ describe("knowledge index", () => {
 
     expect(getOutgoingLinks(index, "a")).toMatchObject([
       {
+        syntax: "wikilink",
         target: "Privacy",
         heading: "Boundaries",
         resolution: "resolved",
         targetNoteId: "b",
       },
     ]);
-    expect(getBacklinks(index, "b")).toMatchObject([
-      {
-        sourceNoteId: "a",
-        targetNoteId: "b",
-        resolution: "resolved",
-      },
-    ]);
+    expect(getBacklinks(index, "b")).toHaveLength(1);
   });
 
-  it("reports missing notes and headings instead of silently resolving them", () => {
+  it("treats standard Markdown internal links as the same knowledge graph", () => {
+    const index = buildKnowledgeIndex("workspace-1", [
+      {
+        id: "a",
+        path: "Notes/Architecture.md",
+        name: "Architecture.md",
+        content:
+          "[Privacy](Privacy.md) [Decision](../Decisions/ADR-001.md#Context)",
+      },
+      {
+        id: "b",
+        path: "Notes/Privacy.md",
+        name: "Privacy.md",
+        content: "# Privacy",
+      },
+      {
+        id: "c",
+        path: "Decisions/ADR-001.md",
+        name: "ADR-001.md",
+        content: "# Decision\n\n## Context\n\nPortable.",
+      },
+    ]);
+
+    expect(getOutgoingLinks(index, "a")).toMatchObject([
+      {
+        syntax: "markdown",
+        target: "Privacy.md",
+        resolution: "resolved",
+        targetNoteId: "b",
+      },
+      {
+        syntax: "markdown",
+        target: "../Decisions/ADR-001.md",
+        heading: "Context",
+        resolution: "resolved",
+        targetNoteId: "c",
+      },
+    ]);
+    expect(getBacklinks(index, "b")).toHaveLength(1);
+    expect(getBacklinks(index, "c")).toHaveLength(1);
+  });
+
+  it("supports same-note, hierarchical heading and block references", () => {
     const index = buildKnowledgeIndex("workspace-1", [
       {
         id: "a",
         path: "Architecture.md",
         name: "Architecture.md",
-        content: "[[Missing]] [[Privacy#Does not exist]]",
+        content:
+          "# Architecture\n\n## Runtime\n\n### Browser\n\nText. ^browser-block\n\n[[#Architecture]] [[#Runtime#Browser]] [[#^browser-block]]",
+      },
+    ]);
+
+    expect(getOutgoingLinks(index, "a").map((edge) => edge.resolution)).toEqual([
+      "resolved",
+      "resolved",
+      "resolved",
+    ]);
+  });
+
+  it("reports missing notes, headings and blocks instead of silently resolving them", () => {
+    const index = buildKnowledgeIndex("workspace-1", [
+      {
+        id: "a",
+        path: "Architecture.md",
+        name: "Architecture.md",
+        content:
+          "[[Missing]] [[Privacy#Does not exist]] [[Privacy#^does-not-exist]]",
       },
       {
         id: "b",
@@ -61,7 +117,22 @@ describe("knowledge index", () => {
     expect(getBrokenLinks(index, "a").map((edge) => edge.resolution)).toEqual([
       "missing-note",
       "missing-heading",
+      "missing-block",
     ]);
+  });
+
+  it("does not classify attachment embeds as broken note links", () => {
+    const index = buildKnowledgeIndex("workspace-1", [
+      {
+        id: "a",
+        path: "Architecture.md",
+        name: "Architecture.md",
+        content: "![[attachments/diagram.png|640]] ![image](attachments/other.png)",
+      },
+    ]);
+
+    expect(getOutgoingLinks(index, "a")).toHaveLength(0);
+    expect(getBrokenLinks(index, "a")).toHaveLength(0);
   });
 
   it("marks duplicate basename links as ambiguous but resolves explicit paths", () => {

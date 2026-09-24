@@ -1,5 +1,6 @@
 import {
   markdownParser,
+  type InternalLink,
   type MarkdownParser,
   type WikiLink,
 } from "@mind-context/markdown";
@@ -16,6 +17,7 @@ export interface KnowledgeDocument {
 export interface IndexedHeading {
   readonly text: string;
   readonly level: number;
+  readonly path: readonly string[];
 }
 
 export interface IndexedNote {
@@ -23,9 +25,12 @@ export interface IndexedNote {
   readonly path: string;
   readonly name: string;
   readonly title: string;
+  readonly aliases: readonly string[];
   readonly headings: readonly IndexedHeading[];
   readonly tags: readonly string[];
+  readonly blockIds: readonly string[];
   readonly wikiLinks: readonly WikiLink[];
+  readonly internalLinks: readonly InternalLink[];
   readonly modifiedAt?: string;
   readonly revision?: string;
 }
@@ -34,13 +39,17 @@ export type LinkResolution =
   | "resolved"
   | "missing-note"
   | "ambiguous-note"
-  | "missing-heading";
+  | "missing-heading"
+  | "missing-block";
 
 export interface KnowledgeEdge {
   readonly sourceNoteId: string;
   readonly sourcePath: string;
+  readonly syntax: InternalLink["syntax"];
+  readonly embed: boolean;
   readonly target: string;
   readonly heading?: string;
+  readonly blockId?: string;
   readonly alias?: string;
   readonly resolution: LinkResolution;
   readonly targetNoteId?: string;
@@ -125,11 +134,7 @@ function indexDocument(
   parser: MarkdownParser,
 ): IndexedNote {
   const parsed = parser.parse(document.content);
-  const headings = parsed.sections.flatMap((section) =>
-    section.heading && section.level
-      ? [{ text: section.heading, level: section.level }]
-      : [],
-  );
+  const headings = buildHeadingPaths(parsed.sections);
   const firstH1 = headings.find((heading) => heading.level === 1);
 
   return {
@@ -137,12 +142,37 @@ function indexDocument(
     path: normalizeDisplayPath(document.path),
     name: document.name,
     title: firstH1?.text ?? withoutMarkdownExtension(document.name),
+    aliases: parsed.aliases,
     headings,
     tags: parsed.tags,
+    blockIds: parsed.blockIds,
     wikiLinks: parsed.wikiLinks,
+    internalLinks: parsed.internalLinks,
     ...(document.modifiedAt ? { modifiedAt: document.modifiedAt } : {}),
     ...(document.revision ? { revision: document.revision } : {}),
   };
+}
+
+function buildHeadingPaths(
+  sections: ReturnType<MarkdownParser["parse"]>["sections"],
+): readonly IndexedHeading[] {
+  const result: IndexedHeading[] = [];
+  const stack: string[] = [];
+
+  for (const section of sections) {
+    if (!section.heading || !section.level) continue;
+
+    stack.length = section.level - 1;
+    stack[section.level - 1] = section.heading;
+
+    result.push({
+      text: section.heading,
+      level: section.level,
+      path: stack.filter(Boolean),
+    });
+  }
+
+  return result;
 }
 
 function createSnapshot(
@@ -162,9 +192,9 @@ function createSnapshot(
   }
 
   const edges = sortedNotes.flatMap((note) =>
-    note.wikiLinks.map((link) =>
-      resolveLink(note, link, byPath, byBasename),
-    ),
+    note.internalLinks
+      .filter(isNoteReference)
+      .map((link) => resolveLink(note, link, byPath, byBasename)),
   );
 
   return {
@@ -178,25 +208,22 @@ function createSnapshot(
 
 function resolveLink(
   source: IndexedNote,
-  link: WikiLink,
+  link: InternalLink,
   byPath: ReadonlyMap<string, readonly IndexedNote[]>,
   byBasename: ReadonlyMap<string, readonly IndexedNote[]>,
 ): KnowledgeEdge {
-  const normalizedTarget = normalizeTarget(link.target);
-  const pathMatches = byPath.get(normalizedTarget) ?? [];
-  const basenameMatches = byBasename.get(normalizedTarget) ?? [];
-  const matches =
-    pathMatches.length > 0
-      ? pathMatches
-      : basenameMatches;
-
   const base = {
     sourceNoteId: source.id,
     sourcePath: source.path,
+    syntax: link.syntax,
+    embed: link.embed,
     target: link.target,
     ...(link.heading ? { heading: link.heading } : {}),
+    ...(link.blockId ? { blockId: link.blockId } : {}),
     ...(link.alias ? { alias: link.alias } : {}),
   };
+
+  const matches = resolveTargetCandidates(source, link, byPath, byBasename);
 
   if (matches.length === 0) {
     return { ...base, resolution: "missing-note" };
@@ -207,15 +234,20 @@ function resolveLink(
   }
 
   const targetNote = matches[0]!;
-  if (
-    link.heading &&
-    !targetNote.headings.some(
-      (heading) => normalizeHeading(heading.text) === normalizeHeading(link.heading!),
-    )
-  ) {
+
+  if (link.heading && !hasHeading(targetNote, link.heading)) {
     return {
       ...base,
       resolution: "missing-heading",
+      targetNoteId: targetNote.id,
+      targetPath: targetNote.path,
+    };
+  }
+
+  if (link.blockId && !targetNote.blockIds.includes(link.blockId)) {
+    return {
+      ...base,
+      resolution: "missing-block",
       targetNoteId: targetNote.id,
       targetPath: targetNote.path,
     };
@@ -229,6 +261,70 @@ function resolveLink(
   };
 }
 
+function resolveTargetCandidates(
+  source: IndexedNote,
+  link: InternalLink,
+  byPath: ReadonlyMap<string, readonly IndexedNote[]>,
+  byBasename: ReadonlyMap<string, readonly IndexedNote[]>,
+): readonly IndexedNote[] {
+  if (!link.target) {
+    return [source];
+  }
+
+  const raw = normalizeDisplayPath(link.target);
+  const rootKey = normalizeTarget(raw);
+  const sourceDirectory = directoryName(source.path);
+  const relativeKey = normalizeTarget(resolveRelativePath(sourceDirectory, raw));
+
+  const orderedKeys =
+    link.syntax === "markdown"
+      ? raw.startsWith(".")
+        ? [relativeKey, rootKey]
+        : raw.includes("/")
+          ? [rootKey, relativeKey]
+          : [relativeKey, rootKey]
+      : [rootKey];
+
+  for (const key of unique(orderedKeys)) {
+    const matches = byPath.get(key) ?? [];
+    if (matches.length > 0) {
+      return matches;
+    }
+  }
+
+  return byBasename.get(normalizeTarget(baseName(raw))) ?? [];
+}
+
+function isNoteReference(link: InternalLink): boolean {
+  if (!link.target) return true;
+
+  const leaf = baseName(link.target);
+  const lastDot = leaf.lastIndexOf(".");
+  if (lastDot < 0) return true;
+
+  return leaf.slice(lastDot).toLocaleLowerCase() === ".md";
+}
+
+function hasHeading(note: IndexedNote, rawHeading: string): boolean {
+  const requested = rawHeading
+    .split("#")
+    .map(normalizeHeading)
+    .filter(Boolean);
+
+  if (requested.length === 0) return true;
+
+  return note.headings.some((heading) => {
+    const candidate = heading.path.map(normalizeHeading);
+    if (requested.length === 1) {
+      return candidate[candidate.length - 1] === requested[0];
+    }
+
+    if (candidate.length < requested.length) return false;
+    const tail = candidate.slice(candidate.length - requested.length);
+    return tail.every((part, index) => part === requested[index]);
+  });
+}
+
 function addLookup(
   map: Map<string, IndexedNote[]>,
   key: string,
@@ -240,6 +336,35 @@ function addLookup(
   } else {
     map.set(key, [note]);
   }
+}
+
+function resolveRelativePath(directory: string, target: string): string {
+  const parts = directory ? directory.split("/") : [];
+  for (const part of target.split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      parts.pop();
+    } else {
+      parts.push(part);
+    }
+  }
+  return parts.join("/");
+}
+
+function directoryName(path: string): string {
+  const normalized = normalizeDisplayPath(path);
+  const slash = normalized.lastIndexOf("/");
+  return slash >= 0 ? normalized.slice(0, slash) : "";
+}
+
+function baseName(path: string): string {
+  const normalized = normalizeDisplayPath(path);
+  const slash = normalized.lastIndexOf("/");
+  return slash >= 0 ? normalized.slice(slash + 1) : normalized;
+}
+
+function unique(values: readonly string[]): readonly string[] {
+  return [...new Set(values)];
 }
 
 function normalizeTarget(value: string): string {
