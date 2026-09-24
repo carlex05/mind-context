@@ -11,9 +11,13 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@mind-context/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.1"
   }
 }
