@@ -11,9 +11,11 @@
     "build:packages": "pnpm --filter './packages/**' -r --if-present build",
     "build": "pnpm build:packages && pnpm --filter @mind-context/web build",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck",
-    "test": "pnpm build:packages && pnpm -r --if-present test"
+    "test": "pnpm build:packages && pnpm -r --if-present test",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }

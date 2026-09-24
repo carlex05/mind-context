@@ -19,6 +19,7 @@ User knowledge stays between the user's browser/device and the storage provider 
 - Cloud AI is optional and must cross an explicit permission boundary.
 - The architecture is plugin-ready, but the MVP is not a plugin marketplace.
 - Plugins must use capability APIs and must never receive storage credentials.
+- UI flows must work on desktop and mobile without hover-only interactions.
 
 ## Repository layout
 
@@ -36,6 +37,8 @@ packages/
   embeddings/                Embedding provider contract
   ai/                        LLM provider contract
   extension-api/             Future capability-based extension API
+
+e2e/                         Playwright desktop/mobile browser tests
 
 docs/
   architecture/              Architecture rules and stack
@@ -65,11 +68,22 @@ Build the complete workspace:
 pnpm build
 ```
 
-Type-check all packages:
+Run contract/unit tests:
 
 ```bash
-pnpm typecheck
+pnpm test
 ```
+
+Run browser E2E tests after installing Chromium:
+
+```bash
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+The E2E suite runs the same Drive flow in desktop Chromium and a Pixel-class
+mobile viewport. Google Identity and Drive are simulated so CI never requires
+personal credentials.
 
 ## Current vertical slice
 
@@ -83,7 +97,8 @@ The UI is responsive from the start: desktop uses a split note/editor layout,
 while narrow screens switch between the note list and editor with touch-sized
 controls and no hover-only interactions.
 
-The next storage milestone is to exercise this path against a configured Google
-Cloud project, then add automated Drive-adapter and privacy/network tests.
+Automated tests now verify both the storage boundary and the browser flow,
+including that secret Markdown content is only observed in requests to the
+Google Drive upload endpoint.
 
 See [Architecture](docs/architecture/README.md).
