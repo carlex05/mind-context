@@ -8,8 +8,9 @@
   },
   "scripts": {
     "dev": "pnpm --filter @mind-context/web dev",
-    "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "build:packages": "pnpm --filter './packages/**' -r --if-present build",
+    "build": "pnpm build:packages && pnpm --filter @mind-context/web build",
+    "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test"
   },
   "devDependencies": {
