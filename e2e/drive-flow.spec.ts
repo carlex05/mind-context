@@ -23,7 +23,7 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   await expect(editor).toBeVisible();
 
   const secret = `TOP_SECRET_${testInfo.project.name}_83929`;
-  await editor.fill(`# Private\n\n${secret}`);
+  await replaceEditorContent(page, editor, `# Private\n\n${secret}`);
   await page.getByRole("button", { name: "Save" }).click();
 
   await expect(
@@ -72,7 +72,11 @@ test("derives wikilinks, backlinks and broken links locally", async ({
 
   await createNote(page, "Alpha");
   const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
-  await alphaEditor.fill("# Alpha\n\nLinks to [[Beta]] and [[Missing]].");
+  await replaceEditorContent(
+    page,
+    alphaEditor,
+    "# Alpha\n\nLinks to [[Beta]] and [[Missing]].",
+  );
   await page.getByRole("button", { name: "Save" }).click();
 
   await returnToExplorerOnMobile(page, testInfo.project.name);
@@ -114,18 +118,27 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
 
   await createNote(page, "Beta");
   const betaEditor = page.getByRole("textbox", { name: "Edit Beta.md" });
-  await betaEditor.fill("---\ntags:\n  - architecture\n---\n\n# Beta\n\n## Boundaries");
+  await replaceEditorContent(
+    page,
+    betaEditor,
+    "---\ntags:\n  - architecture\n---\n\n# Beta\n\n## Boundaries",
+  );
   await page.getByRole("button", { name: "Save" }).click();
   await returnToExplorerOnMobile(page, testInfo.project.name);
 
   await createNote(page, "Alpha");
   const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
-  await alphaEditor.fill("# Alpha\n\n[[");
+  await replaceEditorContent(page, alphaEditor, "# Alpha\n\n[[");
   await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("Beta");
 
   await page.getByRole("button", { name: "Read", exact: true }).click();
   await expect(page.getByLabel("Reading view")).toBeVisible();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await replaceEditorContent(page, alphaEditor, "# Alpha\n\nLinks to [[Beta]].");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(
+    page.getByText("Saved to Drive and updated the local knowledge index."),
+  ).toBeVisible();
 
   await page.keyboard.press("Control+O");
   const switcher = page.getByRole("dialog", { name: "Quick switcher" });
@@ -156,7 +169,11 @@ test("manages nested folders and safely rewrites resolved links on rename", asyn
 
   await createNote(page, "Alpha");
   const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
-  await alphaEditor.fill("# Alpha\n\nDepends on [[Beta]].");
+  await replaceEditorContent(
+    page,
+    alphaEditor,
+    "# Alpha\n\nDepends on [[Beta]].",
+  );
   await page.getByRole("button", { name: "Save" }).click();
 
   await returnToExplorerOnMobile(page, testInfo.project.name);
@@ -166,7 +183,7 @@ test("manages nested folders and safely rewrites resolved links on rename", asyn
   await returnToExplorerOnMobile(page, testInfo.project.name);
 
   const betaRow = page.locator(".tree-row").filter({ hasText: "Beta.md" });
-  await betaRow.getByRole("button", { name: "Beta.md" }).click();
+  await betaRow.getByRole("button", { name: "Beta.md", exact: true }).click();
   await returnToExplorerOnMobile(page, testInfo.project.name);
   await page.getByRole("button", { name: "Actions for Beta.md" }).click();
 
@@ -233,6 +250,16 @@ async function createFolder(page: Page, name: string): Promise<void> {
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
+}
+
+async function replaceEditorContent(
+  page: Page,
+  editor: ReturnType<Page["getByRole"]>,
+  content: string,
+): Promise<void> {
+  await editor.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText(content);
 }
 
 async function returnToExplorerOnMobile(
