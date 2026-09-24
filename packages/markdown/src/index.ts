@@ -1,10 +1,24 @@
 import remarkParse from "remark-parse";
 import { unified } from "unified";
+import { parse as parseYaml } from "yaml";
+
+export type InternalLinkSyntax = "wikilink" | "markdown";
+
+export interface InternalLink {
+  readonly syntax: InternalLinkSyntax;
+  readonly target: string;
+  readonly heading?: string;
+  readonly blockId?: string;
+  readonly alias?: string;
+  readonly embed: boolean;
+}
 
 export interface WikiLink {
   readonly target: string;
   readonly heading?: string;
+  readonly blockId?: string;
   readonly alias?: string;
+  readonly embed?: boolean;
 }
 
 export interface MarkdownSection {
@@ -15,8 +29,11 @@ export interface MarkdownSection {
 
 export interface ParsedMarkdown {
   readonly frontmatter: Readonly<Record<string, unknown>>;
+  readonly aliases: readonly string[];
   readonly wikiLinks: readonly WikiLink[];
+  readonly internalLinks: readonly InternalLink[];
   readonly tags: readonly string[];
+  readonly blockIds: readonly string[];
   readonly sections: readonly MarkdownSection[];
 }
 
@@ -28,6 +45,8 @@ interface MarkdownNode {
   readonly type: string;
   readonly value?: string;
   readonly depth?: number;
+  readonly url?: string;
+  readonly alt?: string;
   readonly children?: readonly MarkdownNode[];
   readonly position?: {
     readonly start: { readonly offset?: number };
@@ -42,18 +61,34 @@ interface HeadingPosition {
   readonly end: number;
 }
 
+interface FrontmatterExtraction {
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly body: string;
+}
+
 const WIKILINK_PATTERN =
-  /\[\[([^\]|#]+?)(?:#([^\]|]+?))?(?:\|([^\]]+?))?\]\]/g;
+  /(!)?\[\[([^\]|#]*?)(?:#([^\]|]*?))?(?:\|([^\]]*?))?\]\]/g;
 const TAG_PATTERN = /(?:^|\s)#([\p{L}\p{N}_/-]+)/gu;
+const BLOCK_ID_PATTERN = /(?:^|\s)\^([A-Za-z0-9-]+)$/;
 
 export class RemarkMarkdownParser implements MarkdownParser {
   private readonly processor = unified().use(remarkParse);
 
   parse(content: string): ParsedMarkdown {
-    const root = this.processor.parse(content) as MarkdownNode;
+    const { properties, body } = extractFrontmatter(content);
+    const root = this.processor.parse(body) as MarkdownNode;
     const wikiLinks: WikiLink[] = [];
-    const tags = new Set<string>();
+    const internalLinks: InternalLink[] = [];
+    const tags = new CaseInsensitiveSet();
+    const blockIds = new Set<string>();
     const headings: HeadingPosition[] = [];
+
+    for (const tag of propertyStringList(properties.tags)) {
+      const normalized = tag.replace(/^#/, "").trim();
+      if (isValidTag(normalized)) {
+        tags.add(normalized);
+      }
+    }
 
     walk(root, (node) => {
       if (
@@ -70,42 +105,169 @@ export class RemarkMarkdownParser implements MarkdownParser {
         });
       }
 
+      if ((node.type === "link" || node.type === "image") && node.url) {
+        const parsed = parseMarkdownInternalLink(
+          node.url,
+          node.type === "image",
+          node.type === "image" ? node.alt : plainText(node),
+        );
+        if (parsed) {
+          internalLinks.push(parsed);
+        }
+      }
+
       if (node.type !== "text" || node.value === undefined) {
         return;
       }
 
       for (const match of node.value.matchAll(WIKILINK_PATTERN)) {
-        const target = match[1]?.trim();
-        if (!target) continue;
+        const target = match[2]?.trim() ?? "";
+        const fragment = match[3]?.trim();
+        const display = match[4]?.trim();
+        const embed = match[1] === "!";
+        const { heading, blockId } = parseFragment(fragment);
 
-        const heading = match[2]?.trim();
-        const alias = match[3]?.trim();
-
+        const link: InternalLink = {
+          syntax: "wikilink",
+          target,
+          embed,
+          ...(heading ? { heading } : {}),
+          ...(blockId ? { blockId } : {}),
+          ...(display ? { alias: display } : {}),
+        };
+        internalLinks.push(link);
         wikiLinks.push({
           target,
           ...(heading ? { heading } : {}),
-          ...(alias ? { alias } : {}),
+          ...(blockId ? { blockId } : {}),
+          ...(display ? { alias: display } : {}),
+          ...(embed ? { embed: true } : {}),
         });
       }
 
       for (const match of node.value.matchAll(TAG_PATTERN)) {
         const tag = match[1]?.trim();
-        if (tag) {
+        if (tag && isValidTag(tag)) {
           tags.add(tag);
         }
+      }
+
+      const blockMatch = BLOCK_ID_PATTERN.exec(node.value.trim());
+      if (blockMatch?.[1]) {
+        blockIds.add(blockMatch[1]);
       }
     });
 
     return {
-      frontmatter: {},
+      frontmatter: properties,
+      aliases: propertyStringList(properties.aliases),
       wikiLinks,
-      tags: [...tags],
-      sections: buildSections(content, headings),
+      internalLinks,
+      tags: tags.values(),
+      blockIds: [...blockIds],
+      sections: buildSections(body, headings),
     };
   }
 }
 
 export const markdownParser: MarkdownParser = new RemarkMarkdownParser();
+
+function extractFrontmatter(content: string): FrontmatterExtraction {
+  const normalized = content.startsWith("\uFEFF") ? content.slice(1) : content;
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(normalized);
+
+  if (!match) {
+    return { properties: {}, body: normalized };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(match[1] ?? "");
+  } catch {
+    parsed = {};
+  }
+
+  return {
+    properties:
+      parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Readonly<Record<string, unknown>>)
+        : {},
+    body: normalized.slice(match[0].length),
+  };
+}
+
+function parseMarkdownInternalLink(
+  rawUrl: string,
+  embed: boolean,
+  displayText: string | undefined,
+): InternalLink | undefined {
+  const decoded = safeDecodeURIComponent(rawUrl.trim());
+
+  if (
+    !decoded ||
+    decoded.startsWith("http://") ||
+    decoded.startsWith("https://") ||
+    decoded.startsWith("mailto:") ||
+    decoded.startsWith("tel:") ||
+    decoded.startsWith("data:")
+  ) {
+    return undefined;
+  }
+
+  const hashIndex = decoded.indexOf("#");
+  const target = hashIndex >= 0 ? decoded.slice(0, hashIndex) : decoded;
+  const fragment = hashIndex >= 0 ? decoded.slice(hashIndex + 1) : undefined;
+  const { heading, blockId } = parseFragment(fragment);
+  const alias = displayText?.trim();
+
+  return {
+    syntax: "markdown",
+    target,
+    embed,
+    ...(heading ? { heading } : {}),
+    ...(blockId ? { blockId } : {}),
+    ...(alias ? { alias } : {}),
+  };
+}
+
+function parseFragment(
+  fragment: string | undefined,
+): { readonly heading?: string; readonly blockId?: string } {
+  if (!fragment) {
+    return {};
+  }
+
+  if (fragment.startsWith("^")) {
+    const blockId = fragment.slice(1).trim();
+    return blockId ? { blockId } : {};
+  }
+
+  return { heading: fragment };
+}
+
+function propertyStringList(value: unknown): readonly string[] {
+  if (typeof value === "string") {
+    return [value];
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  return [];
+}
+
+function isValidTag(value: string): boolean {
+  return value.length > 0 && !/^\d+$/u.test(value);
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
 
 function walk(
   node: MarkdownNode,
@@ -123,6 +285,10 @@ function plainText(node: MarkdownNode): string {
     node.value !== undefined
   ) {
     return node.value;
+  }
+
+  if (node.type === "image") {
+    return node.alt ?? "";
   }
 
   return (node.children ?? []).map(plainText).join("");
@@ -162,4 +328,20 @@ function buildSections(
   }
 
   return sections;
+}
+
+class CaseInsensitiveSet {
+  private readonly keys = new Set<string>();
+  private readonly originalValues: string[] = [];
+
+  add(value: string): void {
+    const key = value.toLocaleLowerCase();
+    if (this.keys.has(key)) return;
+    this.keys.add(key);
+    this.originalValues.push(value);
+  }
+
+  values(): readonly string[] {
+    return this.originalValues;
+  }
 }
