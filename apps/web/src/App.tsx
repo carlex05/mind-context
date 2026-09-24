@@ -28,6 +28,12 @@ import {
 } from "./googleIdentity";
 import { buildWorkspaceKnowledgeIndex } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { WorkspaceExplorer } from "./WorkspaceExplorer";
+import {
+  findWorkspaceNode,
+  loadWorkspaceTree,
+  type WorkspaceTreeNode,
+} from "./workspaceTree";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
 const knowledgeStore = new IndexedDbKnowledgeIndexStore();
@@ -55,13 +61,11 @@ export function App() {
     useState<GoogleDriveWorkspace>();
   const [provider, setProvider] =
     useState<GoogleDriveStorageProvider>();
-  const [items, setItems] = useState<
-    readonly StorageObjectMetadata[]
-  >([]);
+  const [tree, setTree] = useState<readonly WorkspaceTreeNode[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState("");
   const [openNote, setOpenNote] = useState<OpenNote>();
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState("My Second Brain");
-  const [newNoteName, setNewNoteName] = useState("");
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
   const [mobileContextOpen, setMobileContextOpen] = useState(false);
@@ -71,17 +75,6 @@ export function App() {
     openNote !== undefined && draft !== openNote.originalContent;
 
   const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
-
-  const visibleItems = useMemo(
-    () =>
-      items.filter(
-        (item) =>
-          item.kind === "directory" ||
-          item.mediaType === "text/markdown" ||
-          item.name.toLowerCase().endsWith(".md"),
-      ),
-    [items],
-  );
 
   const currentIndexedNote = openNote
     ? getNote(knowledgeIndex, openNote.metadata.id)
@@ -166,22 +159,22 @@ export function App() {
         setKnowledgeIndex(cached);
       }
 
-      const nextItems = await nextProvider.list();
       setProvider(nextProvider);
       setActiveWorkspace(workspace);
-      setItems(nextItems);
+      setSelectedFolderId(nextProvider.rootId);
       setOpenNote(undefined);
       setDraft("");
       setMobileContextOpen(false);
 
       setStatus({
         kind: "busy",
-        message: "Rebuilding local knowledge index from Markdown…",
+        message: "Loading vault tree and rebuilding local knowledge index…",
       });
-      const rebuilt = await buildWorkspaceKnowledgeIndex(
-        nextProvider,
-        workspace.id,
-      );
+      const [nextTree, rebuilt] = await Promise.all([
+        loadWorkspaceTree(nextProvider),
+        buildWorkspaceKnowledgeIndex(nextProvider, workspace.id),
+      ]);
+      setTree(nextTree);
       await knowledgeStore.put(rebuilt);
       setKnowledgeIndex(rebuilt);
       setStatus({
@@ -195,24 +188,47 @@ export function App() {
     }
   }
 
-  async function refreshItems() {
+  async function refreshWorkspaceState() {
     if (!provider || !activeWorkspace) return;
 
     setStatus({
       kind: "busy",
-      message: "Refreshing files and rebuilding local index…",
+      message: "Refreshing vault tree and rebuilding local index…",
     });
     try {
-      const [nextItems, rebuilt] = await Promise.all([
-        provider.list(),
+      const [nextTree, rebuilt] = await Promise.all([
+        loadWorkspaceTree(provider),
         buildWorkspaceKnowledgeIndex(provider, activeWorkspace.id),
       ]);
       await knowledgeStore.put(rebuilt);
-      setItems(nextItems);
+      setTree(nextTree);
       setKnowledgeIndex(rebuilt);
+
+      if (
+        selectedFolderId !== provider.rootId &&
+        !findWorkspaceNode(nextTree, selectedFolderId)
+      ) {
+        setSelectedFolderId(provider.rootId);
+      }
+
+      if (openNote) {
+        try {
+          const metadata = await provider.metadata(openNote.metadata.id);
+          setOpenNote((current) =>
+            current ? { ...current, metadata } : current,
+          );
+        } catch {
+          setOpenNote(undefined);
+          setDraft("");
+          setMobileContextOpen(false);
+        }
+      }
+
       setStatus({
         kind: "success",
-        message: `Local index rebuilt from ${rebuilt.notes.length} notes.`,
+        message: `Vault refreshed from ${rebuilt.notes.length} note${
+          rebuilt.notes.length === 1 ? "" : "s"
+        }.`,
       });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
@@ -246,56 +262,6 @@ export function App() {
     }
   }
 
-  async function selectNote(item: StorageObjectMetadata) {
-    if (item.kind !== "file") return;
-    await openNoteById(item.id);
-  }
-
-  async function createNote() {
-    if (!provider || !newNoteName.trim()) return;
-
-    setStatus({ kind: "busy", message: "Creating note…" });
-    try {
-      const metadata = await provider.createText(
-        provider.rootId,
-        newNoteName,
-        "# New note\n\n",
-      );
-      const content = await provider.readText(metadata.id);
-      setNewNoteName("");
-      setItems(await provider.list());
-      setOpenNote({ metadata, originalContent: content });
-      setDraft(content);
-      setMobileContextOpen(false);
-
-      if (activeWorkspace) {
-        const base =
-          knowledgeIndex ??
-          {
-            schemaVersion: 1 as const,
-            workspaceId: activeWorkspace.id,
-            builtAt: new Date().toISOString(),
-            notes: [],
-            edges: [],
-          };
-        const updated = upsertKnowledgeDocument(base, {
-          id: metadata.id,
-          path: metadata.name,
-          name: metadata.name,
-          content,
-          ...(metadata.modifiedAt ? { modifiedAt: metadata.modifiedAt } : {}),
-          ...(metadata.revision ? { revision: metadata.revision } : {}),
-        });
-        await knowledgeStore.put(updated);
-        setKnowledgeIndex(updated);
-      }
-
-      setStatus({ kind: "success", message: `${metadata.name} created.` });
-    } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
-    }
-  }
-
   async function saveNote() {
     if (!provider || !openNote) return;
 
@@ -309,8 +275,6 @@ export function App() {
           : undefined,
       );
       setOpenNote({ metadata, originalContent: draft });
-      setItems(await provider.list());
-
       if (knowledgeIndex) {
         const existing = getNote(knowledgeIndex, metadata.id);
         const updated = upsertKnowledgeDocument(knowledgeIndex, {
@@ -353,7 +317,8 @@ export function App() {
     if (!confirmDiscardIfDirty()) return;
     setActiveWorkspace(undefined);
     setProvider(undefined);
-    setItems([]);
+    setTree([]);
+    setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
     setKnowledgeIndex(undefined);
@@ -367,7 +332,8 @@ export function App() {
     setWorkspaces([]);
     setActiveWorkspace(undefined);
     setProvider(undefined);
-    setItems([]);
+    setTree([]);
+    setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
     setKnowledgeIndex(undefined);
@@ -433,8 +399,8 @@ export function App() {
             <button
               className="icon-button"
               type="button"
-              onClick={() => void refreshItems()}
-              aria-label="Refresh notes and local index"
+              onClick={() => void refreshWorkspaceState()}
+              aria-label="Refresh vault and local index"
             >
               ↻
             </button>
@@ -445,55 +411,19 @@ export function App() {
             <span>{getBrokenLinks(knowledgeIndex).length} broken links</span>
           </div>
 
-          <form
-            className="new-note-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void createNote();
-            }}
-          >
-            <label htmlFor="note-name">New Markdown note</label>
-            <div className="inline-form">
-              <input
-                id="note-name"
-                value={newNoteName}
-                onChange={(event) => setNewNoteName(event.target.value)}
-                placeholder="Idea or project"
-                autoComplete="off"
-              />
-              <button
-                type="submit"
-                disabled={!newNoteName.trim()}
-              >
-                Add
-              </button>
-            </div>
-          </form>
-
-          <nav className="note-list" aria-label="Workspace files">
-            {visibleItems.length === 0 ? (
-              <p className="empty-state">
-                No Markdown notes yet. Create one above.
-              </p>
-            ) : (
-              visibleItems.map((item) => (
-                <button
-                  className={`note-row ${
-                    openNote?.metadata.id === item.id ? "active" : ""
-                  }`}
-                  type="button"
-                  key={item.id}
-                  onClick={() => void selectNote(item)}
-                  disabled={item.kind === "directory"}
-                >
-                  <span aria-hidden="true">
-                    {item.kind === "directory" ? "▸" : "◇"}
-                  </span>
-                  <span>{item.name}</span>
-                </button>
-              ))
-            )}
-          </nav>
+          <WorkspaceExplorer
+            provider={provider}
+            tree={tree}
+            index={knowledgeIndex}
+            activeNoteId={openNote?.metadata.id}
+            selectedFolderId={selectedFolderId || provider.rootId}
+            onSelectedFolderIdChange={setSelectedFolderId}
+            onOpenNote={(noteId) => void openNoteById(noteId)}
+            onChanged={refreshWorkspaceState}
+            onStatus={(message, kind = "success") =>
+              setStatus({ kind, message })
+            }
+          />
         </aside>
 
         <section className="editor-panel" aria-label="Markdown editor">
