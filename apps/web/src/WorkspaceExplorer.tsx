@@ -337,7 +337,7 @@ function TreeNode({
 }: {
   readonly node: WorkspaceTreeNode;
   readonly depth: number;
-  readonly activeNoteId?: string;
+  readonly activeNoteId: string | undefined;
   readonly selectedItemId: string | undefined;
   readonly selectedFolderId: string;
   readonly expanded: ReadonlySet<string>;
