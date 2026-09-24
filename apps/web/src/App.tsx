@@ -9,7 +9,10 @@ import {
   type KnowledgeEdge,
   type KnowledgeIndexSnapshot,
 } from "@mind-context/knowledge";
-import { markdownParser } from "@mind-context/markdown";
+import {
+  markdownParser,
+  updateFrontmatterStringList,
+} from "@mind-context/markdown";
 import { IndexedDbKnowledgeIndexStore } from "@mind-context/persistence-indexeddb";
 import {
   GoogleDriveApiError,
@@ -30,6 +33,7 @@ import { buildWorkspaceKnowledgeIndex } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
+import { PropertiesEditor } from "./PropertiesEditor";
 import { QuickSwitcher } from "./QuickSwitcher";
 import {
   applyThemePreference,
@@ -92,6 +96,10 @@ export function App() {
     () => readThemePreference(),
   );
   const [recentNoteIds, setRecentNoteIds] = useState<readonly string[]>([]);
+  const [navigation, setNavigation] = useState<{
+    readonly entries: readonly string[];
+    readonly index: number;
+  }>({ entries: [], index: -1 });
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
 
   const dirty =
@@ -111,6 +119,11 @@ export function App() {
   const brokenLinks = openNote
     ? getBrokenLinks(knowledgeIndex, openNote.metadata.id)
     : [];
+  const frontmatterTags = stringListProperty(parsedDraft.frontmatter.tags);
+  const frontmatterAliases = stringListProperty(parsedDraft.frontmatter.aliases);
+  const canNavigateBack = navigation.index > 0;
+  const canNavigateForward =
+    navigation.index >= 0 && navigation.index < navigation.entries.length - 1;
 
   const editorLinkTargets = useMemo(
     () =>
@@ -230,6 +243,7 @@ export function App() {
       setSelectedFolderId(nextProvider.rootId);
       setOpenNote(undefined);
       setDraft("");
+      setNavigation({ entries: [], index: -1 });
       setMobileContextOpen(false);
 
       setStatus({
@@ -302,9 +316,12 @@ export function App() {
     }
   }
 
-  async function openNoteById(id: string) {
-    if (!provider) return;
-    if (!confirmDiscardIfDirty()) return;
+  async function openNoteById(
+    id: string,
+    historyMode: "push" | "back" | "forward" = "push",
+  ): Promise<boolean> {
+    if (!provider) return false;
+    if (!confirmDiscardIfDirty()) return false;
 
     const indexed = getNote(knowledgeIndex, id);
     setStatus({
@@ -329,7 +346,54 @@ export function App() {
           rememberRecentNote(activeWorkspace.id, current, id),
         );
       }
+
+      setNavigation((current) => {
+        if (historyMode === "back") {
+          return { ...current, index: Math.max(0, current.index - 1) };
+        }
+        if (historyMode === "forward") {
+          return {
+            ...current,
+            index: Math.min(current.entries.length - 1, current.index + 1),
+          };
+        }
+
+        if (current.entries[current.index] === id) return current;
+        const entries = [...current.entries.slice(0, current.index + 1), id].slice(-50);
+        return { entries, index: entries.length - 1 };
+      });
+
       setStatus({ kind: "idle" });
+      return true;
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error) });
+      return false;
+    }
+  }
+
+  async function navigateHistory(direction: "back" | "forward") {
+    const nextIndex =
+      direction === "back" ? navigation.index - 1 : navigation.index + 1;
+    const target = navigation.entries[nextIndex];
+    if (!target) return;
+    await openNoteById(target, direction);
+  }
+
+  function updateTags(tags: readonly string[]) {
+    try {
+      setDraft((current) =>
+        updateFrontmatterStringList(current, "tags", tags),
+      );
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error) });
+    }
+  }
+
+  function updateAliases(aliases: readonly string[]) {
+    try {
+      setDraft((current) =>
+        updateFrontmatterStringList(current, "aliases", aliases),
+      );
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
     }
@@ -447,6 +511,7 @@ export function App() {
     setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
+    setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
     setMobileContextOpen(false);
     setQuickSwitcherOpen(false);
@@ -464,6 +529,7 @@ export function App() {
     setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
+    setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
     setMobileContextOpen(false);
     setQuickSwitcherOpen(false);
@@ -505,6 +571,24 @@ export function App() {
     >
       <header className="topbar">
         <div className="topbar-copy">
+          <div className="history-controls" aria-label="Note navigation">
+            <button
+              type="button"
+              aria-label="Back"
+              disabled={!canNavigateBack}
+              onClick={() => void navigateHistory("back")}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              aria-label="Forward"
+              disabled={!canNavigateForward}
+              onClick={() => void navigateHistory("forward")}
+            >
+              →
+            </button>
+          </div>
           <button className="text-button" type="button" onClick={leaveWorkspace}>
             {activeWorkspace.name}
           </button>
@@ -647,7 +731,11 @@ export function App() {
                   onChange={setDraft}
                 />
               ) : (
-                <MarkdownPreview content={draft} />
+                <MarkdownPreview
+                  content={draft}
+                  outgoingLinks={outgoingLinks}
+                  onOpenNote={(noteId) => void openNoteById(noteId)}
+                />
               )}
             </>
           ) : (
@@ -671,8 +759,11 @@ export function App() {
             broken={brokenLinks}
             index={knowledgeIndex}
             properties={parsedDraft.frontmatter}
-            tags={parsedDraft.tags}
-            aliases={parsedDraft.aliases}
+            tags={frontmatterTags}
+            aliases={frontmatterAliases}
+            knownTags={knownTags}
+            onTagsChange={updateTags}
+            onAliasesChange={updateAliases}
             onOpenNote={(noteId) => void openNoteById(noteId)}
             onBackToNote={() => setMobileContextOpen(false)}
           />
@@ -717,6 +808,9 @@ function KnowledgePanel({
   properties,
   tags,
   aliases,
+  knownTags,
+  onTagsChange,
+  onAliasesChange,
   onOpenNote,
   onBackToNote,
 }: {
@@ -728,6 +822,9 @@ function KnowledgePanel({
   readonly properties: Readonly<Record<string, unknown>>;
   readonly tags: readonly string[];
   readonly aliases: readonly string[];
+  readonly knownTags: readonly string[];
+  readonly onTagsChange: (tags: readonly string[]) => void;
+  readonly onAliasesChange: (aliases: readonly string[]) => void;
   readonly onOpenNote: (noteId: string) => void;
   readonly onBackToNote: () => void;
 }) {
@@ -739,26 +836,28 @@ function KnowledgePanel({
       <span className="section-label">Context</span>
       <h2>{noteTitle}</h2>
 
-      {(tags.length > 0 || aliases.length > 0 || Object.keys(properties).length > 0) ? (
-        <section className="properties-summary">
-          <h3>Properties</h3>
-          {tags.length > 0 ? (
-            <div className="property-row">
-              <span>Tags</span>
-              <div className="chip-list">
-                {tags.map((tag) => <span className="tag-chip" key={tag}>#{tag}</span>)}
+      <PropertiesEditor
+        tags={tags}
+        aliases={aliases}
+        knownTags={knownTags}
+        onTagsChange={onTagsChange}
+        onAliasesChange={onAliasesChange}
+      />
+
+      {Object.keys(properties).filter(
+        (key) => key !== "tags" && key !== "aliases",
+      ).length > 0 ? (
+        <details className="other-properties">
+          <summary>Other properties</summary>
+          {Object.entries(properties)
+            .filter(([key]) => key !== "tags" && key !== "aliases")
+            .map(([key, value]) => (
+              <div className="property-readonly-row" key={key}>
+                <span>{key}</span>
+                <code>{formatPropertyValue(value)}</code>
               </div>
-            </div>
-          ) : null}
-          {aliases.length > 0 ? (
-            <div className="property-row">
-              <span>Aliases</span>
-              <div className="chip-list">
-                {aliases.map((alias) => <span className="property-chip" key={alias}>{alias}</span>)}
-              </div>
-            </div>
-          ) : null}
-        </section>
+            ))}
+        </details>
       ) : null}
 
       <KnowledgeSection title="Links" empty="No outgoing links.">
@@ -1117,4 +1216,23 @@ function rememberRecentNote(
   const next = [noteId, ...current.filter((id) => id !== noteId)].slice(0, 12);
   window.localStorage.setItem(recentNotesKey(workspaceId), JSON.stringify(next));
   return next;
+}
+
+
+function stringListProperty(value: unknown): readonly string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  return [];
+}
+
+function formatPropertyValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
