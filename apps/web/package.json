@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@mind-context/core": "workspace:*",
+    "@mind-context/storage": "workspace:*",
+    "@mind-context/storage-google-drive": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
