@@ -70,7 +70,8 @@ pre,
 }
 
 .landing-shell,
-.chooser-shell {
+.chooser-shell,
+.preview-shell {
   width: min(1100px, calc(100% - 32px));
   margin: 0 auto;
   padding:
@@ -128,7 +129,8 @@ h2 {
 
 .principles-card,
 .create-card,
-.existing-card {
+.existing-card,
+.setup-card {
   padding: 24px;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -206,15 +208,8 @@ h2 {
   border-style: dashed;
 }
 
-.code-card {
-  overflow-x: auto;
-  padding: 16px;
-  background: #171717;
-  color: #fff;
-  border-radius: 12px;
-}
-
-.chooser-header {
+.chooser-header,
+.preview-intro {
   display: flex;
   gap: 32px;
   justify-content: space-between;
@@ -222,13 +217,52 @@ h2 {
   margin-bottom: 42px;
 }
 
-.chooser-header h1 {
+.chooser-header h1,
+.preview-intro h1 {
   font-size: clamp(2.5rem, 6vw, 4.8rem);
 }
 
-.chooser-header p {
+.chooser-header p,
+.preview-intro p {
   max-width: 660px;
   line-height: 1.6;
+}
+
+.preview-warning {
+  max-width: 280px;
+  padding: 12px 14px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.preview-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.demo-editor-card {
+  min-height: min(620px, 68dvh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.setup-card {
+  max-width: 720px;
+}
+
+.setup-card p {
+  margin-bottom: 10px;
+  line-height: 1.55;
+}
+
+.setup-card p:last-child {
+  margin-bottom: 0;
 }
 
 .chooser-grid {
@@ -454,18 +488,37 @@ h2 {
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: clamp(18px, 4vw, 48px);
-  resize: none;
-  font-size: 0.96rem;
-  line-height: 1.65;
+  overflow: hidden;
   background: #fff;
-  border: 0;
-  border-radius: 0;
-  outline: none;
 }
 
-.markdown-editor:focus {
+.markdown-editor .cm-editor {
+  height: 100%;
+  min-height: 0;
+  background: #fff;
+}
+
+.markdown-editor .cm-scroller {
+  overflow: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  line-height: 1.65;
+}
+
+.markdown-editor .cm-content {
+  min-height: 100%;
+  padding: clamp(18px, 4vw, 48px);
+  caret-color: #171717;
+}
+
+.markdown-editor .cm-focused {
+  outline: none;
   box-shadow: inset 0 0 0 2px #171717;
+}
+
+.markdown-editor .cm-gutters {
+  color: #8b8b84;
+  background: #fafaf7;
+  border-right: 1px solid #e3e3dc;
 }
 
 .editor-empty {
@@ -494,9 +547,15 @@ h2 {
     align-content: center;
   }
 
-  .chooser-header {
+  .chooser-header,
+  .preview-intro {
     flex-direction: column;
     margin-bottom: 28px;
+  }
+
+  .preview-warning {
+    max-width: none;
+    width: 100%;
   }
 
   .chooser-header .secondary-button {
@@ -559,24 +618,36 @@ h2 {
 
   .markdown-editor {
     min-height: calc(100dvh - 126px);
+  }
+
+  .demo-editor-card .markdown-editor {
+    min-height: 54dvh;
+  }
+
+  .markdown-editor .cm-scroller {
+    font-size: 16px;
+  }
+
+  .markdown-editor .cm-content {
     padding:
       18px
       max(16px, env(safe-area-inset-right))
       max(28px, env(safe-area-inset-bottom))
       max(16px, env(safe-area-inset-left));
-    font-size: 16px;
   }
 }
 
 @media (max-width: 420px) {
   .landing-shell,
-  .chooser-shell {
+  .chooser-shell,
+  .preview-shell {
     width: min(100% - 24px, 1100px);
   }
 
   .principles-card,
   .create-card,
-  .existing-card {
+  .existing-card,
+  .setup-card {
     padding: 18px;
     border-radius: 14px;
   }

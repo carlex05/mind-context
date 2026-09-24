@@ -2,11 +2,23 @@
 
 MindContext is a privacy-first, local-first, Markdown-first knowledge workspace.
 
-The long-term product thesis is simple:
-
 > **Markdown is the source of truth. Everything else is a disposable projection.**
 
 User knowledge stays between the user's browser/device and the storage provider selected by the user. The first storage provider is Google Drive. MindContext-controlled infrastructure must not require note contents, embeddings, search queries, or RAG context.
+
+## Current state
+
+The repository now contains:
+
+- React + Vite responsive web shell.
+- CodeMirror 6 Markdown editor.
+- a single remark/mdast-based Markdown parser boundary.
+- headings, sections, tags and `[[wikilinks]]` extraction.
+- Google Drive `drive.file` storage adapter.
+- conflict detection before overwriting Drive content.
+- desktop and mobile Playwright coverage.
+- privacy tests that assert secret Markdown content only reaches the Drive upload endpoint.
+- GitHub Pages deployment workflow with a credential-free editor preview.
 
 ## Architecture principles
 
@@ -20,30 +32,6 @@ User knowledge stays between the user's browser/device and the storage provider 
 - The architecture is plugin-ready, but the MVP is not a plugin marketplace.
 - Plugins must use capability APIs and must never receive storage credentials.
 - UI flows must work on desktop and mobile without hover-only interactions.
-
-## Repository layout
-
-```text
-apps/
-  web/                       React + Vite browser application
-
-packages/
-  core/                      Domain primitives and product principles
-  storage/                   StorageProvider contract
-  storage-google-drive/      Google Drive adapter + workspace discovery
-  markdown/                  Markdown parsing/domain contract
-  persistence/               Disposable local-derived-state contract
-  search/                    Search and retrieval contracts
-  embeddings/                Embedding provider contract
-  ai/                        LLM provider contract
-  extension-api/             Future capability-based extension API
-
-e2e/                         Playwright desktop/mobile browser tests
-
-docs/
-  architecture/              Architecture rules and stack
-  adr/                       Accepted architecture decisions
-```
 
 ## Development
 
@@ -59,46 +47,30 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-To exercise the Google Drive slice, configure a Google OAuth Web Client ID in
+To exercise real Google Drive, configure a Google OAuth Web Client ID in
 `.env.local`. See [Google Drive development setup](docs/google-drive-setup.md).
 
-Build the complete workspace:
-
 ```bash
-pnpm build
-```
-
-Run contract/unit tests:
-
-```bash
+pnpm typecheck
 pnpm test
-```
-
-Run browser E2E tests after installing Chromium:
-
-```bash
+pnpm build
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-The E2E suite runs the same Drive flow in desktop Chromium and a Pixel-class
-mobile viewport. Google Identity and Drive are simulated so CI never requires
-personal credentials.
+## Public preview
 
-## Current vertical slice
-
-The browser can now be wired to:
+The project is prepared for GitHub Pages at:
 
 ```text
-Browser <-> Google Drive <-> MindContext-created workspace <-> Markdown files
+https://carlex05.github.io/mind-context/
 ```
 
-The UI is responsive from the start: desktop uses a split note/editor layout,
-while narrow screens switch between the note list and editor with touch-sized
-controls and no hover-only interactions.
+GitHub Pages needs one-time repository enablement before the first deployment.
+See [deployment instructions](docs/deployment.md).
 
-Automated tests now verify both the storage boundary and the browser flow,
-including that secret Markdown content is only observed in requests to the
-Google Drive upload endpoint.
+Without a configured Google Client ID, the deployed site intentionally exposes a
+non-persistent local editor demo so the responsive UI and Markdown parser can be
+tested safely.
 
 See [Architecture](docs/architecture/README.md).

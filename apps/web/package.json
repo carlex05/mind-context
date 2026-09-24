@@ -9,9 +9,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/view": "^6.43.13",
     "@mind-context/core": "workspace:*",
+    "@mind-context/markdown": "workspace:*",
     "@mind-context/storage": "workspace:*",
     "@mind-context/storage-google-drive": "workspace:*",
+    "codemirror": "^6.0.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

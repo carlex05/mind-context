@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { PRODUCT_PRINCIPLES } from "@mind-context/core";
+import { markdownParser } from "@mind-context/markdown";
 import {
   GoogleDriveApiError,
   GoogleDriveStorageProvider,
@@ -15,6 +16,7 @@ import {
   requestGoogleDriveAccess,
   type GoogleDriveAuthSession,
 } from "./googleIdentity";
+import { MarkdownEditor } from "./MarkdownEditor";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
 
@@ -52,6 +54,8 @@ export function App() {
 
   const dirty =
     openNote !== undefined && draft !== openNote.originalContent;
+
+  const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
 
   const visibleItems = useMemo(
     () =>
@@ -247,9 +251,7 @@ export function App() {
   }
 
   if (!authSession || !workspaceService) {
-    return (
-      <Landing status={status} onConnect={connectDrive} />
-    );
+    return <Landing status={status} onConnect={connectDrive} />;
   }
 
   if (!activeWorkspace || !provider) {
@@ -364,7 +366,11 @@ export function App() {
                 </button>
                 <div className="editor-title">
                   <strong>{openNote.metadata.name}</strong>
-                  <span>{dirty ? "Unsaved changes" : "Saved"}</span>
+                  <span>
+                    {dirty ? "Unsaved changes" : "Saved"} ·{" "}
+                    {parsedDraft.sections.filter((section) => section.heading).length} headings ·{" "}
+                    {parsedDraft.wikiLinks.length} links
+                  </span>
                 </div>
                 <button
                   className="primary-button"
@@ -375,12 +381,11 @@ export function App() {
                   Save
                 </button>
               </div>
-              <textarea
-                className="markdown-editor"
+              <MarkdownEditor
+                key={openNote.metadata.id}
                 value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                spellCheck
-                aria-label={`Edit ${openNote.metadata.name}`}
+                label={`Edit ${openNote.metadata.name}`}
+                onChange={setDraft}
               />
             </>
           ) : (
@@ -388,9 +393,9 @@ export function App() {
               <span className="section-label">Markdown-first</span>
               <h2>Select a note</h2>
               <p>
-                Notes are read from and saved directly to the workspace in your
-                Google Drive. The editor currently uses a simple text surface;
-                CodeMirror arrives in the editor-focused slice.
+                Notes are read from and saved directly to your Google Drive.
+                CodeMirror provides the editing surface while the Markdown
+                parser independently derives headings, tags and wikilinks.
               </p>
             </div>
           )}
@@ -540,22 +545,68 @@ function WorkspaceChooser({
   );
 }
 
+const DEMO_MARKDOWN = `# MindContext demo
+
+This is a local, non-persistent preview of the Markdown editor.
+
+## Links
+
+Try editing [[Architecture]], [[Privacy#Boundaries]] or [[Google Drive|storage]].
+
+## Tags
+
+#markdown #local-first
+`;
+
 function ConfigurationRequired() {
+  const [demoContent, setDemoContent] = useState(DEMO_MARKDOWN);
+  const parsed = useMemo(
+    () => markdownParser.parse(demoContent),
+    [demoContent],
+  );
+
   return (
-    <main className="landing-shell">
-      <section className="hero">
-        <span className="eyebrow">Setup required</span>
-        <h1>Google Drive is not configured yet.</h1>
-        <p className="lede">
-          Copy <code>.env.example</code> to <code>.env.local</code>, add your
-          Google OAuth Web Client ID, then restart Vite.
-        </p>
-        <pre className="code-card">
-          VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-        </pre>
+    <main className="preview-shell">
+      <header className="preview-intro">
+        <div>
+          <span className="eyebrow">Public preview</span>
+          <h1>MindContext editor preview.</h1>
+          <p className="lede">
+            Google Drive is not configured for this deployment yet, but you can
+            already test the Markdown editing experience on desktop or mobile.
+          </p>
+        </div>
+        <div className="preview-warning">
+          Demo only · content stays in this page and is not persisted.
+        </div>
+      </header>
+
+      <section className="demo-editor-card">
+        <div className="editor-toolbar">
+          <div className="editor-title">
+            <strong>Demo.md</strong>
+            <span>
+              {parsed.sections.filter((section) => section.heading).length} headings ·{" "}
+              {parsed.wikiLinks.length} wikilinks · {parsed.tags.length} tags
+            </span>
+          </div>
+        </div>
+        <MarkdownEditor
+          value={demoContent}
+          label="Edit Demo.md"
+          onChange={setDemoContent}
+        />
+      </section>
+
+      <section className="setup-card">
+        <span className="section-label">Enable real Google Drive</span>
         <p>
-          See <code>docs/google-drive-setup.md</code> for the Google Cloud
-          configuration.
+          Set the repository variable <code>GOOGLE_CLIENT_ID</code> for the
+          Pages build, or use <code>VITE_GOOGLE_CLIENT_ID</code> locally.
+        </p>
+        <p>
+          The OAuth client ID is public application configuration; note content
+          and access tokens are still never routed through MindContext servers.
         </p>
       </section>
     </main>
