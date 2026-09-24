@@ -53,14 +53,16 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
     expect(url.pathname.startsWith("/upload/drive/v3/files")).toBe(true);
   }
 
+  const mobileBackButton = page.locator(".mobile-back");
+
   if (testInfo.project.name.startsWith("mobile")) {
-    await expect(page.getByRole("button", { name: "Notes" })).toBeVisible();
-    await page.getByRole("button", { name: "Notes" }).click();
+    await expect(mobileBackButton).toBeVisible();
+    await mobileBackButton.click();
     await expect(page.getByRole("navigation", { name: "Workspace files" })).toBeVisible();
     await expect(editor).not.toBeVisible();
   } else {
     await expect(page.getByRole("navigation", { name: "Workspace files" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Notes" })).toBeHidden();
+    await expect(mobileBackButton).toBeHidden();
   }
 });
 
