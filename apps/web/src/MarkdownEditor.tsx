@@ -15,7 +15,7 @@ export function MarkdownEditor({
   onChange,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<EditorView>();
+  const editorRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
 
   onChangeRef.current = onChange;
@@ -50,7 +50,7 @@ export function MarkdownEditor({
 
     return () => {
       editor.destroy();
-      editorRef.current = undefined;
+      editorRef.current = null;
     };
   }, [label]);
 
