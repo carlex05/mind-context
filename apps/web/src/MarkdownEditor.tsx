@@ -1,17 +1,33 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  autocompletion,
+  type CompletionContext,
+  type CompletionResult,
+} from "@codemirror/autocomplete";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 
+export interface EditorLinkTarget {
+  readonly path: string;
+  readonly title: string;
+  readonly aliases: readonly string[];
+  readonly headings: readonly string[];
+}
+
 export interface MarkdownEditorProps {
   readonly value: string;
   readonly label: string;
+  readonly linkTargets?: readonly EditorLinkTarget[];
+  readonly tags?: readonly string[];
   readonly onChange: (value: string) => void;
 }
 
 export function MarkdownEditor({
   value,
   label,
+  linkTargets = [],
+  tags = [],
   onChange,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -19,6 +35,11 @@ export function MarkdownEditor({
   const onChangeRef = useRef(onChange);
 
   onChangeRef.current = onChange;
+
+  const completionSource = useMemo(
+    () => createKnowledgeCompletionSource(linkTargets, tags),
+    [linkTargets, tags],
+  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -30,6 +51,10 @@ export function MarkdownEditor({
       extensions: [
         basicSetup,
         markdown(),
+        autocompletion({
+          override: [completionSource],
+          activateOnTyping: true,
+        }),
         keymap.of(markdownKeymap),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({
@@ -52,7 +77,7 @@ export function MarkdownEditor({
       editor.destroy();
       editorRef.current = null;
     };
-  }, [label]);
+  }, [completionSource, label]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -71,4 +96,109 @@ export function MarkdownEditor({
   }, [value]);
 
   return <div className="markdown-editor" ref={hostRef} />;
+}
+
+function createKnowledgeCompletionSource(
+  linkTargets: readonly EditorLinkTarget[],
+  tags: readonly string[],
+) {
+  return (context: CompletionContext): CompletionResult | null => {
+    const before = context.state.sliceDoc(
+      context.state.doc.lineAt(context.pos).from,
+      context.pos,
+    );
+
+    const linkMatch = /\[\[([^\]\n]*)$/.exec(before);
+    if (linkMatch) {
+      const typed = linkMatch[1] ?? "";
+      const hashIndex = typed.indexOf("#");
+      const from = context.pos - typed.length;
+
+      if (hashIndex >= 0) {
+        const targetText = typed.slice(0, hashIndex).trim();
+        const headingText = typed.slice(hashIndex + 1).toLocaleLowerCase();
+        const target = findTarget(linkTargets, targetText);
+        if (!target) return { from, options: [] };
+
+        const targetLabel = withoutMarkdownExtension(target.path);
+        return {
+          from,
+          options: target.headings
+            .filter((heading) =>
+              heading.toLocaleLowerCase().includes(headingText),
+            )
+            .map((heading) => ({
+              label: `${targetLabel}#${heading}`,
+              detail: target.path,
+              type: "text",
+            })),
+        };
+      }
+
+      const normalized = typed.toLocaleLowerCase();
+      return {
+        from,
+        options: linkTargets
+          .filter((target) =>
+            [
+              target.title,
+              target.path,
+              ...target.aliases,
+            ].some((candidate) =>
+              candidate.toLocaleLowerCase().includes(normalized),
+            ),
+          )
+          .slice(0, 30)
+          .map((target) => ({
+            label: withoutMarkdownExtension(target.path),
+            detail:
+              target.aliases.length > 0
+                ? `${target.title} · ${target.aliases.join(", ")}`
+                : target.title,
+            type: "text",
+          })),
+      };
+    }
+
+    const tagMatch = /(?:^|\s)#([\p{L}\p{N}_/-]*)$/u.exec(before);
+    if (tagMatch) {
+      const typed = tagMatch[1] ?? "";
+      const from = context.pos - typed.length;
+      const normalized = typed.toLocaleLowerCase();
+      return {
+        from,
+        options: tags
+          .filter((tag) => tag.toLocaleLowerCase().includes(normalized))
+          .slice(0, 30)
+          .map((tag) => ({
+            label: tag,
+            detail: "tag",
+            type: "keyword",
+          })),
+      };
+    }
+
+    return null;
+  };
+}
+
+function findTarget(
+  targets: readonly EditorLinkTarget[],
+  query: string,
+): EditorLinkTarget | undefined {
+  const normalized = query.toLocaleLowerCase();
+  return targets.find((target) =>
+    [
+      target.title,
+      target.path,
+      withoutMarkdownExtension(target.path),
+      ...target.aliases,
+    ].some((candidate) => candidate.toLocaleLowerCase() === normalized),
+  );
+}
+
+function withoutMarkdownExtension(path: string): string {
+  return path.toLocaleLowerCase().endsWith(".md")
+    ? path.slice(0, -3)
+    : path;
 }
