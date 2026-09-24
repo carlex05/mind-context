@@ -76,7 +76,11 @@ export function WorkspaceExplorer({
     try {
       const metadata = await provider.createDirectory(selectedFolderId, name);
       setNewFolderName("");
-      setExpanded((current) => new Set(current).add(selectedFolderId));
+      setExpanded((current) => {
+        const next = new Set(current);
+        next.add(metadata.id);
+        return next;
+      });
       await onChanged();
       onSelectedFolderIdChange(metadata.id);
       onStatus(`Folder “${metadata.name}” created.`, "success");
