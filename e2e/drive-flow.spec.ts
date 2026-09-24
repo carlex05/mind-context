@@ -14,21 +14,10 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
     });
   });
 
-  await installGoogleIdentityMock(page);
-  await page.route("https://www.googleapis.com/**", (route) =>
-    drive.handle(route),
-  );
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
 
-  await page.goto("/");
-
-  await page.getByRole("button", { name: "Connect Google Drive" }).click();
-  await expect(page.getByText("Choose your brain.")).toBeVisible();
-
-  await page.getByRole("button", { name: "Create in Drive" }).click();
-  await expect(page.getByRole("heading", { name: "My Second Brain" })).toBeVisible();
-
-  await page.getByLabel("New Markdown note").fill("Private");
-  await page.getByRole("button", { name: "Add" }).click();
+  await createNote(page, "Private");
 
   const editor = page.getByRole("textbox", { name: "Edit Private.md" });
   await expect(editor).toBeVisible();
@@ -41,7 +30,9 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
     page.getByText("Saved to Drive and updated the local knowledge index."),
   ).toBeVisible();
 
-  expect(drive.noteContent("note-1")).toBe(`# Private\n\n${secret}`);
+  expect(drive.noteContentByName("Private.md")).toBe(
+    `# Private\n\n${secret}`,
+  );
 
   const requestsContainingSecret = observedRequests.filter((request) =>
     request.body?.includes(secret),
@@ -60,10 +51,14 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   if (testInfo.project.name.startsWith("mobile")) {
     await expect(mobileBackButton).toBeVisible();
     await mobileBackButton.click();
-    await expect(page.getByRole("navigation", { name: "Workspace files" })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Workspace files" }),
+    ).toBeVisible();
     await expect(editor).not.toBeVisible();
   } else {
-    await expect(page.getByRole("navigation", { name: "Workspace files" })).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: "Workspace files" }),
+    ).toBeVisible();
     await expect(mobileBackButton).toBeHidden();
   }
 });
@@ -72,32 +67,16 @@ test("derives wikilinks, backlinks and broken links locally", async ({
   page,
 }, testInfo) => {
   const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
 
-  await installGoogleIdentityMock(page);
-  await page.route("https://www.googleapis.com/**", (route) =>
-    drive.handle(route),
-  );
-
-  await page.goto("/");
-  await page.getByRole("button", { name: "Connect Google Drive" }).click();
-  await page.getByRole("button", { name: "Create in Drive" }).click();
-
-  await page.getByLabel("New Markdown note").fill("Alpha");
-  await page.getByRole("button", { name: "Add" }).click();
-
+  await createNote(page, "Alpha");
   const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
   await alphaEditor.fill("# Alpha\n\nLinks to [[Beta]] and [[Missing]].");
   await page.getByRole("button", { name: "Save" }).click();
-  await expect(
-    page.getByText("Saved to Drive and updated the local knowledge index."),
-  ).toBeVisible();
 
-  if (testInfo.project.name.startsWith("mobile")) {
-    await page.locator(".mobile-back").click();
-  }
-
-  await page.getByLabel("New Markdown note").fill("Beta");
-  await page.getByRole("button", { name: "Add" }).click();
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Beta");
 
   if (testInfo.project.name.startsWith("mobile")) {
     await page.getByRole("button", { name: "Context" }).click();
@@ -107,9 +86,7 @@ test("derives wikilinks, backlinks and broken links locally", async ({
     name: "Knowledge context",
   });
   await expect(context).toBeVisible();
-  await expect(
-    context.getByRole("button", { name: /Alpha/ }),
-  ).toBeVisible();
+  await expect(context.getByRole("button", { name: /Alpha/ })).toBeVisible();
 
   await context.getByRole("button", { name: /Alpha/ }).click();
   await expect(
@@ -123,12 +100,104 @@ test("derives wikilinks, backlinks and broken links locally", async ({
   const alphaContext = page.getByRole("complementary", {
     name: "Knowledge context",
   });
-  await expect(
-    alphaContext.getByRole("button", { name: /Beta/ }),
-  ).toBeVisible();
+  await expect(alphaContext.getByRole("button", { name: /Beta/ })).toBeVisible();
   await expect(alphaContext.getByText("[[Missing]]")).toBeVisible();
   await expect(alphaContext.getByText("Note not found")).toBeVisible();
 });
+
+test("manages nested folders and safely rewrites resolved links on rename", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await page.getByLabel("New folder").fill("Projects");
+  await page.getByRole("button", { name: "+ Folder", exact: true }).click();
+  await expect(page.getByText("Folder “Projects” created.")).toBeVisible();
+
+  await createNote(page, "Alpha");
+  const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await alphaEditor.fill("# Alpha\n\nDepends on [[Beta]].");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+
+  await page.getByRole("button", { name: "/", exact: true }).click();
+  await createNote(page, "Beta");
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+
+  const betaRow = page.locator(".tree-row").filter({ hasText: "Beta.md" });
+  await betaRow.getByRole("button", { name: "Beta.md" }).click();
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+
+  page.on("dialog", async (dialog) => {
+    if (dialog.type() === "prompt") {
+      await dialog.accept("Gamma");
+    } else {
+      await dialog.accept();
+    }
+  });
+
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await expect(page.getByText(/Renamed\. Updated 1 linked note/)).toBeVisible();
+
+  const projectsToggle = page.getByRole("button", {
+    name: /Projects/,
+  }).first();
+  if (await projectsToggle.getAttribute("aria-label")) {
+    const aria = await projectsToggle.getAttribute("aria-label");
+    if (aria?.startsWith("Expand")) {
+      await projectsToggle.click();
+    }
+  }
+
+  await page.getByRole("button", { name: "Alpha.md", exact: true }).click();
+  const reopenedAlpha = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await expect(reopenedAlpha).toBeVisible();
+  await expect(reopenedAlpha).toHaveText(/\[\[Gamma\]\]/);
+
+  expect(drive.noteContentByName("Alpha.md")).toContain("[[Gamma]]");
+  expect(drive.filePathByName("Alpha.md")).toBe("Projects/Alpha.md");
+  expect(drive.filePathByName("Gamma.md")).toBe("Gamma.md");
+});
+
+async function prepareDrive(page: Page, drive: FakeDrive): Promise<void> {
+  await installGoogleIdentityMock(page);
+  await page.route("https://www.googleapis.com/**", (route) =>
+    drive.handle(route),
+  );
+  await page.goto("/");
+}
+
+async function openFreshWorkspace(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page.getByRole("button", { name: "Create in Drive" }).click();
+  await expect(
+    page.getByRole("heading", { name: "My Second Brain" }),
+  ).toBeVisible();
+}
+
+async function createNote(page: Page, name: string): Promise<void> {
+  await page.getByLabel("New Markdown note").fill(name);
+  await page.getByRole("button", { name: "+ Note", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: `Edit ${name}.md` }),
+  ).toBeVisible();
+}
+
+async function returnToExplorerOnMobile(
+  page: Page,
+  projectName: string,
+): Promise<void> {
+  if (projectName.startsWith("mobile")) {
+    const back = page.locator(".mobile-back");
+    if (await back.isVisible()) {
+      await back.click();
+    }
+  }
+}
 
 async function installGoogleIdentityMock(page: Page): Promise<void> {
   await page.route("https://accounts.google.com/gsi/client", async (route) => {
@@ -163,19 +232,21 @@ interface ObservedRequest {
   readonly body: string | null;
 }
 
-interface StoredFile {
+interface StoredObject {
   readonly id: string;
-  readonly name: string;
+  name: string;
   readonly mimeType: string;
-  readonly parents: readonly string[];
+  parents: string[];
   version: number;
   content: string;
+  readonly appProperties?: Record<string, string>;
 }
 
 class FakeDrive {
   private workspaceCreated = false;
   private nextNoteNumber = 1;
-  private readonly notes = new Map<string, StoredFile>();
+  private nextFolderNumber = 1;
+  private readonly objects = new Map<string, StoredObject>();
 
   async handle(route: Route): Promise<void> {
     const request = route.request();
@@ -206,33 +277,48 @@ class FakeDrive {
       const body = JSON.parse(request.postData() ?? "{}") as {
         name?: string;
         mimeType?: string;
+        parents?: string[];
         appProperties?: Record<string, string>;
       };
 
       if (body.mimeType === "application/vnd.google-apps.folder") {
-        this.workspaceCreated = true;
-        await this.json(route, {
-          id: "workspace-1",
-          name: body.name ?? "My Second Brain",
-          mimeType: body.mimeType,
-          modifiedTime: "2026-09-24T17:00:00.000Z",
-          appProperties: body.appProperties,
-        });
+        if (!body.parents?.length) {
+          this.workspaceCreated = true;
+          await this.json(route, {
+            id: "workspace-1",
+            name: body.name ?? "My Second Brain",
+            mimeType: body.mimeType,
+            modifiedTime: "2026-09-24T17:00:00.000Z",
+            appProperties: body.appProperties,
+          });
+          return;
+        }
+
+        const folder: StoredObject = {
+          id: `folder-${this.nextFolderNumber++}`,
+          name: body.name ?? "Folder",
+          mimeType: "application/vnd.google-apps.folder",
+          parents: [...body.parents],
+          version: 1,
+          content: "",
+        };
+        this.objects.set(folder.id, folder);
+        await this.json(route, this.metadata(folder));
         return;
       }
     }
 
-    if (
-      method === "GET" &&
-      url.pathname === "/drive/v3/files" &&
-      (url.searchParams.get("q") ?? "").includes("'workspace-1' in parents")
-    ) {
-      await this.json(route, {
-        files: Array.from(this.notes.values()).map((note) =>
-          this.metadata(note),
-        ),
-      });
-      return;
+    if (method === "GET" && url.pathname === "/drive/v3/files") {
+      const query = url.searchParams.get("q") ?? "";
+      const parentId = /'([^']+)' in parents/.exec(query)?.[1];
+      if (parentId) {
+        await this.json(route, {
+          files: Array.from(this.objects.values())
+            .filter((object) => object.parents.includes(parentId))
+            .map((object) => this.metadata(object)),
+        });
+        return;
+      }
     }
 
     if (
@@ -243,45 +329,91 @@ class FakeDrive {
       const multipart = request.postData() ?? "";
       const name =
         /\"name\":\"([^\"]+)\"/.exec(multipart)?.[1] ?? "Untitled.md";
-      const content =
+      const parent =
+        /\"parents\":\[\"([^\"]+)\"\]/.exec(multipart)?.[1] ??
+        "workspace-1";
+      const noteContent =
         /Content-Type: text\/markdown; charset=UTF-8\r\n\r\n([\s\S]*?)\r\n--mindcontext-/.exec(
           multipart,
         )?.[1] ?? "";
 
-      const note: StoredFile = {
-        id: `note-${this.nextNoteNumber}`,
+      const note: StoredObject = {
+        id: `note-${this.nextNoteNumber++}`,
         name,
         mimeType: "text/markdown",
-        parents: ["workspace-1"],
+        parents: [parent],
         version: 1,
-        content,
+        content: noteContent,
       };
-      this.nextNoteNumber += 1;
-      this.notes.set(note.id, note);
+      this.objects.set(note.id, note);
       await this.json(route, this.metadata(note));
       return;
     }
 
     const fileMatch = /^\/drive\/v3\/files\/([^/]+)$/.exec(url.pathname);
-    if (method === "GET" && fileMatch) {
+    if (fileMatch) {
       const id = decodeURIComponent(fileMatch[1]!);
-      const note = this.notes.get(id);
-      if (!note) {
-        await route.fulfill({ status: 404, body: "Not found" });
+      const object = this.objects.get(id);
+
+      if (method === "GET") {
+        if (!object) {
+          await route.fulfill({ status: 404, body: "Not found" });
+          return;
+        }
+
+        if (url.searchParams.get("alt") === "media") {
+          await route.fulfill({
+            status: 200,
+            contentType: object.mimeType,
+            body: object.content,
+          });
+          return;
+        }
+
+        await this.json(route, this.metadata(object));
         return;
       }
 
-      if (url.searchParams.get("alt") === "media") {
-        await route.fulfill({
-          status: 200,
-          contentType: "text/markdown; charset=UTF-8",
-          body: note.content,
-        });
+      if (method === "PATCH") {
+        if (!object) {
+          await route.fulfill({ status: 404, body: "Not found" });
+          return;
+        }
+
+        const addParent = url.searchParams.get("addParents");
+        const removeParents = url.searchParams
+          .get("removeParents")
+          ?.split(",")
+          .filter(Boolean);
+
+        if (addParent && !object.parents.includes(addParent)) {
+          object.parents.push(addParent);
+        }
+        if (removeParents?.length) {
+          object.parents = object.parents.filter(
+            (parent) => !removeParents.includes(parent),
+          );
+        }
+
+        const body = JSON.parse(request.postData() || "{}") as {
+          name?: string;
+        };
+        if (body.name) object.name = body.name;
+        object.version += 1;
+
+        await this.json(route, this.metadata(object));
         return;
       }
 
-      await this.json(route, this.metadata(note));
-      return;
+      if (method === "DELETE") {
+        if (!object) {
+          await route.fulfill({ status: 404, body: "Not found" });
+          return;
+        }
+        this.deleteRecursively(id);
+        await route.fulfill({ status: 204, body: "" });
+        return;
+      }
     }
 
     const uploadMatch = /^\/upload\/drive\/v3\/files\/([^/]+)$/.exec(
@@ -289,15 +421,15 @@ class FakeDrive {
     );
     if (method === "PATCH" && uploadMatch) {
       const id = decodeURIComponent(uploadMatch[1]!);
-      const note = this.notes.get(id);
-      if (!note) {
+      const object = this.objects.get(id);
+      if (!object) {
         await route.fulfill({ status: 404, body: "Not found" });
         return;
       }
 
-      note.content = request.postData() ?? "";
-      note.version += 1;
-      await this.json(route, this.metadata(note));
+      object.content = request.postData() ?? "";
+      object.version += 1;
+      await this.json(route, this.metadata(object));
       return;
     }
 
@@ -312,19 +444,48 @@ class FakeDrive {
     });
   }
 
-  noteContent(id: string): string | undefined {
-    return this.notes.get(id)?.content;
+  noteContentByName(name: string): string | undefined {
+    return Array.from(this.objects.values()).find(
+      (object) => object.name === name,
+    )?.content;
   }
 
-  private metadata(note: StoredFile) {
+  filePathByName(name: string): string | undefined {
+    const object = Array.from(this.objects.values()).find(
+      (candidate) => candidate.name === name,
+    );
+    if (!object) return undefined;
+    return this.pathFor(object);
+  }
+
+  private pathFor(object: StoredObject): string {
+    const parentId = object.parents[0];
+    if (!parentId || parentId === "workspace-1") {
+      return object.name;
+    }
+    const parent = this.objects.get(parentId);
+    return parent ? `${this.pathFor(parent)}/${object.name}` : object.name;
+  }
+
+  private deleteRecursively(id: string): void {
+    for (const child of Array.from(this.objects.values()).filter((object) =>
+      object.parents.includes(id),
+    )) {
+      this.deleteRecursively(child.id);
+    }
+    this.objects.delete(id);
+  }
+
+  private metadata(object: StoredObject) {
     return {
-      id: note.id,
-      name: note.name,
-      mimeType: note.mimeType,
-      parents: note.parents,
-      version: String(note.version),
+      id: object.id,
+      name: object.name,
+      mimeType: object.mimeType,
+      parents: object.parents,
+      version: String(object.version),
       modifiedTime: "2026-09-24T17:00:00.000Z",
-      size: String(note.content.length),
+      size: String(object.content.length),
+      appProperties: object.appProperties,
     };
   }
 
