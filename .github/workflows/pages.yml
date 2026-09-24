@@ -28,8 +28,6 @@ jobs:
 
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm build
-        env:
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

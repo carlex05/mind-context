@@ -8,18 +8,9 @@ The repository contains a GitHub Pages workflow at:
 
 It builds the static Vite application and publishes `apps/web/dist`.
 
-## One-time repository setup
+## GitHub Pages
 
-GitHub requires Pages to be enabled for the repository and its publishing source
-set to **GitHub Actions**.
-
-In GitHub:
-
-1. Open **Settings**.
-2. Open **Pages**.
-3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-
-After that, pushes to `main` deploy automatically.
+GitHub Pages must use **GitHub Actions** as its publishing source.
 
 Expected project URL:
 
@@ -27,33 +18,34 @@ Expected project URL:
 https://carlex05.github.io/mind-context/
 ```
 
-## Public preview without Google OAuth
+## Google OAuth configuration
 
-If the Pages build has no Google Client ID configured, MindContext presents a
-local, non-persistent CodeMirror demo. This makes the UI and Markdown behavior
-testable from desktop and mobile without credentials.
+The production Google OAuth Web Client ID is public frontend configuration and
+is stored in:
 
-## Enable real Google Drive in the deployed preview
+```text
+apps/web/.env.production
+```
 
-Create the Google OAuth Web Client ID as described in
-`docs/google-drive-setup.md`.
-
-Add this authorized JavaScript origin:
+The Google Cloud OAuth client must authorize this JavaScript origin:
 
 ```text
 https://carlex05.github.io
 ```
 
-Then add a GitHub Actions repository variable:
+For local development it should also authorize:
 
 ```text
-GOOGLE_CLIENT_ID=<client-id>.apps.googleusercontent.com
+http://localhost:5173
 ```
 
-The Pages workflow maps that public configuration value to
-`VITE_GOOGLE_CLIENT_ID` at build time.
+OAuth client IDs are public application identifiers, not secrets. A Google
+client secret MUST NOT be committed or embedded in the browser application.
 
-OAuth client IDs are public application identifiers, not client secrets. Do not
-put a Google client secret in the frontend or repository variables.
+## Deployment behavior
 
-Re-run **Deploy Pages** or push a commit to `main`.
+Every push to `main` rebuilds and deploys GitHub Pages automatically.
+
+The deployed application uses Google Identity Services directly in the browser.
+Access tokens remain browser-session state and are not sent to MindContext
+infrastructure.
