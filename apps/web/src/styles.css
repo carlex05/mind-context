@@ -403,11 +403,30 @@ h2 {
   grid-template-columns: 300px minmax(0, 1fr);
 }
 
+.app-shell.has-open-note .workspace-layout {
+  grid-template-columns: 280px minmax(0, 1fr) 280px;
+}
+
 .note-sidebar {
   overflow-y: auto;
   padding: 20px;
   border-right: 1px solid var(--border);
   background: var(--surface);
+}
+
+.index-summary {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 0;
+  flex-wrap: wrap;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
+.index-summary span {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .new-note-form {
@@ -475,7 +494,9 @@ h2 {
   font-size: 0.76rem;
 }
 
-.mobile-back {
+.mobile-back,
+.context-button,
+.knowledge-back {
   display: none;
   min-height: var(--tap);
   padding: 0;
@@ -519,6 +540,70 @@ h2 {
   color: #8b8b84;
   background: #fafaf7;
   border-right: 1px solid #e3e3dc;
+}
+
+.knowledge-panel {
+  overflow-y: auto;
+  padding: 20px;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.knowledge-panel h2 {
+  margin-bottom: 24px;
+  font-size: 1.25rem;
+}
+
+.knowledge-section + .knowledge-section {
+  margin-top: 28px;
+}
+
+.knowledge-section h3 {
+  margin: 0 0 8px;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.context-link,
+.broken-link {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 6px;
+  padding: 10px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.context-link {
+  min-height: 52px;
+  background: #fff;
+}
+
+.context-link:hover,
+.context-link:focus-visible {
+  background: #efefe9;
+}
+
+.context-link small,
+.broken-link small,
+.context-empty {
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
+.broken-link {
+  background: transparent;
+  border-style: dashed;
+}
+
+.context-empty {
+  margin: 0;
+  line-height: 1.45;
 }
 
 .editor-empty {
@@ -579,7 +664,8 @@ h2 {
     font-size: 0.76rem;
   }
 
-  .workspace-layout {
+  .workspace-layout,
+  .app-shell.has-open-note .workspace-layout {
     display: block;
     min-height: 0;
   }
@@ -601,9 +687,39 @@ h2 {
     display: none;
   }
 
-  .mobile-back {
+  .knowledge-panel {
+    display: none;
+    min-height: calc(100dvh - 62px);
+    border-left: 0;
+  }
+
+  .app-shell.context-open .editor-panel {
+    display: none;
+  }
+
+  .app-shell.context-open .knowledge-panel {
+    display: block;
+  }
+
+  .mobile-back,
+  .context-button,
+  .knowledge-back {
     display: inline-flex;
     align-items: center;
+  }
+
+  .context-button,
+  .knowledge-back {
+    min-height: var(--tap);
+    padding: 0 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-weight: 700;
+  }
+
+  .knowledge-back {
+    margin-bottom: 18px;
   }
 
   .editor-toolbar {

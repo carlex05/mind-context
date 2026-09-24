@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import { PRODUCT_PRINCIPLES } from "@mind-context/core";
+import {
+  getBacklinks,
+  getBrokenLinks,
+  getNote,
+  getOutgoingLinks,
+  upsertKnowledgeDocument,
+  type KnowledgeEdge,
+  type KnowledgeIndexSnapshot,
+} from "@mind-context/knowledge";
 import { markdownParser } from "@mind-context/markdown";
+import { IndexedDbKnowledgeIndexStore } from "@mind-context/persistence-indexeddb";
 import {
   GoogleDriveApiError,
   GoogleDriveStorageProvider,
@@ -16,9 +26,11 @@ import {
   requestGoogleDriveAccess,
   type GoogleDriveAuthSession,
 } from "./googleIdentity";
+import { buildWorkspaceKnowledgeIndex } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
+const knowledgeStore = new IndexedDbKnowledgeIndexStore();
 
 type AppStatus =
   | { readonly kind: "idle" }
@@ -50,6 +62,9 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState("My Second Brain");
   const [newNoteName, setNewNoteName] = useState("");
+  const [knowledgeIndex, setKnowledgeIndex] =
+    useState<KnowledgeIndexSnapshot>();
+  const [mobileContextOpen, setMobileContextOpen] = useState(false);
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
 
   const dirty =
@@ -67,6 +82,19 @@ export function App() {
       ),
     [items],
   );
+
+  const currentIndexedNote = openNote
+    ? getNote(knowledgeIndex, openNote.metadata.id)
+    : undefined;
+  const outgoingLinks = openNote
+    ? getOutgoingLinks(knowledgeIndex, openNote.metadata.id)
+    : [];
+  const backlinks = openNote
+    ? getBacklinks(knowledgeIndex, openNote.metadata.id)
+    : [];
+  const brokenLinks = openNote
+    ? getBrokenLinks(knowledgeIndex, openNote.metadata.id)
+    : [];
 
   if (!GOOGLE_CLIENT_ID) {
     return <ConfigurationRequired />;
@@ -113,7 +141,7 @@ export function App() {
       await openWorkspace(workspace);
       setStatus({
         kind: "success",
-        message: `Workspace “${workspace.name}” created in your Drive.`,
+        message: `Workspace “${workspace.name}” created and indexed locally.`,
       });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
@@ -133,40 +161,94 @@ export function App() {
 
     setStatus({ kind: "busy", message: "Opening workspace…" });
     try {
+      const cached = await knowledgeStore.get(workspace.id);
+      if (cached) {
+        setKnowledgeIndex(cached);
+      }
+
       const nextItems = await nextProvider.list();
       setProvider(nextProvider);
       setActiveWorkspace(workspace);
       setItems(nextItems);
       setOpenNote(undefined);
       setDraft("");
-      setStatus({ kind: "idle" });
+      setMobileContextOpen(false);
+
+      setStatus({
+        kind: "busy",
+        message: "Rebuilding local knowledge index from Markdown…",
+      });
+      const rebuilt = await buildWorkspaceKnowledgeIndex(
+        nextProvider,
+        workspace.id,
+      );
+      await knowledgeStore.put(rebuilt);
+      setKnowledgeIndex(rebuilt);
+      setStatus({
+        kind: "success",
+        message: `Indexed ${rebuilt.notes.length} Markdown note${
+          rebuilt.notes.length === 1 ? "" : "s"
+        } locally.`,
+      });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
     }
   }
 
   async function refreshItems() {
-    if (!provider) return;
-    setItems(await provider.list());
+    if (!provider || !activeWorkspace) return;
+
+    setStatus({
+      kind: "busy",
+      message: "Refreshing files and rebuilding local index…",
+    });
+    try {
+      const [nextItems, rebuilt] = await Promise.all([
+        provider.list(),
+        buildWorkspaceKnowledgeIndex(provider, activeWorkspace.id),
+      ]);
+      await knowledgeStore.put(rebuilt);
+      setItems(nextItems);
+      setKnowledgeIndex(rebuilt);
+      setStatus({
+        kind: "success",
+        message: `Local index rebuilt from ${rebuilt.notes.length} notes.`,
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error) });
+    }
   }
 
-  async function selectNote(item: StorageObjectMetadata) {
-    if (!provider || item.kind !== "file") return;
+  async function openNoteById(id: string) {
+    if (!provider) return;
     if (!confirmDiscardIfDirty()) return;
 
-    setStatus({ kind: "busy", message: `Opening ${item.name}…` });
+    const indexed = getNote(knowledgeIndex, id);
+    setStatus({
+      kind: "busy",
+      message: `Opening ${indexed?.name ?? "note"}…`,
+    });
+
     try {
-      const content = await provider.readText(item.id);
-      const latestMetadata = await provider.metadata(item.id);
+      const [content, metadata] = await Promise.all([
+        provider.readText(id),
+        provider.metadata(id),
+      ]);
       setOpenNote({
-        metadata: latestMetadata,
+        metadata,
         originalContent: content,
       });
       setDraft(content);
+      setMobileContextOpen(false);
       setStatus({ kind: "idle" });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
     }
+  }
+
+  async function selectNote(item: StorageObjectMetadata) {
+    if (item.kind !== "file") return;
+    await openNoteById(item.id);
   }
 
   async function createNote() {
@@ -181,9 +263,33 @@ export function App() {
       );
       const content = await provider.readText(metadata.id);
       setNewNoteName("");
-      await refreshItems();
+      setItems(await provider.list());
       setOpenNote({ metadata, originalContent: content });
       setDraft(content);
+      setMobileContextOpen(false);
+
+      if (activeWorkspace) {
+        const base =
+          knowledgeIndex ??
+          {
+            schemaVersion: 1 as const,
+            workspaceId: activeWorkspace.id,
+            builtAt: new Date().toISOString(),
+            notes: [],
+            edges: [],
+          };
+        const updated = upsertKnowledgeDocument(base, {
+          id: metadata.id,
+          path: metadata.name,
+          name: metadata.name,
+          content,
+          ...(metadata.modifiedAt ? { modifiedAt: metadata.modifiedAt } : {}),
+          ...(metadata.revision ? { revision: metadata.revision } : {}),
+        });
+        await knowledgeStore.put(updated);
+        setKnowledgeIndex(updated);
+      }
+
       setStatus({ kind: "success", message: `${metadata.name} created.` });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
@@ -203,8 +309,26 @@ export function App() {
           : undefined,
       );
       setOpenNote({ metadata, originalContent: draft });
-      await refreshItems();
-      setStatus({ kind: "success", message: "Saved directly to Google Drive." });
+      setItems(await provider.list());
+
+      if (knowledgeIndex) {
+        const existing = getNote(knowledgeIndex, metadata.id);
+        const updated = upsertKnowledgeDocument(knowledgeIndex, {
+          id: metadata.id,
+          path: existing?.path ?? metadata.name,
+          name: metadata.name,
+          content: draft,
+          ...(metadata.modifiedAt ? { modifiedAt: metadata.modifiedAt } : {}),
+          ...(metadata.revision ? { revision: metadata.revision } : {}),
+        });
+        await knowledgeStore.put(updated);
+        setKnowledgeIndex(updated);
+      }
+
+      setStatus({
+        kind: "success",
+        message: "Saved to Drive and updated the local knowledge index.",
+      });
     } catch (error) {
       if (error instanceof StorageConflictError) {
         setStatus({
@@ -222,6 +346,7 @@ export function App() {
     if (!confirmDiscardIfDirty()) return;
     setOpenNote(undefined);
     setDraft("");
+    setMobileContextOpen(false);
   }
 
   function leaveWorkspace() {
@@ -231,6 +356,8 @@ export function App() {
     setItems([]);
     setOpenNote(undefined);
     setDraft("");
+    setKnowledgeIndex(undefined);
+    setMobileContextOpen(false);
   }
 
   function disconnect() {
@@ -243,6 +370,8 @@ export function App() {
     setItems([]);
     setOpenNote(undefined);
     setDraft("");
+    setKnowledgeIndex(undefined);
+    setMobileContextOpen(false);
     setStatus({ kind: "idle" });
   }
 
@@ -271,7 +400,13 @@ export function App() {
   }
 
   return (
-    <main className={`app-shell ${openNote ? "has-open-note" : ""}`}>
+    <main
+      className={[
+        "app-shell",
+        openNote ? "has-open-note" : "",
+        mobileContextOpen ? "context-open" : "",
+      ].join(" ")}
+    >
       <header className="topbar">
         <div className="topbar-copy">
           <button className="text-button" type="button" onClick={leaveWorkspace}>
@@ -280,8 +415,11 @@ export function App() {
           <span aria-hidden="true">/</span>
           <strong>{activeWorkspace.name}</strong>
         </div>
-        <div className="privacy-pill" title="Core note traffic goes directly to Google Drive">
-          Private path · Drive
+        <div
+          className="privacy-pill"
+          title="Canonical notes live in Drive; graph metadata is cached locally"
+        >
+          Drive · Local index
         </div>
       </header>
 
@@ -296,10 +434,15 @@ export function App() {
               className="icon-button"
               type="button"
               onClick={() => void refreshItems()}
-              aria-label="Refresh notes"
+              aria-label="Refresh notes and local index"
             >
               ↻
             </button>
+          </div>
+
+          <div className="index-summary">
+            <span>{knowledgeIndex?.notes.length ?? 0} notes indexed</span>
+            <span>{getBrokenLinks(knowledgeIndex).length} broken links</span>
           </div>
 
           <form
@@ -373,6 +516,13 @@ export function App() {
                   </span>
                 </div>
                 <button
+                  className="context-button"
+                  type="button"
+                  onClick={() => setMobileContextOpen(true)}
+                >
+                  Context
+                </button>
+                <button
                   className="primary-button"
                   type="button"
                   onClick={() => void saveNote()}
@@ -390,21 +540,170 @@ export function App() {
             </>
           ) : (
             <div className="editor-empty">
-              <span className="section-label">Markdown-first</span>
+              <span className="section-label">Knowledge workspace</span>
               <h2>Select a note</h2>
               <p>
-                Notes are read from and saved directly to your Google Drive.
-                CodeMirror provides the editing surface while the Markdown
-                parser independently derives headings, tags and wikilinks.
+                MindContext rebuilds links and backlinks locally from the
+                Markdown files in your Drive. IndexedDB is only a disposable
+                cache of that derived graph.
               </p>
             </div>
           )}
         </section>
+
+        {openNote ? (
+          <KnowledgePanel
+            noteTitle={currentIndexedNote?.title ?? openNote.metadata.name}
+            outgoing={outgoingLinks}
+            backlinks={backlinks}
+            broken={brokenLinks}
+            index={knowledgeIndex}
+            onOpenNote={(noteId) => void openNoteById(noteId)}
+            onBackToNote={() => setMobileContextOpen(false)}
+          />
+        ) : null}
       </div>
 
       <StatusBar status={status} />
     </main>
   );
+}
+
+function KnowledgePanel({
+  noteTitle,
+  outgoing,
+  backlinks,
+  broken,
+  index,
+  onOpenNote,
+  onBackToNote,
+}: {
+  readonly noteTitle: string;
+  readonly outgoing: readonly KnowledgeEdge[];
+  readonly backlinks: readonly KnowledgeEdge[];
+  readonly broken: readonly KnowledgeEdge[];
+  readonly index: KnowledgeIndexSnapshot | undefined;
+  readonly onOpenNote: (noteId: string) => void;
+  readonly onBackToNote: () => void;
+}) {
+  return (
+    <aside className="knowledge-panel" aria-label="Knowledge context">
+      <button className="knowledge-back" type="button" onClick={onBackToNote}>
+        ← Note
+      </button>
+      <span className="section-label">Context</span>
+      <h2>{noteTitle}</h2>
+
+      <KnowledgeSection title="Links" empty="No outgoing links.">
+        {outgoing.map((edge, indexNumber) => (
+          <EdgeRow
+            edge={edge}
+            label={edge.alias ?? edge.target}
+            key={`${edge.target}-${edge.heading ?? ""}-${indexNumber}`}
+            onOpenNote={onOpenNote}
+          />
+        ))}
+      </KnowledgeSection>
+
+      <KnowledgeSection title="Backlinks" empty="No backlinks yet.">
+        {backlinks.map((edge, indexNumber) => {
+          const source = index?.notes.find(
+            (note) => note.id === edge.sourceNoteId,
+          );
+          return (
+            <button
+              className="context-link"
+              type="button"
+              key={`${edge.sourceNoteId}-${indexNumber}`}
+              onClick={() => onOpenNote(edge.sourceNoteId)}
+            >
+              <span>{source?.title ?? source?.name ?? edge.sourcePath}</span>
+              <small>{edge.sourcePath}</small>
+            </button>
+          );
+        })}
+      </KnowledgeSection>
+
+      {broken.length > 0 ? (
+        <KnowledgeSection title="Broken" empty="">
+          {broken.map((edge, indexNumber) => (
+            <div
+              className="broken-link"
+              key={`${edge.target}-broken-${indexNumber}`}
+            >
+              <span>[[{edge.target}{edge.heading ? `#${edge.heading}` : ""}]]</span>
+              <small>{brokenReason(edge.resolution)}</small>
+            </div>
+          ))}
+        </KnowledgeSection>
+      ) : null}
+    </aside>
+  );
+}
+
+function KnowledgeSection({
+  title,
+  empty,
+  children,
+}: {
+  readonly title: string;
+  readonly empty: string;
+  readonly children: React.ReactNode;
+}) {
+  const childArray = Array.isArray(children) ? children : [children];
+  return (
+    <section className="knowledge-section">
+      <h3>{title}</h3>
+      {childArray.length === 0 ? (
+        <p className="context-empty">{empty}</p>
+      ) : (
+        children
+      )}
+    </section>
+  );
+}
+
+function EdgeRow({
+  edge,
+  label,
+  onOpenNote,
+}: {
+  readonly edge: KnowledgeEdge;
+  readonly label: string;
+  readonly onOpenNote: (noteId: string) => void;
+}) {
+  if (edge.resolution !== "resolved" || !edge.targetNoteId) {
+    return (
+      <div className="broken-link">
+        <span>{label}</span>
+        <small>{brokenReason(edge.resolution)}</small>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="context-link"
+      type="button"
+      onClick={() => onOpenNote(edge.targetNoteId!)}
+    >
+      <span>{label}</span>
+      <small>{edge.targetPath}</small>
+    </button>
+  );
+}
+
+function brokenReason(resolution: KnowledgeEdge["resolution"]): string {
+  switch (resolution) {
+    case "missing-note":
+      return "Note not found";
+    case "ambiguous-note":
+      return "Multiple notes match";
+    case "missing-heading":
+      return "Heading not found";
+    case "resolved":
+      return "Resolved";
+  }
 }
 
 function Landing({
@@ -417,11 +716,11 @@ function Landing({
   return (
     <main className="landing-shell">
       <section className="hero">
-        <span className="eyebrow">MindContext / Drive slice</span>
+        <span className="eyebrow">MindContext / knowledge slice</span>
         <h1>Your files. Your knowledge. Private by default.</h1>
         <p className="lede">
-          Connect Google Drive to create a Markdown workspace owned by you.
-          MindContext does not need a knowledge backend for this flow.
+          Connect Google Drive to use Markdown as your canonical knowledge
+          source while links, backlinks and indexes are derived locally.
         </p>
         <button
           className="primary-button large"
@@ -474,8 +773,8 @@ function WorkspaceChooser({
           <span className="eyebrow">Google Drive connected</span>
           <h1>Choose your brain.</h1>
           <p>
-            For the MVP, MindContext uses the narrow <code>drive.file</code>{" "}
-            permission and therefore manages workspaces it creates itself.
+            MindContext uses the narrow <code>drive.file</code> permission and
+            keeps its knowledge graph as a rebuildable browser-local projection.
           </p>
         </div>
         <button className="secondary-button" type="button" onClick={onDisconnect}>
@@ -596,18 +895,6 @@ function ConfigurationRequired() {
           label="Edit Demo.md"
           onChange={setDemoContent}
         />
-      </section>
-
-      <section className="setup-card">
-        <span className="section-label">Enable real Google Drive</span>
-        <p>
-          Set the repository variable <code>GOOGLE_CLIENT_ID</code> for the
-          Pages build, or use <code>VITE_GOOGLE_CLIENT_ID</code> locally.
-        </p>
-        <p>
-          The OAuth client ID is public application configuration; note content
-          and access tokens are still never routed through MindContext servers.
-        </p>
       </section>
     </main>
   );
