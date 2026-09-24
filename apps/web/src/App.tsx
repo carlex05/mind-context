@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PRODUCT_PRINCIPLES } from "@mind-context/core";
 import {
   getBacklinks,
@@ -28,6 +28,14 @@ import {
 } from "./googleIdentity";
 import { buildWorkspaceKnowledgeIndex } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownPreview } from "./MarkdownPreview";
+import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
+import { QuickSwitcher } from "./QuickSwitcher";
+import {
+  applyThemePreference,
+  readThemePreference,
+  type ThemePreference,
+} from "./theme";
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
 import {
   findWorkspaceNode,
@@ -69,6 +77,21 @@ export function App() {
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
   const [mobileContextOpen, setMobileContextOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"edit" | "read">("edit");
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [newItem, setNewItem] = useState<
+    | {
+        readonly kind: CreateItemKind;
+        readonly folderId: string;
+        readonly initialName?: string;
+      }
+    | undefined
+  >();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(
+    () => readThemePreference(),
+  );
+  const [recentNoteIds, setRecentNoteIds] = useState<readonly string[]>([]);
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
 
   const dirty =
@@ -88,6 +111,49 @@ export function App() {
   const brokenLinks = openNote
     ? getBrokenLinks(knowledgeIndex, openNote.metadata.id)
     : [];
+
+  const editorLinkTargets = useMemo(
+    () =>
+      (knowledgeIndex?.notes ?? []).map((note) => ({
+        path: note.path,
+        title: note.title,
+        aliases: note.aliases,
+        headings: note.headings.map((heading) => heading.text),
+      })),
+    [knowledgeIndex],
+  );
+
+  const knownTags = useMemo(
+    () =>
+      [...new Set((knowledgeIndex?.notes ?? []).flatMap((note) => note.tags))]
+        .sort((left, right) => left.localeCompare(right)),
+    [knowledgeIndex],
+  );
+
+  useEffect(() => {
+    applyThemePreference(themePreference);
+    if (themePreference !== "system") return;
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = () => applyThemePreference("system");
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, [themePreference]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "o") {
+        event.preventDefault();
+        if (activeWorkspace) setQuickSwitcherOpen(true);
+      }
+      if (event.key === "Escape") {
+        setQuickSwitcherOpen(false);
+        setSettingsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activeWorkspace]);
 
   if (!GOOGLE_CLIENT_ID) {
     return <ConfigurationRequired />;
@@ -177,6 +243,7 @@ export function App() {
       setTree(nextTree);
       await knowledgeStore.put(rebuilt);
       setKnowledgeIndex(rebuilt);
+      setRecentNoteIds(readRecentNotes(workspace.id));
       setStatus({
         kind: "success",
         message: `Indexed ${rebuilt.notes.length} Markdown note${
@@ -255,11 +322,70 @@ export function App() {
         originalContent: content,
       });
       setDraft(content);
+      setViewMode("edit");
       setMobileContextOpen(false);
+      if (activeWorkspace) {
+        setRecentNoteIds((current) =>
+          rememberRecentNote(activeWorkspace.id, current, id),
+        );
+      }
       setStatus({ kind: "idle" });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
     }
+  }
+
+  async function createWorkspaceItem(
+    kind: CreateItemKind,
+    name: string,
+    parentId: string,
+  ) {
+    if (!provider || !activeWorkspace) return;
+
+    setStatus({
+      kind: "busy",
+      message: kind === "note" ? "Creating note…" : "Creating folder…",
+    });
+
+    try {
+      if (kind === "folder") {
+        const metadata = await provider.createDirectory(parentId, name);
+        setSelectedFolderId(metadata.id);
+        await refreshWorkspaceState();
+        setStatus({
+          kind: "success",
+          message: `Folder “${metadata.name}” created.`,
+        });
+        return;
+      }
+
+      const metadata = await provider.createText(
+        parentId,
+        name,
+        "# New note\n\n",
+      );
+      await refreshWorkspaceState();
+      await openNoteById(metadata.id);
+      setStatus({
+        kind: "success",
+        message: `${metadata.name} created.`,
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error) });
+      throw error;
+    }
+  }
+
+  function requestNewItem(
+    kind: CreateItemKind,
+    folderId = selectedFolderId || provider?.rootId || "",
+    initialName?: string,
+  ) {
+    setNewItem({
+      kind,
+      folderId,
+      ...(initialName ? { initialName } : {}),
+    });
   }
 
   async function saveNote() {
@@ -323,6 +449,8 @@ export function App() {
     setDraft("");
     setKnowledgeIndex(undefined);
     setMobileContextOpen(false);
+    setQuickSwitcherOpen(false);
+    setNewItem(undefined);
   }
 
   function disconnect() {
@@ -338,6 +466,8 @@ export function App() {
     setDraft("");
     setKnowledgeIndex(undefined);
     setMobileContextOpen(false);
+    setQuickSwitcherOpen(false);
+    setNewItem(undefined);
     setStatus({ kind: "idle" });
   }
 
@@ -376,16 +506,46 @@ export function App() {
       <header className="topbar">
         <div className="topbar-copy">
           <button className="text-button" type="button" onClick={leaveWorkspace}>
-            Workspaces
+            {activeWorkspace.name}
           </button>
-          <span aria-hidden="true">/</span>
-          <strong>{activeWorkspace.name}</strong>
+          {currentIndexedNote ? (
+            <>
+              <span aria-hidden="true">/</span>
+              <span className="breadcrumb-path">{currentIndexedNote.path.replace(/\.md$/i, "")}</span>
+            </>
+          ) : null}
         </div>
-        <div
-          className="privacy-pill"
-          title="Canonical notes live in Drive; graph metadata is cached locally"
-        >
-          Drive · Local index
+        <div className="topbar-actions">
+          <span className="privacy-dot" title="Drive canonical · local derived index" aria-label="Private local index">●</span>
+          <div className="settings-anchor">
+            <button
+              className="icon-button quiet"
+              type="button"
+              aria-label="Interface settings"
+              onClick={() => setSettingsOpen((current) => !current)}
+            >
+              ⋯
+            </button>
+            {settingsOpen ? (
+              <div className="settings-menu" role="menu">
+                <span className="section-label">Appearance</span>
+                {(["system", "light", "dark"] as const).map((theme) => (
+                  <button
+                    type="button"
+                    className={themePreference === theme ? "selected" : ""}
+                    key={theme}
+                    onClick={() => {
+                      setThemePreference(theme);
+                      setSettingsOpen(false);
+                    }}
+                  >
+                    <span>{themePreference === theme ? "✓" : ""}</span>
+                    {theme[0]?.toUpperCase()}{theme.slice(1)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -406,9 +566,11 @@ export function App() {
             </button>
           </div>
 
-          <div className="index-summary">
-            <span>{knowledgeIndex?.notes.length ?? 0} notes indexed</span>
-            <span>{getBrokenLinks(knowledgeIndex).length} broken links</span>
+          <div className="sidebar-utility-row">
+            <button type="button" onClick={() => setQuickSwitcherOpen(true)}>
+              ⌕ Open
+            </button>
+            <small>{knowledgeIndex?.notes.length ?? 0} notes</small>
           </div>
 
           <WorkspaceExplorer
@@ -419,6 +581,8 @@ export function App() {
             selectedFolderId={selectedFolderId || provider.rootId}
             onSelectedFolderIdChange={setSelectedFolderId}
             onOpenNote={(noteId) => void openNoteById(noteId)}
+            onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
+            onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
             onChanged={refreshWorkspaceState}
             onStatus={(message, kind = "success") =>
               setStatus({ kind, message })
@@ -438,12 +602,24 @@ export function App() {
                   ← Notes
                 </button>
                 <div className="editor-title">
-                  <strong>{openNote.metadata.name}</strong>
-                  <span>
-                    {dirty ? "Unsaved changes" : "Saved"} ·{" "}
-                    {parsedDraft.sections.filter((section) => section.heading).length} headings ·{" "}
-                    {parsedDraft.wikiLinks.length} links
-                  </span>
+                  <strong>{currentIndexedNote?.title ?? openNote.metadata.name.replace(/\.md$/i, "")}</strong>
+                  <span>{dirty ? "Unsaved" : "Saved"}</span>
+                </div>
+                <div className="view-toggle" aria-label="Note view">
+                  <button
+                    type="button"
+                    className={viewMode === "edit" ? "selected" : ""}
+                    onClick={() => setViewMode("edit")}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={viewMode === "read" ? "selected" : ""}
+                    onClick={() => setViewMode("read")}
+                  >
+                    Read
+                  </button>
                 </div>
                 <button
                   className="context-button"
@@ -453,7 +629,7 @@ export function App() {
                   Context
                 </button>
                 <button
-                  className="primary-button"
+                  className="save-button"
                   type="button"
                   onClick={() => void saveNote()}
                   disabled={!dirty || status.kind === "busy"}
@@ -461,12 +637,18 @@ export function App() {
                   Save
                 </button>
               </div>
-              <MarkdownEditor
-                key={openNote.metadata.id}
-                value={draft}
-                label={`Edit ${openNote.metadata.name}`}
-                onChange={setDraft}
-              />
+              {viewMode === "edit" ? (
+                <MarkdownEditor
+                  key={openNote.metadata.id}
+                  value={draft}
+                  label={`Edit ${openNote.metadata.name}`}
+                  linkTargets={editorLinkTargets}
+                  tags={knownTags}
+                  onChange={setDraft}
+                />
+              ) : (
+                <MarkdownPreview content={draft} />
+              )}
             </>
           ) : (
             <div className="editor-empty">
@@ -488,12 +670,39 @@ export function App() {
             backlinks={backlinks}
             broken={brokenLinks}
             index={knowledgeIndex}
+            properties={parsedDraft.frontmatter}
+            tags={parsedDraft.tags}
+            aliases={parsedDraft.aliases}
             onOpenNote={(noteId) => void openNoteById(noteId)}
             onBackToNote={() => setMobileContextOpen(false)}
           />
         ) : null}
       </div>
 
+      <QuickSwitcher
+        open={quickSwitcherOpen}
+        notes={knowledgeIndex?.notes ?? []}
+        recentNoteIds={recentNoteIds}
+        onClose={() => setQuickSwitcherOpen(false)}
+        onOpenNote={(noteId) => void openNoteById(noteId)}
+        onCreateNote={(name) =>
+          requestNewItem(
+            "note",
+            selectedFolderId || provider.rootId,
+            name,
+          )
+        }
+      />
+      <NewItemDialog
+        open={newItem !== undefined}
+        kind={newItem?.kind ?? "note"}
+        tree={tree}
+        rootId={provider.rootId}
+        initialFolderId={newItem?.folderId ?? provider.rootId}
+        initialName={newItem?.initialName ?? ""}
+        onClose={() => setNewItem(undefined)}
+        onCreate={createWorkspaceItem}
+      />
       <StatusBar status={status} />
     </main>
   );
@@ -505,6 +714,9 @@ function KnowledgePanel({
   backlinks,
   broken,
   index,
+  properties,
+  tags,
+  aliases,
   onOpenNote,
   onBackToNote,
 }: {
@@ -513,6 +725,9 @@ function KnowledgePanel({
   readonly backlinks: readonly KnowledgeEdge[];
   readonly broken: readonly KnowledgeEdge[];
   readonly index: KnowledgeIndexSnapshot | undefined;
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly tags: readonly string[];
+  readonly aliases: readonly string[];
   readonly onOpenNote: (noteId: string) => void;
   readonly onBackToNote: () => void;
 }) {
@@ -523,6 +738,28 @@ function KnowledgePanel({
       </button>
       <span className="section-label">Context</span>
       <h2>{noteTitle}</h2>
+
+      {(tags.length > 0 || aliases.length > 0 || Object.keys(properties).length > 0) ? (
+        <section className="properties-summary">
+          <h3>Properties</h3>
+          {tags.length > 0 ? (
+            <div className="property-row">
+              <span>Tags</span>
+              <div className="chip-list">
+                {tags.map((tag) => <span className="tag-chip" key={tag}>#{tag}</span>)}
+              </div>
+            </div>
+          ) : null}
+          {aliases.length > 0 ? (
+            <div className="property-row">
+              <span>Aliases</span>
+              <div className="chip-list">
+                {aliases.map((alias) => <span className="property-chip" key={alias}>{alias}</span>)}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <KnowledgeSection title="Links" empty="No outgoing links.">
         {outgoing
@@ -852,4 +1089,32 @@ function errorMessage(error: unknown): string {
     return error.message;
   }
   return "Something unexpected happened.";
+}
+
+
+function recentNotesKey(workspaceId: string): string {
+  return `mindcontext.recent.${workspaceId}`;
+}
+
+function readRecentNotes(workspaceId: string): readonly string[] {
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(recentNotesKey(workspaceId)) ?? "[]",
+    );
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string").slice(0, 12)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberRecentNote(
+  workspaceId: string,
+  current: readonly string[],
+  noteId: string,
+): readonly string[] {
+  const next = [noteId, ...current.filter((id) => id !== noteId)].slice(0, 12);
+  window.localStorage.setItem(recentNotesKey(workspaceId), JSON.stringify(next));
+  return next;
 }
