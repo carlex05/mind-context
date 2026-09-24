@@ -121,7 +121,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await replaceEditorContent(
     page,
     betaEditor,
-    "---\ntags:\n  - architecture\n---\n\n# Beta\n\n## Boundaries",
+    "---\ntags:\n  - architecture\naliases:\n  - B\n---\n\n# Beta\n\n## Boundaries",
   );
   await page.getByRole("button", { name: "Save" }).click();
   await returnToExplorerOnMobile(page, testInfo.project.name);
@@ -140,13 +140,53 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
     page.getByText("Saved to Drive and updated the local knowledge index."),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: "Read", exact: true }).click();
+  const readingView = page.getByLabel("Reading view");
+  await expect(readingView.getByRole("button", { name: "Beta" })).toBeVisible();
+  await readingView.getByRole("button", { name: "Beta" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Beta.md" }),
+  ).toBeVisible();
+
+  await expect(page.getByRole("button", { name: "Back" })).toBeEnabled();
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Alpha.md" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Forward" })).toBeEnabled();
+  await page.getByRole("button", { name: "Forward" }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Beta.md" }),
+  ).toBeVisible();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "Context" }).click();
+  }
+  const properties = page.getByRole("region", { name: "Note properties" });
+  await properties.getByLabel("Add tags").fill("knowledge");
+  await properties.getByLabel("Add tags").press("Enter");
+  await properties.getByLabel("Add aliases").fill("Second Beta");
+  await properties.getByLabel("Add aliases").press("Enter");
+  await expect(properties.getByText("#knowledge")).toBeVisible();
+  await expect(properties.getByText("Second Beta")).toBeVisible();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "← Note" }).click();
+  }
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(
+    page.getByText("Saved to Drive and updated the local knowledge index."),
+  ).toBeVisible();
+  expect(drive.noteContentByName("Beta.md")).toContain("knowledge");
+  expect(drive.noteContentByName("Beta.md")).toContain("Second Beta");
+
   await page.keyboard.press("Control+O");
   const switcher = page.getByRole("dialog", { name: "Quick switcher" });
   await expect(switcher).toBeVisible();
-  await switcher.getByLabel("Open or create note").fill("Beta");
-  await switcher.getByRole("button", { name: /Beta/ }).first().click();
+  await switcher.getByLabel("Open or create note").fill("Alpha");
+  await switcher.getByRole("button", { name: /Alpha/ }).first().click();
   await expect(
-    page.getByRole("textbox", { name: "Edit Beta.md" }),
+    page.getByRole("textbox", { name: "Edit Alpha.md" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Interface settings" }).click();
