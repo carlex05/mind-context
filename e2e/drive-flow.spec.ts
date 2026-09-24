@@ -66,6 +66,68 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   }
 });
 
+test("derives wikilinks, backlinks and broken links locally", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+
+  await installGoogleIdentityMock(page);
+  await page.route("https://www.googleapis.com/**", (route) =>
+    drive.handle(route),
+  );
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await page.getByRole("button", { name: "Create in Drive" }).click();
+
+  await page.getByLabel("New Markdown note").fill("Alpha");
+  await page.getByRole("button", { name: "Add" }).click();
+
+  const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await alphaEditor.fill("# Alpha\n\nLinks to [[Beta]] and [[Missing]].");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(
+    page.getByText("Saved to Drive and updated the local knowledge index."),
+  ).toBeVisible();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.locator(".mobile-back").click();
+  }
+
+  await page.getByLabel("New Markdown note").fill("Beta");
+  await page.getByRole("button", { name: "Add" }).click();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "Context" }).click();
+  }
+
+  const context = page.getByRole("complementary", {
+    name: "Knowledge context",
+  });
+  await expect(context).toBeVisible();
+  await expect(
+    context.getByRole("button", { name: /Alpha/ }),
+  ).toBeVisible();
+
+  await context.getByRole("button", { name: /Alpha/ }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Alpha.md" }),
+  ).toBeVisible();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "Context" }).click();
+  }
+
+  const alphaContext = page.getByRole("complementary", {
+    name: "Knowledge context",
+  });
+  await expect(
+    alphaContext.getByRole("button", { name: /Beta/ }),
+  ).toBeVisible();
+  await expect(alphaContext.getByText("[[Missing]]")).toBeVisible();
+  await expect(alphaContext.getByText("Note not found")).toBeVisible();
+});
+
 async function installGoogleIdentityMock(page: Page): Promise<void> {
   await page.route("https://accounts.google.com/gsi/client", async (route) => {
     await route.fulfill({
@@ -110,6 +172,7 @@ interface StoredFile {
 
 class FakeDrive {
   private workspaceCreated = false;
+  private nextNoteNumber = 1;
   private readonly notes = new Map<string, StoredFile>();
 
   async handle(route: Route): Promise<void> {
@@ -184,13 +247,14 @@ class FakeDrive {
         )?.[1] ?? "";
 
       const note: StoredFile = {
-        id: "note-1",
+        id: `note-${this.nextNoteNumber}`,
         name,
         mimeType: "text/markdown",
         parents: ["workspace-1"],
         version: 1,
         content,
       };
+      this.nextNoteNumber += 1;
       this.notes.set(note.id, note);
       await this.json(route, this.metadata(note));
       return;
