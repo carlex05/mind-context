@@ -327,15 +327,17 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     await this.assertRevision(id, condition);
     const current = await this.metadata(id);
     const params = new URLSearchParams({
-      addParents: destinationParentId,
       fields: FILE_FIELDS,
     });
 
-    const oldParents = current.parentIds.filter(
-      (parentId) => parentId !== destinationParentId,
-    );
-    if (oldParents.length > 0) {
-      params.set("removeParents", oldParents.join(","));
+    if (!current.parentIds.includes(destinationParentId)) {
+      params.set("addParents", destinationParentId);
+      const oldParents = current.parentIds.filter(
+        (parentId) => parentId !== destinationParentId,
+      );
+      if (oldParents.length > 0) {
+        params.set("removeParents", oldParents.join(","));
+      }
     }
 
     const response = await this.requestJson<DriveFile>(

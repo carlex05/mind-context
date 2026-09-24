@@ -429,6 +429,119 @@ h2 {
   border-radius: 999px;
 }
 
+.explorer-create {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+}
+
+.explorer-location {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.explorer-location .section-label {
+  margin-bottom: 0;
+}
+
+.explorer-location strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+}
+
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tree-row {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+}
+
+.tree-row.active,
+.tree-row.selected,
+.tree-row.folder-selected {
+  background: #efefe9;
+  border-color: var(--border);
+}
+
+.tree-toggle,
+.tree-main {
+  min-height: 42px;
+  background: transparent;
+  border: 0;
+}
+
+.tree-toggle {
+  flex: 0 0 36px;
+  padding: 0;
+  font-weight: 800;
+}
+
+.tree-spacer {
+  flex: 0 0 36px;
+  text-align: center;
+}
+
+.tree-main {
+  min-width: 0;
+  flex: 1;
+  padding: 0 8px 0 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.root-row {
+  padding-inline: 10px;
+}
+
+.file-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.file-actions > strong {
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+}
+
+.file-action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.file-action-buttons button,
+.file-actions select {
+  min-height: var(--tap);
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.file-actions label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .new-note-form {
   display: flex;
   flex-direction: column;
@@ -672,7 +785,18 @@ h2 {
 
   .note-sidebar {
     min-height: calc(100dvh - 62px);
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-bottom: max(28px, env(safe-area-inset-bottom));
     border-right: 0;
+  }
+
+  .file-action-buttons {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .file-actions select {
+    font-size: 16px;
   }
 
   .editor-panel {
