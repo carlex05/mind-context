@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { RemarkMarkdownParser } from "../src/index";
+import {
+  RemarkMarkdownParser,
+  updateFrontmatterStringList,
+} from "../src/index";
 
 const fixture = readFileSync(
   new URL("./fixtures/obsidian-compatibility.md", import.meta.url),
@@ -80,6 +83,40 @@ describe("Obsidian-compatible Markdown", () => {
         }),
       ]),
     );
+  });
+
+  it("updates tags and aliases through standard YAML frontmatter", () => {
+    const withTags = updateFrontmatterStringList(
+      "# Portable\n",
+      "tags",
+      ["architecture", "local-first"],
+    );
+    const withAliases = updateFrontmatterStringList(
+      withTags,
+      "aliases",
+      ["Portable Note"],
+    );
+    const reparsed = new RemarkMarkdownParser().parse(withAliases);
+
+    expect(reparsed.frontmatter).toMatchObject({
+      tags: ["architecture", "local-first"],
+      aliases: ["Portable Note"],
+    });
+    expect(withAliases).toContain("# Portable");
+  });
+
+  it("preserves unrelated YAML properties when editing string lists", () => {
+    const updated = updateFrontmatterStringList(
+      "---\nstatus: active\ntags:\n  - old\n---\n# Note\n",
+      "tags",
+      ["new"],
+    );
+    const reparsed = new RemarkMarkdownParser().parse(updated);
+
+    expect(reparsed.frontmatter).toMatchObject({
+      status: "active",
+      tags: ["new"],
+    });
   });
 
   it("ignores wikilinks and tags inside inline/fenced code", () => {

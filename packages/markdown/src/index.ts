@@ -1,6 +1,6 @@
 import remarkParse from "remark-parse";
 import { unified } from "unified";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from "yaml";
 
 export type InternalLinkSyntax = "wikilink" | "markdown";
 
@@ -171,6 +171,39 @@ export class RemarkMarkdownParser implements MarkdownParser {
 }
 
 export const markdownParser: MarkdownParser = new RemarkMarkdownParser();
+
+export function updateFrontmatterStringList(
+  content: string,
+  key: string,
+  values: readonly string[],
+): string {
+  const normalizedValues = [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+  const normalized = content.startsWith("\uFEFF") ? content.slice(1) : content;
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(normalized);
+
+  if (!match) {
+    if (normalizedValues.length === 0) return content;
+    const yaml = stringifyYaml({ [key]: normalizedValues }).trimEnd();
+    return `---\n${yaml}\n---\n${normalized}`;
+  }
+
+  const document = parseDocument(match[1] ?? "");
+  if (document.errors.length > 0) {
+    throw new Error("Cannot edit properties because the YAML frontmatter is invalid.");
+  }
+
+  if (normalizedValues.length > 0) {
+    document.set(key, normalizedValues);
+  } else {
+    document.delete(key);
+  }
+
+  const yaml = document.toString().trimEnd();
+  const body = normalized.slice(match[0].length);
+  if (!yaml.trim()) return body;
+
+  return `---\n${yaml}\n---\n${body}`;
+}
 
 function extractFrontmatter(content: string): FrontmatterExtraction {
   const normalized = content.startsWith("\uFEFF") ? content.slice(1) : content;
