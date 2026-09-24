@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { KnowledgeEdge } from "@mind-context/knowledge";
@@ -54,8 +53,8 @@ function resolveHref(
 ): string | undefined {
   if (!href) return undefined;
 
-  if (href.startsWith("mindcontext-note:")) {
-    return href.slice("mindcontext-note:".length);
+  if (href.startsWith("#mindcontext-note=")) {
+    return decodeURIComponent(href.slice("#mindcontext-note=".length));
   }
 
   if (/^[a-z]+:/i.test(href)) return undefined;
@@ -143,7 +142,7 @@ function splitWikilinks(
     if (noteId) {
       nodes.push({
         type: "link",
-        url: `mindcontext-note:${noteId}`,
+        url: `#mindcontext-note=${encodeURIComponent(noteId)}`,
         children: [{ type: "text", value: label }],
       });
     } else {

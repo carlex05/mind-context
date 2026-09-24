@@ -1437,3 +1437,169 @@ h2 {
       max(18px, env(safe-area-inset-left));
   }
 }
+
+
+.history-controls {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.history-controls button {
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.history-controls button:hover:not(:disabled),
+.history-controls button:focus-visible:not(:disabled) {
+  color: var(--ink);
+  background: var(--subtle);
+}
+
+.history-controls button:disabled {
+  opacity: 0.28;
+}
+
+.properties-editor {
+  margin-bottom: 26px;
+}
+
+.properties-editor > h3,
+.other-properties > summary {
+  margin: 0 0 10px;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.property-editor-row {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.property-editor-row > span {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.property-editor-content {
+  display: grid;
+  gap: 7px;
+}
+
+.property-editor-content input {
+  min-height: 38px;
+  width: 100%;
+  padding: 0 9px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 0.82rem;
+}
+
+.editable-chip {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.editable-chip button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.editable-chip button:hover,
+.editable-chip button:focus-visible {
+  color: var(--ink);
+  background: var(--border);
+}
+
+.other-properties {
+  margin: -12px 0 24px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.other-properties > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.other-properties > summary::-webkit-details-marker {
+  display: none;
+}
+
+.property-readonly-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.8fr) minmax(0, 1.5fr);
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 0.76rem;
+}
+
+.property-readonly-row span {
+  color: var(--ink-muted);
+}
+
+.property-readonly-row code {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  background: transparent;
+}
+
+.preview-internal-link {
+  display: inline;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  font: inherit;
+  cursor: pointer;
+  text-underline-offset: 3px;
+}
+
+.preview-internal-link:hover,
+.preview-internal-link:focus-visible {
+  opacity: 0.72;
+}
+
+@media (max-width: 760px) {
+  .history-controls button {
+    width: 32px;
+    min-height: 36px;
+  }
+
+  .topbar-copy {
+    min-width: 0;
+  }
+
+  .topbar-copy > .text-button {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .property-editor-content input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
