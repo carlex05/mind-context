@@ -7,6 +7,23 @@
       name="description"
       content="MindContext — private, local-first knowledge on your own files."
     />
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("mindcontext.theme");
+          const preference =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          const dark =
+            preference === "dark" ||
+            (preference === "system" &&
+              matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.documentElement.dataset.themePreference = preference;
+        } catch {}
+      })();
+    </script>
     <title>MindContext</title>
   </head>
   <body>
