@@ -105,6 +105,45 @@ test("derives wikilinks, backlinks and broken links locally", async ({
   await expect(alphaContext.getByText("Note not found")).toBeVisible();
 });
 
+test("persists theme, offers quick switching, reading view and wikilink suggestions", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Beta");
+  const betaEditor = page.getByRole("textbox", { name: "Edit Beta.md" });
+  await betaEditor.fill("---\ntags:\n  - architecture\n---\n\n# Beta\n\n## Boundaries");
+  await page.getByRole("button", { name: "Save" }).click();
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+
+  await createNote(page, "Alpha");
+  const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await alphaEditor.fill("# Alpha\n\n[[");
+  await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("Beta");
+
+  await page.getByRole("button", { name: "Read", exact: true }).click();
+  await expect(page.getByLabel("Reading view")).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+
+  await page.keyboard.press("Control+O");
+  const switcher = page.getByRole("dialog", { name: "Quick switcher" });
+  await expect(switcher).toBeVisible();
+  await switcher.getByLabel("Open or create note").fill("Beta");
+  await switcher.getByRole("button", { name: /Beta/ }).first().click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Beta.md" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Interface settings" }).click();
+  await page.getByRole("button", { name: /Dark/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
 test("manages nested folders and safely rewrites resolved links on rename", async ({
   page,
 }, testInfo) => {
@@ -112,8 +151,7 @@ test("manages nested folders and safely rewrites resolved links on rename", asyn
   await prepareDrive(page, drive);
   await openFreshWorkspace(page);
 
-  await page.getByLabel("New folder").fill("Projects");
-  await page.getByRole("button", { name: "+ Folder", exact: true }).click();
+  await createFolder(page, "Projects");
   await expect(page.getByText("Folder “Projects” created.")).toBeVisible();
 
   await createNote(page, "Alpha");
@@ -130,6 +168,7 @@ test("manages nested folders and safely rewrites resolved links on rename", asyn
   const betaRow = page.locator(".tree-row").filter({ hasText: "Beta.md" });
   await betaRow.getByRole("button", { name: "Beta.md" }).click();
   await returnToExplorerOnMobile(page, testInfo.project.name);
+  await page.getByRole("button", { name: "Actions for Beta.md" }).click();
 
   page.on("dialog", async (dialog) => {
     if (dialog.type() === "prompt") {
@@ -180,11 +219,20 @@ async function openFreshWorkspace(page: Page): Promise<void> {
 }
 
 async function createNote(page: Page, name: string): Promise<void> {
-  await page.getByLabel("New Markdown note").fill(name);
-  await page.getByRole("button", { name: "+ Note", exact: true }).click();
+  await page.getByRole("button", { name: "+ New note", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "New note" });
+  await dialog.getByLabel("Name").fill(name);
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: `Edit ${name}.md` }),
   ).toBeVisible();
+}
+
+async function createFolder(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "New folder", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "New folder" });
+  await dialog.getByLabel("Name").fill(name);
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
 }
 
 async function returnToExplorerOnMobile(
