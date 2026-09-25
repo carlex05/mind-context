@@ -27,7 +27,7 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   await page.getByRole("button", { name: "Save" }).click();
 
   await expect(
-    page.getByText("Saved to Drive and updated the local knowledge index."),
+    page.getByText("Synced to Google Drive."),
   ).toBeVisible();
 
   expect(drive.noteContentByName("Private.md")).toBe(
@@ -57,6 +57,55 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
       page.getByRole("navigation", { name: "Workspace files" }),
     ).toBeVisible();
   }
+});
+
+test("syncs repeated edits to the same note with the latest Drive revision", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Repeat");
+
+  const editor = page.getByRole("textbox", { name: "Edit Repeat.md" });
+  await replaceEditorContent(page, editor, "# Repeat\n\nversion one");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced to Google Drive.")).toBeVisible();
+  expect(drive.noteContentByName("Repeat.md")).toBe(
+    "# Repeat\n\nversion one",
+  );
+
+  await replaceEditorContent(page, editor, "# Repeat\n\nversion two");
+  await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect
+    .poll(() => drive.noteContentByName("Repeat.md"))
+    .toBe("# Repeat\n\nversion two");
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+});
+
+test("keeps newer local edits while an earlier Drive sync is in flight", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  drive.setUploadDelay(400);
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Queued");
+
+  const editor = page.getByRole("textbox", { name: "Edit Queued.md" });
+  await replaceEditorContent(page, editor, "# Queued\n\nfirst");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Syncing…", { exact: true })).toBeVisible();
+
+  await replaceEditorContent(page, editor, "# Queued\n\nsecond");
+  await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+
+  await expect
+    .poll(() => drive.noteContentByName("Queued.md"), { timeout: 5000 })
+    .toBe("# Queued\n\nsecond");
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
 });
 
 test("derives wikilinks, backlinks and broken links locally", async ({
@@ -266,7 +315,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await replaceEditorContent(page, alphaEditor, "# Alpha\n\nLinks to [[Beta]].");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
-    page.getByText("Saved to Drive and updated the local knowledge index."),
+    page.getByText("Synced to Google Drive."),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Reading view", exact: true }).click();
@@ -298,7 +347,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await page.getByRole("button", { name: "Close context" }).click();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
-    page.getByText("Saved to Drive and updated the local knowledge index."),
+    page.getByText("Synced to Google Drive."),
   ).toBeVisible();
   expect(drive.noteContentByName("Beta.md")).toContain("knowledge");
   expect(drive.noteContentByName("Beta.md")).toContain("Second Beta");
@@ -576,7 +625,7 @@ test("preserves unsaved drafts in memory while switching note tabs", async ({
 
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
-    page.getByText("Saved to Drive and updated the local knowledge index."),
+    page.getByText("Synced to Google Drive."),
   ).toBeVisible();
   expect(drive.noteContentByName("Alpha.md")).toContain("Unsaved tab draft");
 });
@@ -754,6 +803,11 @@ interface StoredObject {
 
 class FakeDrive {
   private workspaceCreated = false;
+  private uploadDelayMs = 0;
+
+  setUploadDelay(delayMs: number): void {
+    this.uploadDelayMs = delayMs;
+  }
 
   seedExistingWorkspace(): void {
     this.workspaceCreated = true;
@@ -941,6 +995,10 @@ class FakeDrive {
       if (!object) {
         await route.fulfill({ status: 404, body: "Not found" });
         return;
+      }
+
+      if (this.uploadDelayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, this.uploadDelayMs));
       }
 
       object.content = request.postData() ?? "";
