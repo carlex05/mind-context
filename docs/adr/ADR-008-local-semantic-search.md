@@ -20,8 +20,10 @@ Semantic search is an optional local capability.
 - The user must explicitly enable it.
 - The initial browser provider uses Transformers.js feature extraction.
 - The initial multilingual model is
-  `Xenova/paraphrase-multilingual-MiniLM-L12-v2`.
+  `Xenova/multilingual-e5-small`.
 - Embeddings are generated from heading-aware search chunks.
+- The provider contract distinguishes query from document inputs so
+  retrieval-oriented models can apply the correct input semantics.
 - WebGPU is preferred when available, with a WASM fallback.
 - Chunk vectors are persisted in IndexedDB as disposable derived state.
 - An embedding is reusable only when provider ID, model, chunk ID and

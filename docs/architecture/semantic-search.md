@@ -49,7 +49,10 @@ keep semantic search disabled.
 
 The initial provider:
 
+- uses `Xenova/multilingual-e5-small`;
+- uses `query:` inputs for search queries and `passage:` inputs for chunks;
 - uses feature extraction with mean pooling and normalization;
+- runs inference in a Web Worker;
 - prefers WebGPU;
 - falls back to WASM;
 - uses an 8-bit model variant where available;
