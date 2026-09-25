@@ -3,6 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import type { NoteViewMode, WorkspacePanel, WorkspaceTab } from "./workspaceUi";
 
+export type NoteSyncState =
+  | "synced"
+  | "local"
+  | "syncing"
+  | "conflict"
+  | "error";
+
 export function WorkspaceRail({
   activePanel,
   sidebarOpen,
@@ -134,6 +141,7 @@ export function WorkspaceHeader({
   viewMode,
   hasNote,
   dirty,
+  syncState,
   rightSidebarOpen,
   onBack,
   onForward,
@@ -147,6 +155,7 @@ export function WorkspaceHeader({
   readonly viewMode: NoteViewMode;
   readonly hasNote: boolean;
   readonly dirty: boolean;
+  readonly syncState: NoteSyncState;
   readonly rightSidebarOpen: boolean;
   readonly onBack: () => void;
   readonly onForward: () => void;
@@ -185,11 +194,24 @@ export function WorkspaceHeader({
       </div>
       {hasNote ? (
         <div className="workspace-note-actions">
-          {dirty ? (
-            <span className="dirty-dot" title={t("actions.unsavedChanges")}>
-              ●
-            </span>
-          ) : null}
+          <span
+            className={`note-sync-state ${syncState}`}
+            title={
+              syncState === "local"
+                ? t("actions.syncLocalDescription")
+                : undefined
+            }
+          >
+            {syncState === "synced"
+              ? t("actions.syncSynced")
+              : syncState === "local"
+                ? t("actions.syncLocal")
+                : syncState === "syncing"
+                  ? t("actions.syncing")
+                  : syncState === "conflict"
+                    ? t("actions.syncConflict")
+                    : t("actions.syncError")}
+          </span>
           <button
             type="button"
             aria-label={modeLabel}
@@ -211,7 +233,9 @@ export function WorkspaceHeader({
             type="button"
             aria-label={t("common.save")}
             title={t("common.save")}
-            disabled={!dirty}
+            disabled={
+              !dirty || syncState === "syncing" || syncState === "conflict"
+            }
             onClick={onSave}
           >
             <Icon name="save" />
