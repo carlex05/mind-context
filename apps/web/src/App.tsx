@@ -33,6 +33,7 @@ import {
 import { buildWorkspaceDerivedState } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { LocalGraphPanel } from "./LocalGraphPanel";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
 import { PropertiesEditor } from "./PropertiesEditor";
 import { QuickSwitcher } from "./QuickSwitcher";
@@ -1060,18 +1061,18 @@ export function App() {
       >
         <div className="graph-summary">
           <strong>{knowledgeIndex?.notes.length ?? 0}</strong>
-          <span>notes</span>
+          <span>notes in vault</span>
           <strong>
             {knowledgeIndex?.edges.filter(
               (edge) => edge.resolution === "resolved",
             ).length ?? 0}
           </strong>
-          <span>connections</span>
+          <span>resolved links</span>
         </div>
-        <PlaceholderPanel
-          icon="graph"
-          title="Graph view"
-          description="This shell is now ready for Local Graph and Global Graph tabs without changing the vault format."
+        <LocalGraphPanel
+          index={knowledgeIndex}
+          activeNoteId={openNote?.metadata.id}
+          onOpenNote={(noteId) => void openNoteById(noteId)}
         />
       </SidebarFrame>
     ) : activeLeftPanel === "tags" ? (

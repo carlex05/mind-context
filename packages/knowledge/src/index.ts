@@ -64,6 +64,30 @@ export interface KnowledgeIndexSnapshot {
   readonly edges: readonly KnowledgeEdge[];
 }
 
+export type LocalGraphDirection =
+  | "center"
+  | "outgoing"
+  | "backlink"
+  | "both";
+
+export interface LocalGraphNode {
+  readonly noteId: string;
+  readonly path: string;
+  readonly title: string;
+  readonly direction: LocalGraphDirection;
+}
+
+export interface LocalGraphEdge {
+  readonly sourceNoteId: string;
+  readonly targetNoteId: string;
+}
+
+export interface LocalGraphProjection {
+  readonly centerNoteId: string;
+  readonly nodes: readonly LocalGraphNode[];
+  readonly edges: readonly LocalGraphEdge[];
+}
+
 export interface KnowledgeIndexSnapshotStore {
   get(workspaceId: string): Promise<KnowledgeIndexSnapshot | undefined>;
   put(snapshot: KnowledgeIndexSnapshot): Promise<void>;
@@ -114,6 +138,97 @@ export function getBacklinks(
         edge.resolution === "resolved" && edge.targetNoteId === noteId,
     ) ?? []
   );
+}
+
+export function getLocalGraph(
+  snapshot: KnowledgeIndexSnapshot | undefined,
+  noteId: string,
+): LocalGraphProjection | undefined {
+  const center = getNote(snapshot, noteId);
+  if (!snapshot || !center) return undefined;
+
+  const directions = new Map<
+    string,
+    Exclude<LocalGraphDirection, "center">
+  >();
+  const edgeKeys = new Set<string>();
+  const edges: LocalGraphEdge[] = [];
+
+  for (const edge of snapshot.edges) {
+    if (edge.resolution !== "resolved" || !edge.targetNoteId) continue;
+    if (edge.sourceNoteId !== noteId && edge.targetNoteId !== noteId) {
+      continue;
+    }
+
+    const edgeKey = `${edge.sourceNoteId}->${edge.targetNoteId}`;
+    if (!edgeKeys.has(edgeKey)) {
+      edgeKeys.add(edgeKey);
+      edges.push({
+        sourceNoteId: edge.sourceNoteId,
+        targetNoteId: edge.targetNoteId,
+      });
+    }
+
+    if (
+      edge.sourceNoteId === noteId &&
+      edge.targetNoteId !== noteId
+    ) {
+      directions.set(
+        edge.targetNoteId,
+        mergeDirection(directions.get(edge.targetNoteId), "outgoing"),
+      );
+    }
+
+    if (
+      edge.targetNoteId === noteId &&
+      edge.sourceNoteId !== noteId
+    ) {
+      directions.set(
+        edge.sourceNoteId,
+        mergeDirection(directions.get(edge.sourceNoteId), "backlink"),
+      );
+    }
+  }
+
+  const neighbors = [...directions.entries()]
+    .flatMap(([neighborId, direction]) => {
+      const note = getNote(snapshot, neighborId);
+      return note
+        ? [{
+            noteId: note.id,
+            path: note.path,
+            title: note.title,
+            direction,
+          } satisfies LocalGraphNode]
+        : [];
+    })
+    .sort(
+      (left, right) =>
+        left.title.localeCompare(right.title) ||
+        left.path.localeCompare(right.path),
+    );
+
+  return {
+    centerNoteId: noteId,
+    nodes: [
+      {
+        noteId: center.id,
+        path: center.path,
+        title: center.title,
+        direction: "center",
+      },
+      ...neighbors,
+    ],
+    edges,
+  };
+}
+
+function mergeDirection(
+  current: Exclude<LocalGraphDirection, "center"> | undefined,
+  next: "outgoing" | "backlink",
+): Exclude<LocalGraphDirection, "center"> {
+  if (!current || current === next) return next;
+  return "both";
 }
 
 export function getBrokenLinks(

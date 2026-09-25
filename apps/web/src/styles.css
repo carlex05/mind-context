@@ -2492,3 +2492,91 @@ h2 {
 .search-empty small {
   font-size: 0.68rem;
 }
+
+
+/* Local graph */
+
+.local-graph-panel {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.local-graph-canvas {
+  width: 100%;
+  height: 270px;
+  overflow: hidden;
+  background: var(--editor-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+
+.local-graph-meta {
+  display: flex;
+  padding: 0 4px;
+  gap: 6px;
+  align-items: baseline;
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.local-graph-meta strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.local-graph-connections {
+  display: grid;
+  gap: 2px;
+}
+
+.local-graph-connections button {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  padding: 5px 9px;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-size: 0.76rem;
+}
+
+.local-graph-connections button:hover,
+.local-graph-connections button:focus-visible {
+  background: var(--subtle);
+  outline: 0;
+}
+
+.local-graph-connections small {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+  font-size: 0.64rem;
+}
+
+.graph-empty {
+  padding: 44px 18px 18px;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.graph-empty strong {
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.graph-empty p {
+  margin: 7px 0 0;
+  line-height: 1.5;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 760px) {
+  .local-graph-canvas {
+    height: min(52vh, 430px);
+  }
+}

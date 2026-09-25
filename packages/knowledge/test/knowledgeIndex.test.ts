@@ -4,6 +4,7 @@ import {
   buildKnowledgeIndex,
   getBacklinks,
   getBrokenLinks,
+  getLocalGraph,
   getOutgoingLinks,
   upsertKnowledgeDocument,
 } from "../src/index";
@@ -161,6 +162,45 @@ describe("knowledge index", () => {
       "ambiguous-note",
       "resolved",
     ]);
+  });
+
+  it("projects a one-hop local graph with link direction", () => {
+    const index = buildKnowledgeIndex("workspace-1", [
+      {
+        id: "a",
+        path: "A.md",
+        name: "A.md",
+        content: "[[B]] [[C]]",
+      },
+      {
+        id: "b",
+        path: "B.md",
+        name: "B.md",
+        content: "[[A]]",
+      },
+      {
+        id: "c",
+        path: "C.md",
+        name: "C.md",
+        content: "# C",
+      },
+      {
+        id: "d",
+        path: "D.md",
+        name: "D.md",
+        content: "[[A]]",
+      },
+    ]);
+
+    const graph = getLocalGraph(index, "a");
+
+    expect(graph?.nodes).toMatchObject([
+      { noteId: "a", direction: "center" },
+      { noteId: "b", direction: "both" },
+      { noteId: "c", direction: "outgoing" },
+      { noteId: "d", direction: "backlink" },
+    ]);
+    expect(graph?.edges).toHaveLength(4);
   });
 
   it("recomputes graph projections when a document changes", () => {
