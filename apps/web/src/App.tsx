@@ -907,19 +907,15 @@ export function App() {
       embeddingProvider.id,
       embeddingProvider.model,
     );
+    window.localStorage.setItem(SEMANTIC_SEARCH_KEY, "false");
+    setSemanticEnabled(false);
     setEmbeddingSnapshot(undefined);
+    setSemanticUi({ kind: "disabled" });
     setStatus({
       kind: "success",
       message:
-        "Local semantic embeddings cleared. Markdown in Drive was not changed.",
+        "Local semantic embeddings cleared and semantic search disabled. Markdown in Drive was not changed.",
     });
-    if (semanticEnabled && searchSnapshot) {
-      setSemanticUi({
-        kind: "preparing",
-        message: "Local embeddings cleared. Rebuilding…",
-      });
-      void prepareSemanticSearch(searchSnapshot);
-    }
   }
 
   async function prepareSemanticSearch(
