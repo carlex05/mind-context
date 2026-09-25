@@ -539,7 +539,6 @@ void i18n
     fallbackLng: "en",
     supportedLngs: ["en", "es"],
     interpolation: { escapeValue: false },
-    initImmediate: false,
     returnNull: false,
   });
 

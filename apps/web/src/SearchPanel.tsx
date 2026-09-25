@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { TFunction } from "i18next";
 import type {
   SearchHit,
   SearchService,
@@ -210,7 +211,7 @@ function SemanticSearchCard({
 
 function semanticMessage(
   state: Exclude<SemanticUiState, { readonly kind: "disabled" }>,
-  t: (key: string, options?: Record<string, unknown>) => string,
+  t: TFunction,
 ): string {
   if (state.kind === "error") {
     return t("semantic.unavailable", { error: state.error });

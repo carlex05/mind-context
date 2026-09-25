@@ -1809,6 +1809,7 @@ function EdgeRow({
   readonly label: string;
   readonly onOpenNote: (noteId: string) => void;
 }) {
+  const { t } = useTranslation();
   if (edge.resolution !== "resolved" || !edge.targetNoteId) {
     return (
       <div className="broken-link">
