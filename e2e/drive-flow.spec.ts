@@ -46,11 +46,8 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
     expect(url.pathname.startsWith("/upload/drive/v3/files")).toBe(true);
   }
 
-  const mobileBackButton = page.locator(".mobile-back");
-
   if (testInfo.project.name.startsWith("mobile")) {
-    await expect(mobileBackButton).toBeVisible();
-    await mobileBackButton.click();
+    await page.getByRole("button", { name: "Files", exact: true }).click();
     await expect(
       page.getByRole("navigation", { name: "Workspace files" }),
     ).toBeVisible();
@@ -59,7 +56,6 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
     await expect(
       page.getByRole("navigation", { name: "Workspace files" }),
     ).toBeVisible();
-    await expect(mobileBackButton).toBeHidden();
   }
 });
 
@@ -82,9 +78,7 @@ test("derives wikilinks, backlinks and broken links locally", async ({
   await returnToExplorerOnMobile(page, testInfo.project.name);
   await createNote(page, "Beta");
 
-  if (testInfo.project.name.startsWith("mobile")) {
-    await page.getByRole("button", { name: "Context" }).click();
-  }
+  await page.getByRole("button", { name: "Context" }).click();
 
   const context = page.getByRole("complementary", {
     name: "Knowledge context",
@@ -97,7 +91,7 @@ test("derives wikilinks, backlinks and broken links locally", async ({
     page.getByRole("textbox", { name: "Edit Alpha.md" }),
   ).toBeVisible();
 
-  if (testInfo.project.name.startsWith("mobile")) {
+  if (!(await page.getByRole("complementary", { name: "Knowledge context" }).isVisible())) {
     await page.getByRole("button", { name: "Context" }).click();
   }
 
@@ -131,16 +125,16 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await replaceEditorContent(page, alphaEditor, "# Alpha\n\n[[");
   await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("Beta");
 
-  await page.getByRole("button", { name: "Read", exact: true }).click();
+  await page.getByRole("button", { name: "Reading view", exact: true }).click();
   await expect(page.getByLabel("Reading view")).toBeVisible();
-  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByRole("button", { name: "Editing view", exact: true }).click();
   await replaceEditorContent(page, alphaEditor, "# Alpha\n\nLinks to [[Beta]].");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
     page.getByText("Saved to Drive and updated the local knowledge index."),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Read", exact: true }).click();
+  await page.getByRole("button", { name: "Reading view", exact: true }).click();
   const readingView = page.getByLabel("Reading view");
   await expect(readingView.getByRole("button", { name: "Beta" })).toBeVisible();
   await readingView.getByRole("button", { name: "Beta" }).click();
@@ -159,9 +153,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
     page.getByRole("textbox", { name: "Edit Beta.md" }),
   ).toBeVisible();
 
-  if (testInfo.project.name.startsWith("mobile")) {
-    await page.getByRole("button", { name: "Context" }).click();
-  }
+  await page.getByRole("button", { name: "Context" }).click();
   const properties = page.getByRole("region", { name: "Note properties" });
   await properties.getByLabel("Add tags").fill("knowledge");
   await properties.getByLabel("Add tags").press("Enter");
@@ -170,9 +162,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await expect(properties.getByText("#knowledge")).toBeVisible();
   await expect(properties.getByText("Second Beta")).toBeVisible();
 
-  if (testInfo.project.name.startsWith("mobile")) {
-    await page.getByRole("button", { name: "← Note" }).click();
-  }
+  await page.getByRole("button", { name: "Close context" }).click();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(
     page.getByText("Saved to Drive and updated the local knowledge index."),
@@ -189,12 +179,54 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
     page.getByRole("textbox", { name: "Edit Alpha.md" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Interface settings" }).click();
-  await page.getByRole("button", { name: /Dark/ }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("complementary", { name: "Settings" });
+  await settings.getByRole("button", { name: /Dark/ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("keeps multiple note tabs and restores them from local workspace state", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Alpha");
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Beta");
+
+  const tabs = page.getByLabel("Open tabs");
+  await expect(tabs.getByRole("button", { name: "Alpha", exact: true })).toBeVisible();
+  await expect(tabs.getByRole("button", { name: "Beta", exact: true })).toBeVisible();
+
+  await tabs.getByRole("button", { name: "Alpha", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Alpha.md" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await page.getByRole("button", { name: "My Second Brain", exact: false }).click();
+
+  const restoredTabs = page.getByLabel("Open tabs");
+  await expect(
+    restoredTabs.getByRole("button", { name: "Alpha", exact: true }),
+  ).toBeVisible();
+  await expect(
+    restoredTabs.getByRole("button", { name: "Beta", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Alpha.md" }),
+  ).toBeVisible();
+
+  await restoredTabs.getByRole("button", { name: "Close Beta" }).click();
+  await expect(
+    restoredTabs.getByRole("button", { name: "Beta", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("manages nested folders and safely rewrites resolved links on rename", async ({
@@ -271,12 +303,12 @@ async function openFreshWorkspace(page: Page): Promise<void> {
   await expect(page.getByText("Choose your brain.")).toBeVisible();
   await page.getByRole("button", { name: "Create in Drive" }).click();
   await expect(
-    page.getByRole("heading", { name: "My Second Brain" }),
+    page.getByRole("complementary", { name: "Files" }),
   ).toBeVisible();
 }
 
 async function createNote(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "+ New note", exact: true }).click();
+  await page.getByRole("button", { name: "New note", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "New note" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -307,10 +339,10 @@ async function returnToExplorerOnMobile(
   projectName: string,
 ): Promise<void> {
   if (projectName.startsWith("mobile")) {
-    const back = page.locator(".mobile-back");
-    if (await back.isVisible()) {
-      await back.click();
-    }
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(
+      page.getByRole("navigation", { name: "Workspace files" }),
+    ).toBeVisible();
   }
 }
 
