@@ -509,6 +509,7 @@ export function App() {
     if (!authSession) return;
     if (!confirmDiscardAllDirty()) return;
 
+    cancelAllScheduledSyncs();
     const nextProvider = storageProviderFor(workspace, authSession);
     setOnboardingMode(undefined);
 
@@ -533,7 +534,10 @@ export function App() {
       setOpenNote(undefined);
       setDraft("");
       setTabs([]);
-      setTabBuffers({});
+      replaceTabBuffers({});
+      noteSyncStatesRef.current = {};
+      setNoteSyncStates({});
+      activeTabIdRef.current = undefined;
       setActiveTabId(undefined);
       setNavigation({ entries: [], index: -1 });
       setRightSidebarOpen(false);
@@ -598,11 +602,27 @@ export function App() {
           ? cachedDocument.content
           : await nextProvider.readText(restoredActiveId);
         const restoredNote = { metadata, originalContent: content };
+        const pendingDraft = await pendingDraftStore.get(
+          workspace.id,
+          restoredActiveId,
+        );
+        const restoredDraft = pendingDraft?.content ?? content;
         setOpenNote(restoredNote);
-        setDraft(content);
-        setTabBuffers({
-          [restoredActiveId]: { note: restoredNote, draft: content },
+        setDraft(restoredDraft);
+        putTabBuffer(restoredActiveId, {
+          note: restoredNote,
+          draft: restoredDraft,
         });
+        if (pendingDraft) {
+          setNoteSyncState(
+            restoredActiveId,
+            pendingDraft.baseRevision === metadata.revision
+              ? "local"
+              : "conflict",
+          );
+        } else {
+          setNoteSyncState(restoredActiveId, "synced");
+        }
         setViewMode(
           restoredTabs.find((tab) => tab.noteId === restoredActiveId)?.viewMode ??
             "edit",
