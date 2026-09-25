@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   workspaceFolders,
@@ -30,6 +31,7 @@ export function NewItemDialog({
     parentId: string,
   ) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [parentId, setParentId] = useState(initialFolderId);
   const [submitting, setSubmitting] = useState(false);
@@ -55,6 +57,9 @@ export function NewItemDialog({
     }
   }
 
+  const title =
+    kind === "note" ? t("newItem.noteTitle") : t("newItem.folderTitle");
+
   return (
     <div
       className="dialog-backdrop"
@@ -71,15 +76,13 @@ export function NewItemDialog({
       >
         <div className="dialog-heading">
           <div>
-            <span className="section-label">Create</span>
-            <h2 id="new-item-title">
-              {kind === "note" ? "New note" : "New folder"}
-            </h2>
+            <span className="section-label">{t("common.create")}</span>
+            <h2 id="new-item-title">{title}</h2>
           </div>
           <button
             className="icon-button quiet"
             type="button"
-            aria-label="Close"
+            aria-label={t("common.close")}
             onClick={onClose}
           >
             ×
@@ -87,7 +90,7 @@ export function NewItemDialog({
         </div>
 
         <label className="field">
-          <span>Name</span>
+          <span>{t("newItem.name")}</span>
           <input
             autoFocus
             value={name}
@@ -96,12 +99,16 @@ export function NewItemDialog({
               if (event.key === "Enter") void submit();
               if (event.key === "Escape") onClose();
             }}
-            placeholder={kind === "note" ? "Untitled" : "Folder"}
+            placeholder={
+              kind === "note"
+                ? t("newItem.notePlaceholder")
+                : t("newItem.folderPlaceholder")
+            }
           />
         </label>
 
         <label className="field">
-          <span>Location</span>
+          <span>{t("newItem.location")}</span>
           <select
             value={parentId}
             onChange={(event) => setParentId(event.target.value)}
@@ -117,7 +124,7 @@ export function NewItemDialog({
 
         <div className="dialog-actions">
           <button className="secondary-button" type="button" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="primary-button"
@@ -125,7 +132,7 @@ export function NewItemDialog({
             disabled={!name.trim() || submitting}
             onClick={() => void submit()}
           >
-            Create
+            {t("common.create")}
           </button>
         </div>
       </section>

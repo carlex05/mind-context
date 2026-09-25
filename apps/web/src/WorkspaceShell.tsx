@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { NoteViewMode, WorkspacePanel, WorkspaceTab } from "./workspaceUi";
 
@@ -11,20 +12,21 @@ export function WorkspaceRail({
   readonly sidebarOpen: boolean;
   readonly onPanel: (panel: WorkspacePanel) => void;
 }) {
+  const { t } = useTranslation();
   const items: readonly {
     readonly panel: WorkspacePanel;
     readonly label: string;
     readonly icon: IconName;
   }[] = [
-    { panel: "files", label: "Files", icon: "folder" },
-    { panel: "search", label: "Search", icon: "search" },
-    { panel: "graph", label: "Graph", icon: "graph" },
-    { panel: "tags", label: "Tags", icon: "tag" },
-    { panel: "settings", label: "Settings", icon: "settings" },
+    { panel: "files", label: t("nav.files"), icon: "folder" },
+    { panel: "search", label: t("nav.search"), icon: "search" },
+    { panel: "graph", label: t("nav.graph"), icon: "graph" },
+    { panel: "tags", label: t("nav.tags"), icon: "tag" },
+    { panel: "settings", label: t("nav.settings"), icon: "settings" },
   ];
 
   return (
-    <nav className="workspace-rail" aria-label="Workspace views">
+    <nav className="workspace-rail" aria-label={t("nav.workspaceViews")}>
       {items.map((item) => (
         <button
           type="button"
@@ -78,8 +80,10 @@ export function TabBar({
   readonly onClose: (noteId: string) => void;
   readonly onNew: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
-    <div className="workspace-tabbar" aria-label="Open tabs">
+    <div className="workspace-tabbar" aria-label={t("nav.openTabs")}>
       <div className="workspace-tabs">
         {tabs.map((tab) => (
           <div
@@ -102,7 +106,7 @@ export function TabBar({
             <button
               className="workspace-tab-close"
               type="button"
-              aria-label={`Close ${tab.title}`}
+              aria-label={t("actions.closeTab", { title: tab.title })}
               onClick={() => onClose(tab.noteId)}
             >
               ×
@@ -112,8 +116,8 @@ export function TabBar({
         <button
           className="workspace-new-tab"
           type="button"
-          aria-label="New note"
-          title="New note"
+          aria-label={t("actions.newNote")}
+          title={t("actions.newNote")}
           onClick={onNew}
         >
           +
@@ -150,12 +154,18 @@ export function WorkspaceHeader({
   readonly onContext: () => void;
   readonly onSave: () => void;
 }) {
+  const { t } = useTranslation();
+  const modeLabel =
+    viewMode === "edit"
+      ? t("actions.readingView")
+      : t("actions.editingView");
+
   return (
     <header className="workspace-view-header">
       <div className="workspace-view-nav">
         <button
           type="button"
-          aria-label="Back"
+          aria-label={t("common.back")}
           disabled={!canBack}
           onClick={onBack}
         >
@@ -163,7 +173,7 @@ export function WorkspaceHeader({
         </button>
         <button
           type="button"
-          aria-label="Forward"
+          aria-label={t("common.forward")}
           disabled={!canForward}
           onClick={onForward}
         >
@@ -175,19 +185,23 @@ export function WorkspaceHeader({
       </div>
       {hasNote ? (
         <div className="workspace-note-actions">
-          {dirty ? <span className="dirty-dot" title="Unsaved changes">●</span> : null}
+          {dirty ? (
+            <span className="dirty-dot" title={t("actions.unsavedChanges")}>
+              ●
+            </span>
+          ) : null}
           <button
             type="button"
-            aria-label={viewMode === "edit" ? "Reading view" : "Editing view"}
-            title={viewMode === "edit" ? "Reading view" : "Editing view"}
+            aria-label={modeLabel}
+            title={modeLabel}
             onClick={() => onViewMode(viewMode === "edit" ? "read" : "edit")}
           >
             <Icon name={viewMode === "edit" ? "book" : "edit"} />
           </button>
           <button
             type="button"
-            aria-label="Context"
-            title="Properties, links and backlinks"
+            aria-label={t("actions.context")}
+            title={t("actions.contextTitle")}
             className={rightSidebarOpen ? "active" : ""}
             onClick={onContext}
           >
@@ -195,8 +209,8 @@ export function WorkspaceHeader({
           </button>
           <button
             type="button"
-            aria-label="Save"
-            title="Save"
+            aria-label={t("common.save")}
+            title={t("common.save")}
             disabled={!dirty}
             onClick={onSave}
           >
@@ -293,3 +307,4 @@ export type IconName =
   | "file-plus"
   | "folder-plus"
   | "refresh";
+}

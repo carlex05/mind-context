@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IndexedNote } from "@mind-context/knowledge";
+import { useTranslation } from "react-i18next";
 
 export function QuickSwitcher({
   open,
@@ -16,6 +17,7 @@ export function QuickSwitcher({
   readonly onOpenNote: (id: string) => void;
   readonly onCreateNote: (name: string) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -77,23 +79,23 @@ export function QuickSwitcher({
         className="quick-switcher"
         role="dialog"
         aria-modal="true"
-        aria-label="Quick switcher"
+        aria-label={t("switcher.aria")}
       >
         <input
           autoFocus
           className="switcher-input"
-          aria-label="Open or create note"
+          aria-label={t("switcher.inputAria")}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") onClose();
             if (event.key === "Enter") chooseFirst();
           }}
-          placeholder="Open or create a note…"
+          placeholder={t("switcher.placeholder")}
         />
         <div className="switcher-results" role="listbox">
           {!query.trim() ? (
-            <span className="switcher-section">Recent notes</span>
+            <span className="switcher-section">{t("switcher.recent")}</span>
           ) : null}
           {results.map((note) => (
             <button
@@ -118,14 +120,14 @@ export function QuickSwitcher({
                 onClose();
               }}
             >
-              <span>+ Create “{query.trim()}”</span>
-              <small>in the current folder</small>
+              <span>{t("switcher.create", { name: query.trim() })}</span>
+              <small>{t("switcher.currentFolder")}</small>
             </button>
           ) : null}
         </div>
         <footer className="switcher-help">
-          <span>↵ open</span>
-          <span>Esc close</span>
+          <span>{t("switcher.openHelp")}</span>
+          <span>{t("switcher.closeHelp")}</span>
           <span>Ctrl/Cmd O</span>
         </footer>
       </section>
