@@ -706,6 +706,18 @@ export function App() {
           )
           .map(async ([noteId, buffer]) => {
             if (buffer.draft !== buffer.note.originalContent) {
+              try {
+                const metadata = await provider.metadata(noteId);
+                if (
+                  buffer.note.metadata.revision &&
+                  metadata.revision !== buffer.note.metadata.revision
+                ) {
+                  setNoteSyncState(noteId, "conflict");
+                }
+              } catch {
+                // Keep the recoverable local draft even if remote metadata
+                // cannot be checked during this refresh.
+              }
               return [noteId, buffer] as const;
             }
 
@@ -974,7 +986,7 @@ export function App() {
     const buffer =
       closingActive && openNote
         ? { note: openNote, draft }
-        : tabBuffers[noteId];
+        : tabBuffersRef.current[noteId];
     const tabDirty =
       buffer !== undefined &&
       buffer.draft !== buffer.note.originalContent;
@@ -1246,7 +1258,10 @@ export function App() {
     cancelLocalDraftTimer(noteId);
     const timer = setTimeout(() => {
       localDraftTimersRef.current.delete(noteId);
-      void persistPendingDraft(noteId);
+      void persistPendingDraft(noteId).catch((error) => {
+        setNoteSyncState(noteId, "error");
+        setStatus({ kind: "error", message: errorMessage(error, t) });
+      });
     }, LOCAL_DRAFT_DEBOUNCE_MS);
     localDraftTimersRef.current.set(noteId, timer);
   }
@@ -1528,7 +1543,7 @@ export function App() {
   }
 
   function confirmDiscardAllDirty(): boolean {
-    const hasDirtyBuffer = Object.entries(tabBuffers).some(
+    const hasDirtyBuffer = Object.entries(tabBuffersRef.current).some(
       ([noteId, buffer]) =>
         noteId !== activeTabId &&
         buffer.draft !== buffer.note.originalContent,
