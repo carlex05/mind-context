@@ -27,7 +27,7 @@ export class BrowserEmbeddingProvider implements EmbeddingProvider {
   readonly id = "transformers-js-browser";
   readonly model: string;
 
-  private pipelinePromise?: Promise<FeatureExtractionPipeline>;
+  private pipelinePromise: Promise<FeatureExtractionPipeline> | undefined;
   private runtimeValue: "webgpu" | "wasm" | undefined;
 
   constructor(
