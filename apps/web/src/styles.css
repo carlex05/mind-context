@@ -2703,3 +2703,63 @@ h2 {
     transform: scale(1);
   }
 }
+
+
+/* Locale selector */
+
+.language-selector {
+  display: grid;
+  gap: 2px;
+}
+
+.language-selector button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 9px;
+  align-items: center;
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-size: 0.78rem;
+}
+
+.language-selector button:hover,
+.language-selector button:focus-visible,
+.language-selector button.selected {
+  background: var(--subtle);
+}
+
+.language-selector.compact {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.language-selector.compact button {
+  width: auto;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  font-size: 0.72rem;
+}
+
+.language-selector.compact button.selected {
+  border-color: var(--border);
+}
+
+.pre-auth-locale {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+}
+
+@media (max-width: 760px) {
+  .pre-auth-locale {
+    position: static;
+    margin: 12px 0 0;
+  }
+}

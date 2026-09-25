@@ -244,7 +244,8 @@ const en = {
     workspaces: "MindContext workspaces",
     noWorkspaces: "No previous workspaces found.",
     driveFolder: "Google Drive folder",
-    session: "Drive access token is kept only in memory for this session and is expected to expire around {{time}}."
+    session: "Drive access token is kept only in memory for this session and is expected to expire around {{time}}.",
+    defaultName: "My Second Brain"
   },
   demo: {
     eyebrow: "Public preview",
@@ -502,7 +503,8 @@ const es = {
     workspaces: "Second Brains de MindContext",
     noWorkspaces: "No se encontraron Second Brains anteriores.",
     driveFolder: "Carpeta de Google Drive",
-    session: "El token de acceso a Drive se mantiene sólo en memoria durante esta sesión y se espera que expire cerca de las {{time}}."
+    session: "El token de acceso a Drive se mantiene sólo en memoria durante esta sesión y se espera que expire cerca de las {{time}}.",
+    defaultName: "Mi Second Brain"
   },
   demo: {
     eyebrow: "Vista previa pública",
@@ -540,6 +542,12 @@ void i18n
   });
 
 document.documentElement.lang = resolveLocale(readLocalePreference());
+
+window.addEventListener("languagechange", () => {
+  if (readLocalePreference() === "system") {
+    void applyLocalePreference("system");
+  }
+});
 
 export default i18n;
 
