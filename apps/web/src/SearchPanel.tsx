@@ -73,11 +73,10 @@ export function SearchPanel({
           <div className="search-results-meta">
             {results.length} result{results.length === 1 ? "" : "s"}
           </div>
-          <div className="search-results" role="list">
+          <div className="search-results">
             {results.map((result) => (
               <button
                 type="button"
-                role="listitem"
                 className="search-result"
                 key={result.noteId}
                 onClick={() => onOpenNote(result.noteId)}

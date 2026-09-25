@@ -184,6 +184,57 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
+test("searches note contents, metadata and opens results locally", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Architecture");
+  const architecture = page.getByRole("textbox", {
+    name: "Edit Architecture.md",
+  });
+  await replaceEditorContent(
+    page,
+    architecture,
+    "---\ntags:\n  - local-first\naliases:\n  - System design\n---\n\n# Architecture\n\n## Privacy\n\nEmbeddings are disposable local projections.",
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Travel");
+  const travel = page.getByRole("textbox", { name: "Edit Travel.md" });
+  await replaceEditorContent(
+    page,
+    travel,
+    "# Travel\n\nWalking around the coast.",
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const search = page.getByRole("region", { name: "Search notes" });
+  const input = search.getByRole("searchbox", { name: "Search notes" });
+
+  await input.fill("embeddings");
+  await expect(
+    search.getByRole("button", { name: /Architecture/ }),
+  ).toBeVisible();
+  await expect(search.getByText(/disposable local projections/)).toBeVisible();
+
+  await input.fill("system design");
+  await expect(
+    search.getByRole("button", { name: /Architecture/ }),
+  ).toBeVisible();
+
+  await input.fill("local-first privacy");
+  await search.getByRole("button", { name: /Architecture/ }).click();
+
+  await expect(
+    page.getByRole("textbox", { name: "Edit Architecture.md" }),
+  ).toBeVisible();
+});
+
 test("keeps multiple note tabs and restores them from local workspace state", async ({
   page,
 }, testInfo) => {
