@@ -235,6 +235,50 @@ test("searches note contents, metadata and opens results locally", async ({
   ).toBeVisible();
 });
 
+test("keeps semantic model traffic opt-in", async ({ page }) => {
+  const drive = new FakeDrive();
+  let modelRequests = 0;
+
+  page.on("request", (request) => {
+    const host = new URL(request.url()).hostname;
+    if (
+      host === "huggingface.co" ||
+      host.endsWith(".huggingface.co") ||
+      host === "hf.co" ||
+      host.endsWith(".hf.co")
+    ) {
+      modelRequests += 1;
+    }
+  });
+
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Private");
+  const editor = page.getByRole("textbox", { name: "Edit Private.md" });
+  await replaceEditorContent(
+    page,
+    editor,
+    "# Private\n\nLocal semantic search must remain opt-in.",
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const search = page.getByRole("region", { name: "Search notes" });
+  await search
+    .getByRole("searchbox", { name: "Search notes" })
+    .fill("semantic");
+  await expect(
+    search.getByRole("button", { name: /Private/ }),
+  ).toBeVisible();
+
+  expect(modelRequests).toBe(0);
+  await expect(
+    search.getByRole("button", {
+      name: "Enable local semantic search",
+    }),
+  ).toBeVisible();
+});
+
 test("renders the local graph and opens connected notes", async ({
   page,
 }, testInfo) => {
