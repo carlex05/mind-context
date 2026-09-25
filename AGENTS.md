@@ -53,12 +53,13 @@ before changing code.
 The repository already contains:
 
 - responsive Obsidian-inspired workspace shell with icon rail/bottom navigation;
-- Markdown tabs with per-tab in-memory unsaved buffers;
+- Markdown tabs with persistent browser-local recovery drafts and deferred Drive synchronization;
 - CodeMirror 6 editing and Markdown reading view;
 - nested Drive-backed file explorer and safe create/rename/move/delete;
 - unified Markdown parser for headings, YAML properties, tags, aliases,
   standard internal links, wikilinks, embeds and block references;
 - local knowledge graph, backlinks, broken links and Local Graph;
+- serialized per-note Drive synchronization with explicit local/syncing/conflict states;
 - local lexical full-text search;
 - revision-aware persisted search snapshots and heading-aware retrieval chunks;
 - opt-in multilingual semantic search using Transformers.js in a Web Worker,
