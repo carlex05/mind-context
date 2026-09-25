@@ -23,6 +23,8 @@
     "@mind-context/storage-google-drive": "workspace:*",
     "codemirror": "^6.0.2",
     "cytoscape": "^3.34.3",
+    "i18next": "^26.4.2",
+    "react-i18next": "^17.0.15",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-markdown": "^10.1.0",
