@@ -336,10 +336,17 @@ export function App() {
 
     setStatus({ kind: "busy", message: "Opening workspace…" });
     try {
-      const cached = await knowledgeStore.get(workspace.id);
-      if (cached) {
-        setKnowledgeIndex(cached);
-      }
+      const [cached, cachedSearch] = await Promise.all([
+        knowledgeStore.get(workspace.id),
+        searchStore.get(workspace.id),
+      ]);
+      setKnowledgeIndex(cached);
+      setSearchSnapshot(cachedSearch);
+      setSearchIndex(
+        cachedSearch
+          ? new LexicalSearchIndex(cachedSearch.documents)
+          : undefined,
+      );
 
       setWorkspaceUiReady(false);
       setProvider(nextProvider);
@@ -360,12 +367,20 @@ export function App() {
       });
       const [nextTree, derived] = await Promise.all([
         loadWorkspaceTree(nextProvider),
-        buildWorkspaceDerivedState(nextProvider, workspace.id),
+        buildWorkspaceDerivedState(
+          nextProvider,
+          workspace.id,
+          cachedSearch,
+        ),
       ]);
       const rebuilt = derived.knowledgeIndex;
       setTree(nextTree);
-      await knowledgeStore.put(rebuilt);
+      await Promise.all([
+        knowledgeStore.put(rebuilt),
+        searchStore.put(derived.searchSnapshot),
+      ]);
       setKnowledgeIndex(rebuilt);
+      setSearchSnapshot(derived.searchSnapshot);
       setSearchIndex(derived.searchIndex);
       setRecentNoteIds(readRecentNotes(workspace.id));
 
@@ -393,10 +408,16 @@ export function App() {
       setRightSidebarOpen(persistedUi.rightSidebarOpen);
 
       if (restoredActiveId) {
-        const [content, metadata] = await Promise.all([
-          nextProvider.readText(restoredActiveId),
-          nextProvider.metadata(restoredActiveId),
-        ]);
+        const metadata = await nextProvider.metadata(restoredActiveId);
+        const cachedDocument = derived.searchSnapshot.documents.find(
+          (document) => document.noteId === restoredActiveId,
+        );
+        const content = canReuseSearchDocument(
+          cachedDocument,
+          metadata.revision,
+        )
+          ? cachedDocument.content
+          : await nextProvider.readText(restoredActiveId);
         const restoredNote = { metadata, originalContent: content };
         setOpenNote(restoredNote);
         setDraft(content);
@@ -414,9 +435,10 @@ export function App() {
       setWorkspaceUiReady(true);
       setStatus({
         kind: "success",
-        message: `Indexed ${rebuilt.notes.length} Markdown note${
-          rebuilt.notes.length === 1 ? "" : "s"
-        } locally.`,
+        message:
+          `Indexed ${derived.stats.totalNotes} Markdown note${derived.stats.totalNotes === 1 ? "" : "s"} locally · ` +
+          `${derived.stats.reusedNotes} reused · ${derived.stats.downloadedNotes} downloaded · ` +
+          `${derived.stats.chunks} chunks.`,
       });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
@@ -431,14 +453,24 @@ export function App() {
       message: "Refreshing vault tree and rebuilding local index…",
     });
     try {
+      const previousSearch =
+        searchSnapshot ?? (await searchStore.get(activeWorkspace.id));
       const [nextTree, derived] = await Promise.all([
         loadWorkspaceTree(provider),
-        buildWorkspaceDerivedState(provider, activeWorkspace.id),
+        buildWorkspaceDerivedState(
+          provider,
+          activeWorkspace.id,
+          previousSearch,
+        ),
       ]);
       const rebuilt = derived.knowledgeIndex;
-      await knowledgeStore.put(rebuilt);
+      await Promise.all([
+        knowledgeStore.put(rebuilt),
+        searchStore.put(derived.searchSnapshot),
+      ]);
       setTree(nextTree);
       setKnowledgeIndex(rebuilt);
+      setSearchSnapshot(derived.searchSnapshot);
       setSearchIndex(derived.searchIndex);
       setTabs((current) =>
         current.flatMap((tab) => {
@@ -469,10 +501,16 @@ export function App() {
             }
 
             try {
-              const [content, metadata] = await Promise.all([
-                provider.readText(noteId),
-                provider.metadata(noteId),
-              ]);
+              const metadata = await provider.metadata(noteId);
+              const cachedDocument = derived.searchSnapshot.documents.find(
+                (document) => document.noteId === noteId,
+              );
+              const content = canReuseSearchDocument(
+                cachedDocument,
+                metadata.revision,
+              )
+                ? cachedDocument.content
+                : await provider.readText(noteId);
               const note = { metadata, originalContent: content };
               return [
                 noteId,
@@ -540,9 +578,9 @@ export function App() {
 
       setStatus({
         kind: "success",
-        message: `Vault refreshed from ${rebuilt.notes.length} note${
-          rebuilt.notes.length === 1 ? "" : "s"
-        }.`,
+        message:
+          `Vault refreshed · ${derived.stats.reusedNotes} unchanged note${derived.stats.reusedNotes === 1 ? "" : "s"} reused · ` +
+          `${derived.stats.downloadedNotes} downloaded.`,
       });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
@@ -586,10 +624,16 @@ export function App() {
         nextNote = buffered.note;
         nextDraft = buffered.draft;
       } else {
-        const [content, metadata] = await Promise.all([
-          provider.readText(id),
-          provider.metadata(id),
-        ]);
+        const metadata = await provider.metadata(id);
+        const cachedDocument = searchSnapshot?.documents.find(
+          (document) => document.noteId === id,
+        );
+        const content = canReuseSearchDocument(
+          cachedDocument,
+          metadata.revision,
+        )
+          ? cachedDocument.content
+          : await provider.readText(id);
         nextNote = {
           metadata,
           originalContent: content,
@@ -852,19 +896,36 @@ export function App() {
         setKnowledgeIndex(updated);
 
         const indexedNote = getNote(updated, metadata.id);
-        if (indexedNote) {
-          setSearchIndex((current) =>
-            current?.withDocument({
-              noteId: indexedNote.id,
-              path: indexedNote.path,
-              title: indexedNote.title,
-              aliases: indexedNote.aliases,
-              tags: indexedNote.tags,
-              headings: indexedNote.headings.map(
-                (heading) => heading.text,
-              ),
-              content: draft,
-            }),
+        if (indexedNote && activeWorkspace) {
+          const searchDocument = createSearchDocument({
+            noteId: indexedNote.id,
+            path: indexedNote.path,
+            name: indexedNote.name,
+            title: indexedNote.title,
+            aliases: indexedNote.aliases,
+            tags: indexedNote.tags,
+            headings: indexedNote.headings.map(
+              (heading) => heading.text,
+            ),
+            content: draft,
+            ...(metadata.revision
+              ? { revision: metadata.revision }
+              : {}),
+            ...(metadata.modifiedAt
+              ? { modifiedAt: metadata.modifiedAt }
+              : {}),
+          });
+          const baseSearchSnapshot =
+            searchSnapshot ??
+            createSearchIndexSnapshot(activeWorkspace.id, []);
+          const nextSearchSnapshot = upsertSearchDocument(
+            baseSearchSnapshot,
+            searchDocument,
+          );
+          await searchStore.put(nextSearchSnapshot);
+          setSearchSnapshot(nextSearchSnapshot);
+          setSearchIndex(
+            new LexicalSearchIndex(nextSearchSnapshot.documents),
           );
         }
       }
@@ -906,6 +967,7 @@ export function App() {
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
     setSearchIndex(undefined);
+    setSearchSnapshot(undefined);
     setWorkspaceUiReady(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
@@ -930,6 +992,7 @@ export function App() {
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
     setSearchIndex(undefined);
+    setSearchSnapshot(undefined);
     setWorkspaceUiReady(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
