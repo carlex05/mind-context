@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@mind-context/knowledge": "workspace:*",
+    "@mind-context/search": "workspace:*",
     "dexie": "^4.4.6"
   }
 }
