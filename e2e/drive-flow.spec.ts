@@ -170,7 +170,7 @@ test("preserves a local draft and surfaces conflict after a remote Drive change"
   });
   await expect(restoredEditor).toBeVisible();
   await expect(restoredEditor).toContainText("local version");
-  await expect(page.getByText("Conflict", { exact: true })).toBeVisible();
+  await expect(page.locator(".note-sync-state.conflict")).toHaveText("Conflict");
 
   // The local draft is never allowed to overwrite a newer remote revision.
   await page.waitForTimeout(1500);
