@@ -1,3 +1,9 @@
+import {
+  markdownParser,
+  type MarkdownParser,
+  type MarkdownSection,
+} from "@mind-context/markdown";
+
 export interface SearchQuery {
   readonly text: string;
   readonly limit?: number;
@@ -15,18 +21,59 @@ export interface SearchHit {
   readonly graphScore?: number;
 }
 
+export interface SearchChunk {
+  readonly id: string;
+  readonly noteId: string;
+  readonly path: string;
+  readonly headingPath: readonly string[];
+  readonly ordinal: number;
+  readonly text: string;
+  readonly contentHash: string;
+}
+
 export interface SearchDocument {
   readonly noteId: string;
   readonly path: string;
+  readonly name: string;
   readonly title: string;
   readonly aliases: readonly string[];
   readonly tags: readonly string[];
   readonly headings: readonly string[];
   readonly content: string;
+  readonly contentHash: string;
+  readonly chunks: readonly SearchChunk[];
+  readonly revision?: string;
+  readonly modifiedAt?: string;
+}
+
+export interface SearchIndexSnapshot {
+  readonly schemaVersion: 1;
+  readonly workspaceId: string;
+  readonly builtAt: string;
+  readonly documents: readonly SearchDocument[];
+}
+
+export interface SearchIndexSnapshotStore {
+  get(workspaceId: string): Promise<SearchIndexSnapshot | undefined>;
+  put(snapshot: SearchIndexSnapshot): Promise<void>;
+  delete(workspaceId: string): Promise<void>;
 }
 
 export interface SearchService {
   search(query: SearchQuery): Promise<readonly SearchHit[]>;
+}
+
+export interface SearchDocumentInput {
+  readonly noteId: string;
+  readonly path: string;
+  readonly name: string;
+  readonly title: string;
+  readonly aliases: readonly string[];
+  readonly tags: readonly string[];
+  readonly headings: readonly string[];
+  readonly content: string;
+  readonly revision?: string;
+  readonly modifiedAt?: string;
 }
 
 interface IndexedField {
@@ -50,11 +97,14 @@ const FIELD_WEIGHTS = {
   content: 1,
 } as const;
 
+const DEFAULT_MAX_CHUNK_CHARS = 1800;
+
 /**
  * Disposable in-memory lexical index.
  *
- * It intentionally owns no persistence and performs no I/O. Callers rebuild it
- * from canonical Markdown whenever local derived state is lost.
+ * It intentionally owns no persistence and performs no I/O. Callers may
+ * restore its input documents from a local derived-state store or rebuild them
+ * from canonical Markdown.
  */
 export class LexicalSearchIndex implements SearchService {
   private readonly documents: readonly IndexedDocument[];
@@ -165,6 +215,174 @@ export function createLexicalSearchIndex(
   return new LexicalSearchIndex(documents);
 }
 
+export function createSearchDocument(
+  input: SearchDocumentInput,
+  parser: MarkdownParser = markdownParser,
+): SearchDocument {
+  const contentHash = fingerprint(input.content);
+  return {
+    noteId: input.noteId,
+    path: input.path,
+    name: input.name,
+    title: input.title,
+    aliases: input.aliases,
+    tags: input.tags,
+    headings: input.headings,
+    content: input.content,
+    contentHash,
+    chunks: chunkMarkdown(
+      input.noteId,
+      input.path,
+      input.content,
+      parser,
+    ),
+    ...(input.revision ? { revision: input.revision } : {}),
+    ...(input.modifiedAt ? { modifiedAt: input.modifiedAt } : {}),
+  };
+}
+
+export function createSearchIndexSnapshot(
+  workspaceId: string,
+  documents: readonly SearchDocument[],
+): SearchIndexSnapshot {
+  return {
+    schemaVersion: 1,
+    workspaceId,
+    builtAt: new Date().toISOString(),
+    documents: [...documents].sort((left, right) =>
+      left.path.localeCompare(right.path),
+    ),
+  };
+}
+
+export function upsertSearchDocument(
+  snapshot: SearchIndexSnapshot,
+  document: SearchDocument,
+): SearchIndexSnapshot {
+  return createSearchIndexSnapshot(snapshot.workspaceId, [
+    ...snapshot.documents.filter(
+      (candidate) => candidate.noteId !== document.noteId,
+    ),
+    document,
+  ]);
+}
+
+export function canReuseSearchDocument(
+  previous: SearchDocument | undefined,
+  revision: string | undefined,
+): previous is SearchDocument {
+  return Boolean(previous && revision && previous.revision === revision);
+}
+
+export function chunkMarkdown(
+  noteId: string,
+  path: string,
+  content: string,
+  parser: MarkdownParser = markdownParser,
+  maxChars = DEFAULT_MAX_CHUNK_CHARS,
+): readonly SearchChunk[] {
+  const parsed = parser.parse(content);
+  const headingStack: string[] = [];
+  const chunks: SearchChunk[] = [];
+  let ordinal = 0;
+
+  for (const section of parsed.sections) {
+    if (section.heading && section.level) {
+      headingStack.length = section.level - 1;
+      headingStack[section.level - 1] = section.heading;
+    }
+
+    const headingPath = headingStack.filter(Boolean);
+    for (const part of splitSection(section, headingPath, maxChars)) {
+      const text = part.trim();
+      if (!text) continue;
+      const contentHash = fingerprint(text);
+      chunks.push({
+        id: `${noteId}:${ordinal}:${contentHash}`,
+        noteId,
+        path,
+        headingPath: [...headingPath],
+        ordinal,
+        text,
+        contentHash,
+      });
+      ordinal += 1;
+    }
+  }
+
+  if (chunks.length === 0 && content.trim()) {
+    const text = content.trim();
+    const contentHash = fingerprint(text);
+    chunks.push({
+      id: `${noteId}:0:${contentHash}`,
+      noteId,
+      path,
+      headingPath: [],
+      ordinal: 0,
+      text,
+      contentHash,
+    });
+  }
+
+  return chunks;
+}
+
+function splitSection(
+  section: MarkdownSection,
+  headingPath: readonly string[],
+  maxChars: number,
+): readonly string[] {
+  const headingContext =
+    headingPath.length > 0 ? headingPath.join(" > ") : "";
+  const body = section.content.trim();
+  const prefix = headingContext ? `${headingContext}\n\n` : "";
+
+  if ((prefix + body).length <= maxChars) {
+    return body || prefix
+      ? [`${prefix}${body}`.trim()]
+      : [];
+  }
+
+  const paragraphs = body
+    .split(/\n\s*\n/u)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+
+  const result: string[] = [];
+  let current = "";
+
+  const flush = () => {
+    if (!current.trim()) return;
+    result.push(`${prefix}${current.trim()}`.trim());
+    current = "";
+  };
+
+  for (const paragraph of paragraphs) {
+    if (paragraph.length > maxChars) {
+      flush();
+      for (let offset = 0; offset < paragraph.length; offset += maxChars) {
+        result.push(
+          `${prefix}${paragraph.slice(offset, offset + maxChars)}`.trim(),
+        );
+      }
+      continue;
+    }
+
+    const candidate = current
+      ? `${current}\n\n${paragraph}`
+      : paragraph;
+    if ((prefix + candidate).length > maxChars && current) {
+      flush();
+      current = paragraph;
+    } else {
+      current = candidate;
+    }
+  }
+
+  flush();
+  return result;
+}
+
 function indexDocument(document: SearchDocument): IndexedDocument {
   const fields: IndexedField[] = [
     field(document.title, FIELD_WEIGHTS.title),
@@ -248,4 +466,13 @@ function plainText(content: string): string {
     .replace(/[#>*_`~|-]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function fingerprint(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
