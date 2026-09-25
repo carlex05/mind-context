@@ -1,5 +1,7 @@
 # Workspace starters and empty-vault onboarding
 
+Decision record: [ADR-009](../adr/ADR-009-open-workspace-starters-and-empty-vault-onboarding.md).
+
 MindContext may help a user start organizing a Second Brain, but starter
 structures must never become proprietary workspace semantics.
 
