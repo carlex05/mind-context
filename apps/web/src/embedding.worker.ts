@@ -84,8 +84,7 @@ function getPipeline(
 async function createPipeline(model: string) {
   self.postMessage({
     type: "progress",
-    phase: "loading",
-    message: "Loading local multilingual embedding model…",
+    stage: "loading-model",
   });
 
   const { pipeline } = await import("@huggingface/transformers");
@@ -106,17 +105,15 @@ async function createPipeline(model: string) {
       );
       self.postMessage({
         type: "progress",
-        phase: "ready",
+        stage: "model-ready",
         runtime: "webgpu",
-        message: "Local embedding model ready on WebGPU.",
       });
       return {
         extractor: extractor as unknown as FeatureExtractionPipeline,
         runtime: "webgpu" as const,
       };
     } catch {
-      // WebGPU support can fail for a specific browser/model even when the API
-      // exists. Fall through to the portable WASM backend.
+      // Fall through to WASM.
     }
   }
 
@@ -130,9 +127,8 @@ async function createPipeline(model: string) {
   );
   self.postMessage({
     type: "progress",
-    phase: "ready",
+    stage: "model-ready",
     runtime: "wasm",
-    message: "Local embedding model ready on WASM.",
   });
   return {
     extractor: extractor as unknown as FeatureExtractionPipeline,
@@ -148,11 +144,8 @@ function reportProgress(event: unknown): void {
       : undefined;
   self.postMessage({
     type: "progress",
-    phase: "loading",
-    message:
-      percent === undefined
-        ? "Downloading local embedding model…"
-        : `Downloading local embedding model… ${percent}%`,
+    stage: "downloading-model",
+    ...(percent === undefined ? {} : { percent }),
   });
 }
 
@@ -194,7 +187,6 @@ function isProgressEvent(
 ): value is { readonly progress?: number } {
   return typeof value === "object" && value !== null;
 }
-
 
 function prepareInputs(
   model: string,

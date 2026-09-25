@@ -7,10 +7,13 @@ import type {
 export const DEFAULT_BROWSER_EMBEDDING_MODEL =
   "Xenova/multilingual-e5-small";
 
-export type BrowserEmbeddingProgress = {
-  readonly phase: "loading" | "ready";
-  readonly message: string;
-};
+export type BrowserEmbeddingProgress =
+  | { readonly stage: "loading-model" }
+  | { readonly stage: "downloading-model"; readonly percent?: number }
+  | {
+      readonly stage: "model-ready";
+      readonly runtime: "webgpu" | "wasm";
+    };
 
 type ProgressListener = (progress: BrowserEmbeddingProgress) => void;
 
@@ -25,8 +28,8 @@ interface EmbedRequest {
 type WorkerMessage =
   | {
       readonly type: "progress";
-      readonly phase: "loading" | "ready";
-      readonly message: string;
+      readonly stage: BrowserEmbeddingProgress["stage"];
+      readonly percent?: number;
       readonly runtime?: "webgpu" | "wasm";
     }
   | {
@@ -98,10 +101,21 @@ export class BrowserEmbeddingProvider implements EmbeddingProvider {
 
       if (message.type === "progress") {
         if (message.runtime) this.runtimeValue = message.runtime;
-        this.onProgress?.({
-          phase: message.phase,
-          message: message.message,
-        });
+        if (message.stage === "model-ready" && message.runtime) {
+          this.onProgress?.({
+            stage: "model-ready",
+            runtime: message.runtime,
+          });
+        } else if (message.stage === "downloading-model") {
+          this.onProgress?.({
+            stage: "downloading-model",
+            ...(typeof message.percent === "number"
+              ? { percent: message.percent }
+              : {}),
+          });
+        } else {
+          this.onProgress?.({ stage: "loading-model" });
+        }
         return;
       }
 
@@ -139,7 +153,5 @@ export class BrowserEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
-// Kept separate so constructor defaults remain statically evaluable in workers
-// and Vite does not accidentally pull the model runtime into the main bundle.
 const DEFAULT_BROWSER_EMEDDING_MODEL_FALLBACK =
   DEFAULT_BROWSER_EMBEDDING_MODEL;

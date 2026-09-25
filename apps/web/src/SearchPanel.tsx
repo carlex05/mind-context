@@ -7,9 +7,25 @@ import { useTranslation } from "react-i18next";
 
 export type SemanticUiState =
   | { readonly kind: "disabled" }
-  | { readonly kind: "preparing"; readonly message: string }
-  | { readonly kind: "ready"; readonly message: string }
-  | { readonly kind: "error"; readonly message: string };
+  | {
+      readonly kind: "preparing";
+      readonly stage:
+        | "initialize"
+        | "preparing"
+        | "checking"
+        | "loading-model"
+        | "downloading-model"
+        | "model-ready";
+      readonly percent?: number;
+      readonly runtime?: "webgpu" | "wasm";
+    }
+  | {
+      readonly kind: "ready";
+      readonly reused: number;
+      readonly created: number;
+      readonly runtime?: "webgpu" | "wasm";
+    }
+  | { readonly kind: "error"; readonly error: string };
 
 export function SearchPanel({
   service,
@@ -186,7 +202,51 @@ function SemanticSearchCard({
   return (
     <div className={`semantic-search-status ${state.kind}`} role="status">
       <span className="semantic-status-dot" aria-hidden="true" />
-      <span>{state.message}</span>
+      <span>{semanticMessage(state, t)}</span>
     </div>
   );
+}
+
+
+function semanticMessage(
+  state: Exclude<SemanticUiState, { readonly kind: "disabled" }>,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if (state.kind === "error") {
+    return t("semantic.unavailable", { error: state.error });
+  }
+
+  if (state.kind === "ready") {
+    return state.runtime
+      ? t("semantic.readyRuntime", {
+          reused: state.reused,
+          created: state.created,
+          runtime: state.runtime.toUpperCase(),
+        })
+      : t("semantic.ready", {
+          reused: state.reused,
+          created: state.created,
+        });
+  }
+
+  switch (state.stage) {
+    case "initialize":
+      return t("semantic.initializeWorkspace");
+    case "preparing":
+      return t("semantic.preparing");
+    case "checking":
+      return t("semantic.checking");
+    case "loading-model":
+      return t("semantic.loadingModel");
+    case "downloading-model":
+      return state.percent === undefined
+        ? t("semantic.downloadingModel")
+        : t("semantic.downloadingModelPercent", {
+            percent: state.percent,
+          });
+    case "model-ready":
+      return state.runtime === "webgpu"
+        ? t("semantic.modelReadyWebgpu")
+        : t("semantic.modelReadyWasm");
+  }
 }
