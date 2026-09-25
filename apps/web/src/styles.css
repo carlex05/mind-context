@@ -1876,6 +1876,27 @@ h2 {
   font-size: 0.52rem;
 }
 
+.note-sync-state {
+  max-width: 132px;
+  margin-right: 5px;
+  overflow: hidden;
+  color: var(--ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+}
+
+.note-sync-state.local,
+.note-sync-state.syncing {
+  color: var(--ink-muted);
+}
+
+.note-sync-state.conflict,
+.note-sync-state.error {
+  font-weight: 700;
+}
+
+
 .editor-panel-v2 {
   position: relative;
   min-width: 0;
