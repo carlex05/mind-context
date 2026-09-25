@@ -271,6 +271,60 @@ test("renders the local graph and opens connected notes", async ({
   ).toBeVisible();
 });
 
+test("reuses persisted search snapshots and only downloads changed notes", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Alpha");
+  const alpha = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await replaceEditorContent(page, alpha, "# Alpha\n\nStable local content.");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Beta");
+  const beta = page.getByRole("textbox", { name: "Edit Beta.md" });
+  await replaceEditorContent(page, beta, "# Beta\n\nAlso stable.");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  const tabs = page.getByLabel("Open tabs");
+  await tabs.getByRole("button", { name: "Close Alpha" }).click();
+  await tabs.getByRole("button", { name: "Close Beta" }).click();
+
+  const beforeReload = drive.mediaReadCount();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await page
+    .getByRole("button", { name: "My Second Brain", exact: false })
+    .click();
+
+  await expect(page.getByRole("status")).toContainText("2 reused");
+  expect(drive.mediaReadCount()).toBe(beforeReload);
+
+  drive.externalUpdate("Beta.md", "# Beta\n\nChanged outside MindContext.");
+  const beforeRefresh = drive.mediaReadCount();
+
+  const files = page.getByRole("complementary", { name: "Files" });
+  await files
+    .getByRole("button", { name: "Refresh vault and local index" })
+    .click();
+
+  await expect(page.getByRole("status")).toContainText("1 downloaded");
+  expect(drive.mediaReadCount()).toBe(beforeRefresh + 1);
+
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  const search = page.getByRole("region", { name: "Search notes" });
+  await search
+    .getByRole("searchbox", { name: "Search notes" })
+    .fill("outside MindContext");
+  await expect(
+    search.getByRole("button", { name: /Beta/ }),
+  ).toBeVisible();
+});
+
 test("keeps multiple note tabs and restores them from local workspace state", async ({
   page,
 }, testInfo) => {
@@ -514,6 +568,7 @@ class FakeDrive {
   private workspaceCreated = false;
   private nextNoteNumber = 1;
   private nextFolderNumber = 1;
+  private mediaReads = 0;
   private readonly objects = new Map<string, StoredObject>();
 
   async handle(route: Route): Promise<void> {
@@ -630,6 +685,7 @@ class FakeDrive {
         }
 
         if (url.searchParams.get("alt") === "media") {
+          this.mediaReads += 1;
           await route.fulfill({
             status: 200,
             contentType: object.mimeType,
@@ -710,6 +766,19 @@ class FakeDrive {
         },
       }),
     });
+  }
+
+  mediaReadCount(): number {
+    return this.mediaReads;
+  }
+
+  externalUpdate(name: string, content: string): void {
+    const object = Array.from(this.objects.values()).find(
+      (candidate) => candidate.name === name,
+    );
+    if (!object) throw new Error(`Missing fake Drive file ${name}`);
+    object.content = content;
+    object.version += 1;
   }
 
   noteContentByName(name: string): string | undefined {
