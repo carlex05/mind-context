@@ -235,6 +235,42 @@ test("searches note contents, metadata and opens results locally", async ({
   ).toBeVisible();
 });
 
+test("renders the local graph and opens connected notes", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Alpha");
+  const alpha = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await replaceEditorContent(page, alpha, "# Alpha\n\nLinked to [[Beta]].");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Beta");
+  const beta = page.getByRole("textbox", { name: "Edit Beta.md" });
+  await replaceEditorContent(page, beta, "# Beta\n\nBack to [[Alpha]].");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  const tabs = page.getByLabel("Open tabs");
+  await tabs.getByRole("button", { name: "Alpha", exact: true }).click();
+
+  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  const graph = page.getByRole("region", { name: "Local graph" });
+
+  await expect(graph).toBeVisible();
+  await expect(
+    graph.getByRole("button", { name: /Beta/ }),
+  ).toBeVisible();
+  await expect(graph.getByText("Both directions")).toBeVisible();
+
+  await graph.getByRole("button", { name: /Beta/ }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Beta.md" }),
+  ).toBeVisible();
+});
+
 test("keeps multiple note tabs and restores them from local workspace state", async ({
   page,
 }, testInfo) => {
