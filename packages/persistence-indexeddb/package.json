@@ -17,6 +17,7 @@
     "@mind-context/embeddings": "workspace:*",
     "@mind-context/knowledge": "workspace:*",
     "@mind-context/search": "workspace:*",
-    "dexie": "^4.4.6"
+    "dexie": "^4.4.6",
+    "@mind-context/persistence": "workspace:*"
   }
 }
