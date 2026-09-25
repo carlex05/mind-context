@@ -173,9 +173,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   await expect(switcher).toBeVisible();
   await switcher.getByLabel("Open or create note").fill("Alpha");
   await switcher.getByRole("button", { name: /Alpha/ }).first().click();
-  await expect(
-    page.getByRole("textbox", { name: "Edit Alpha.md" }),
-  ).toBeVisible();
+  await expect(page.getByLabel("Reading view")).toBeVisible();
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const settings = page.getByRole("complementary", { name: "Settings" });
