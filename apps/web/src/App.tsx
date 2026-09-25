@@ -71,6 +71,15 @@ import {
 } from "./theme";
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
 import {
+  WorkspaceOnboardingDialog,
+  type WorkspaceOnboardingMode,
+} from "./WorkspaceOnboardingDialog";
+import {
+  applyWorkspaceTemplate,
+  type TemplateLocale,
+  type WorkspaceStarter,
+} from "./workspaceTemplates";
+import {
   Icon,
   PlaceholderPanel,
   SidebarFrame,
@@ -114,7 +123,7 @@ interface NoteBuffer {
 }
 
 export function App() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [authSession, setAuthSession] =
     useState<GoogleDriveAuthSession>();
   const [workspaceService, setWorkspaceService] =
@@ -176,6 +185,9 @@ export function App() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     () => readThemePreference(),
   );
+  const [onboardingMode, setOnboardingMode] =
+    useState<WorkspaceOnboardingMode>();
+  const [onboardingSubmitting, setOnboardingSubmitting] = useState(false);
   const [recentNoteIds, setRecentNoteIds] = useState<readonly string[]>([]);
   const [navigation, setNavigation] = useState<{
     readonly entries: readonly string[];
@@ -406,20 +418,44 @@ export function App() {
     setWorkspaces(discovered);
   }
 
-  async function createWorkspace() {
-    if (!workspaceService) return;
+  async function createWorkspace(
+    starter: WorkspaceStarter,
+    locale: TemplateLocale,
+  ) {
+    if (!workspaceService || !authSession) return;
 
+    setOnboardingSubmitting(true);
     setStatus({ kind: "busy", message: t("status.creatingWorkspace") });
     try {
       const workspace = await workspaceService.createWorkspace(workspaceName);
+      const nextProvider = storageProviderFor(workspace, authSession);
+      const applied = await applyWorkspaceTemplate(
+        nextProvider,
+        starter,
+        locale,
+      );
+      markWorkspaceOnboardingHandled(workspace.id);
       await refreshWorkspaces(workspaceService);
+      setOnboardingMode(undefined);
       await openWorkspace(workspace);
       setStatus({
         kind: "success",
-        message: t("status.workspaceCreated", { name: workspace.name }),
+        message:
+          starter === "para"
+            ? t("status.starterApplied", {
+                directories: applied.createdDirectories,
+                files: applied.createdMarkdownFiles,
+              })
+            : t("status.workspaceCreated", { name: workspace.name }),
       });
+      if (applied.startNoteId) {
+        await openNoteById(applied.startNoteId);
+      }
     } catch (error) {
+      await refreshWorkspaces(workspaceService);
       setStatus({ kind: "error", message: errorMessage(error, t) });
+    } finally {
+      setOnboardingSubmitting(false);
     }
   }
 
@@ -427,12 +463,8 @@ export function App() {
     if (!authSession) return;
     if (!confirmDiscardAllDirty()) return;
 
-    const nextProvider = new GoogleDriveStorageProvider({
-      workspaceFolderId: workspace.id,
-      accessTokenProvider: {
-        getAccessToken: () => authSession.accessToken,
-      },
-    });
+    const nextProvider = storageProviderFor(workspace, authSession);
+    setOnboardingMode(undefined);
 
     setStatus({ kind: "busy", message: t("status.openingWorkspace") });
     try {
@@ -465,13 +497,14 @@ export function App() {
         kind: "busy",
         message: t("status.rebuildingIndex"),
       });
-      const [nextTree, derived] = await Promise.all([
+      const [nextTree, derived, rootItems] = await Promise.all([
         loadWorkspaceTree(nextProvider),
         buildWorkspaceDerivedState(
           nextProvider,
           workspace.id,
           cachedSearch,
         ),
+        nextProvider.list(nextProvider.rootId),
       ]);
       const rebuilt = derived.knowledgeIndex;
       setTree(nextTree);
@@ -543,6 +576,13 @@ export function App() {
           chunks: derived.stats.chunks,
         }),
       });
+
+      if (
+        rootItems.length === 0 &&
+        !workspaceOnboardingHandled(workspace.id)
+      ) {
+        setOnboardingMode("empty-existing");
+      }
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error, t) });
     }
@@ -995,6 +1035,50 @@ export function App() {
     }
   }
 
+  async function completeExistingOnboarding(
+    starter: WorkspaceStarter,
+    locale: TemplateLocale,
+  ) {
+    if (!provider || !activeWorkspace) return;
+
+    setOnboardingSubmitting(true);
+    try {
+      if (starter === "blank") {
+        markWorkspaceOnboardingHandled(activeWorkspace.id);
+        setOnboardingMode(undefined);
+        setStatus({ kind: "success", message: t("status.emptyKept") });
+        return;
+      }
+
+      const currentRootItems = await provider.list(provider.rootId);
+      if (currentRootItems.length > 0) {
+        setOnboardingMode(undefined);
+        await refreshWorkspaceState();
+        return;
+      }
+
+      setStatus({ kind: "busy", message: t("status.applyingStarter") });
+      const applied = await applyWorkspaceTemplate(provider, starter, locale);
+      markWorkspaceOnboardingHandled(activeWorkspace.id);
+      setOnboardingMode(undefined);
+      await refreshWorkspaceState();
+      if (applied.startNoteId) {
+        await openNoteById(applied.startNoteId);
+      }
+      setStatus({
+        kind: "success",
+        message: t("status.starterApplied", {
+          directories: applied.createdDirectories,
+          files: applied.createdMarkdownFiles,
+        }),
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    } finally {
+      setOnboardingSubmitting(false);
+    }
+  }
+
   async function createWorkspaceItem(
     kind: CreateItemKind,
     name: string,
@@ -1161,6 +1245,7 @@ export function App() {
     setMobileSidebarOpen(true);
     setQuickSwitcherOpen(false);
     setNewItem(undefined);
+    setOnboardingMode(undefined);
   }
 
   function disconnect() {
@@ -1187,6 +1272,7 @@ export function App() {
     setMobileSidebarOpen(true);
     setQuickSwitcherOpen(false);
     setNewItem(undefined);
+    setOnboardingMode(undefined);
     setStatus({ kind: "idle" });
   }
 
@@ -1206,18 +1292,30 @@ export function App() {
 
   if (!activeWorkspace || !provider) {
     return (
+      <>
       <WorkspaceChooser
         workspaces={workspaces}
         workspaceName={workspaceName}
         status={status}
         expiresAt={authSession.expiresAt}
         onWorkspaceNameChange={setWorkspaceName}
-        onCreateWorkspace={createWorkspace}
+        onCreateWorkspace={() => setOnboardingMode("create")}
         onOpenWorkspace={openWorkspace}
         onRefresh={() => refreshWorkspaces()}
         onDisconnect={disconnect}
       />
-    );
+      <WorkspaceOnboardingDialog
+        open={onboardingMode === "create"}
+        mode="create"
+        workspaceName={workspaceName}
+        initialLocale={resolvedTemplateLocale(i18n.resolvedLanguage)}
+        submitting={onboardingSubmitting}
+        onClose={() => {
+          if (!onboardingSubmitting) setOnboardingMode(undefined);
+        }}
+        onSubmit={createWorkspace}
+      />
+    </>
   }
 
   const leftSidebar =
@@ -1588,6 +1686,17 @@ export function App() {
         initialName={newItem?.initialName ?? ""}
         onClose={() => setNewItem(undefined)}
         onCreate={createWorkspaceItem}
+      />
+      <WorkspaceOnboardingDialog
+        open={onboardingMode === "empty-existing"}
+        mode="empty-existing"
+        workspaceName={activeWorkspace.name}
+        initialLocale={resolvedTemplateLocale(i18n.resolvedLanguage)}
+        submitting={onboardingSubmitting}
+        onClose={() => {
+          if (!onboardingSubmitting) setOnboardingMode(undefined);
+        }}
+        onSubmit={completeExistingOnboarding}
       />
       <StatusBar status={status} />
     </main>
@@ -2089,6 +2198,38 @@ function errorMessage(
     return error.message;
   }
   return t("errors.unexpected");
+}
+
+function storageProviderFor(
+  workspace: GoogleDriveWorkspace,
+  authSession: GoogleDriveAuthSession,
+): GoogleDriveStorageProvider {
+  return new GoogleDriveStorageProvider({
+    workspaceFolderId: workspace.id,
+    accessTokenProvider: {
+      getAccessToken: () => authSession.accessToken,
+    },
+  });
+}
+
+function resolvedTemplateLocale(
+  resolvedLanguage: string | undefined,
+): TemplateLocale {
+  return resolvedLanguage?.toLocaleLowerCase().startsWith("es")
+    ? "es"
+    : "en";
+}
+
+function onboardingHandledKey(workspaceId: string): string {
+  return `mindcontext.onboarding.handled.${workspaceId}`;
+}
+
+function workspaceOnboardingHandled(workspaceId: string): boolean {
+  return window.localStorage.getItem(onboardingHandledKey(workspaceId)) === "true";
+}
+
+function markWorkspaceOnboardingHandled(workspaceId: string): void {
+  window.localStorage.setItem(onboardingHandledKey(workspaceId), "true");
 }
 
 function recentNotesKey(workspaceId: string): string {
