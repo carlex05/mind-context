@@ -74,23 +74,21 @@ export async function buildWorkspaceDerivedState(
       previous.chunks.length > 0
     ) {
       return {
-        ...previous,
+        noteId: previous.noteId,
         path: note.path,
         name: note.name,
         title: note.title,
         aliases: note.aliases,
         tags: note.tags,
         headings: note.headings.map((heading) => heading.text),
+        content: previous.content,
+        contentHash: previous.contentHash,
         chunks: previous.chunks.map((chunk) => ({
           ...chunk,
           path: note.path,
         })),
-        ...(document.revision
-          ? { revision: document.revision }
-          : { revision: undefined }),
-        ...(document.modifiedAt
-          ? { modifiedAt: document.modifiedAt }
-          : { modifiedAt: undefined }),
+        ...(document.revision ? { revision: document.revision } : {}),
+        ...(document.modifiedAt ? { modifiedAt: document.modifiedAt } : {}),
       } satisfies SearchDocument;
     }
 
