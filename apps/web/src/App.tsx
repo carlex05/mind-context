@@ -173,6 +173,8 @@ export function App() {
     Readonly<Record<string, NoteSyncState>>
   >({});
   const tabBuffersRef = useRef<Readonly<Record<string, NoteBuffer>>>({});
+  const noteSyncStatesRef = useRef<Readonly<Record<string, NoteSyncState>>>({});
+  const activeTabIdRef = useRef<string>();
   const localDraftTimersRef = useRef<
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
@@ -180,7 +182,6 @@ export function App() {
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
   const syncInFlightRef = useRef<Set<string>>(new Set());
-  const syncRequestedRef = useRef<Set<string>>(new Set());
   const [activeTabId, setActiveTabId] = useState<string>();
   const [activeLeftPanel, setActiveLeftPanel] =
     useState<WorkspacePanel>("files");
@@ -336,6 +337,10 @@ export function App() {
   }, [tabBuffers]);
 
   useEffect(() => {
+    activeTabIdRef.current = activeTabId;
+  }, [activeTabId]);
+
+  useEffect(() => {
     if (!provider || !activeWorkspace) return;
     for (const [noteId, syncState] of Object.entries(noteSyncStates)) {
       if (syncState === "local" && tabBuffersRef.current[noteId]) {
@@ -403,6 +408,10 @@ export function App() {
       if (command && key === "w" && activeTabId) {
         event.preventDefault();
         void closeTab(activeTabId);
+      }
+      if (command && key === "s" && activeTabId) {
+        event.preventDefault();
+        void saveNote();
       }
       if (event.altKey && event.key === "ArrowLeft") {
         event.preventDefault();
