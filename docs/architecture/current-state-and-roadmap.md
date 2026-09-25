@@ -29,7 +29,10 @@ is plain Markdown/YAML with open/Obsidian-compatible linking conventions.
 - Markdown create/edit/delete;
 - folder create/delete;
 - safe rename/move with conservative resolved-link rewriting;
-- remote revision conflict check before save.
+- remote revision conflict check before save;
+- persistent browser-local pending drafts in a separate IndexedDB recovery store;
+- debounced, single-flight Drive synchronization per note;
+- explicit local/syncing/synced/conflict/error note states.
 
 Important limitation: arbitrary pre-existing Google Drive folders are not a
 general MVP workspace path under the current `drive.file` decision. Import/open
@@ -67,8 +70,10 @@ inventing another parser.
 - right-side Context panel for links/backlinks/properties;
 - dark/light/system theme.
 
-Unsaved tab drafts live in browser memory only. They are not stored in
-`localStorage` or sent to Drive until Save.
+Pending edits are persisted browser-locally in a dedicated IndexedDB recovery
+store before deferred Drive synchronization. Drive remains canonical. Pending
+drafts retain their base revision/content so conflicts can be detected now and
+a future multi-device sync layer can perform three-way reconciliation.
 
 ### Internationalization
 
@@ -283,10 +288,19 @@ The original daily-use gate still has important work after RAG/capture:
 
 ### Autosave and conflict UX
 
-- define an autosave/debounce policy;
-- preserve revision conflict protection;
-- never silently overwrite a newer remote revision;
-- make tab dirty/saving/conflict states understandable on mobile.
+Implemented baseline:
+
+- local draft persistence with a short debounce;
+- deferred Drive autosync with per-note single-flight serialization;
+- remote revision conflict protection;
+- visible local/syncing/synced/conflict/error state;
+- edits made during an in-flight Drive write are queued as a newer local draft.
+
+Remaining hardening:
+
+- richer conflict-resolution UI (reload/copy/compare/merge);
+- offline retry/backoff and explicit connectivity state;
+- future remote Drive change-feed detection for multi-device reconciliation.
 
 ### PWA/offline shell
 
