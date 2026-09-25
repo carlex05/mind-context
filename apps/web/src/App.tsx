@@ -76,6 +76,11 @@ interface OpenNote {
   readonly originalContent: string;
 }
 
+interface NoteBuffer {
+  readonly note: OpenNote;
+  readonly draft: string;
+}
+
 export function App() {
   const [authSession, setAuthSession] =
     useState<GoogleDriveAuthSession>();
@@ -96,6 +101,9 @@ export function App() {
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
   const [tabs, setTabs] = useState<readonly WorkspaceTab[]>([]);
+  const [tabBuffers, setTabBuffers] = useState<
+    Readonly<Record<string, NoteBuffer>>
+  >({});
   const [activeTabId, setActiveTabId] = useState<string>();
   const [activeLeftPanel, setActiveLeftPanel] =
     useState<WorkspacePanel>("files");
@@ -126,6 +134,15 @@ export function App() {
 
   const dirty =
     openNote !== undefined && draft !== openNote.originalContent;
+
+  const dirtyNoteIds = useMemo(() => {
+    const result = new Set<string>();
+    for (const [noteId, buffer] of Object.entries(tabBuffers)) {
+      if (buffer.draft !== buffer.note.originalContent) result.add(noteId);
+    }
+    if (activeTabId && dirty) result.add(activeTabId);
+    return result;
+  }, [tabBuffers, activeTabId, dirty, draft, openNote]);
 
   const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
 
@@ -234,7 +251,7 @@ export function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeWorkspace, activeTabId, navigation, dirty, tabs]);
+  }, [activeWorkspace, activeTabId, navigation, dirty, tabs, tabBuffers]);
 
 
   if (!GOOGLE_CLIENT_ID) {
@@ -291,7 +308,7 @@ export function App() {
 
   async function openWorkspace(workspace: GoogleDriveWorkspace) {
     if (!authSession) return;
-    if (!confirmDiscardIfDirty()) return;
+    if (!confirmDiscardAllDirty()) return;
 
     const nextProvider = new GoogleDriveStorageProvider({
       workspaceFolderId: workspace.id,
@@ -314,6 +331,7 @@ export function App() {
       setOpenNote(undefined);
       setDraft("");
       setTabs([]);
+      setTabBuffers({});
       setActiveTabId(undefined);
       setNavigation({ entries: [], index: -1 });
       setRightSidebarOpen(false);
@@ -360,8 +378,12 @@ export function App() {
           nextProvider.readText(restoredActiveId),
           nextProvider.metadata(restoredActiveId),
         ]);
-        setOpenNote({ metadata, originalContent: content });
+        const restoredNote = { metadata, originalContent: content };
+        setOpenNote(restoredNote);
         setDraft(content);
+        setTabBuffers({
+          [restoredActiveId]: { note: restoredNote, draft: content },
+        });
         setViewMode(
           restoredTabs.find((tab) => tab.noteId === restoredActiveId)?.viewMode ??
             "edit",
@@ -409,6 +431,13 @@ export function App() {
             : [];
         }),
       );
+      setTabBuffers((current) =>
+        Object.fromEntries(
+          Object.entries(current).filter(([noteId]) =>
+            rebuilt.notes.some((note) => note.id === noteId),
+          ),
+        ),
+      );
 
       if (
         selectedFolderId !== provider.rootId &&
@@ -420,13 +449,30 @@ export function App() {
       if (openNote) {
         try {
           const metadata = await provider.metadata(openNote.metadata.id);
-          setOpenNote((current) =>
-            current ? { ...current, metadata } : current,
-          );
+          setOpenNote((current) => {
+            if (!current) return current;
+            const next = { ...current, metadata };
+            if (activeTabId) {
+              setTabBuffers((buffers) => ({
+                ...buffers,
+                [activeTabId]: {
+                  note: next,
+                  draft,
+                },
+              }));
+            }
+            return next;
+          });
         } catch {
           setOpenNote(undefined);
           setDraft("");
           setActiveTabId(undefined);
+          setTabBuffers((current) => {
+            if (!openNote) return current;
+            const next = { ...current };
+            delete next[openNote.metadata.id];
+            return next;
+          });
           setRightSidebarOpen(false);
         }
       }
@@ -445,34 +491,65 @@ export function App() {
   async function openNoteById(
     id: string,
     historyMode: "push" | "back" | "forward" = "push",
-    skipDirtyCheck = false,
+    storeCurrent = true,
   ): Promise<boolean> {
     if (!provider) return false;
-    if (!skipDirtyCheck && !confirmDiscardIfDirty()) return false;
+
+    if (activeTabId === id && openNote) {
+      setMobileSidebarOpen(false);
+      return true;
+    }
+
+    if (storeCurrent && activeTabId && openNote) {
+      setTabBuffers((current) => ({
+        ...current,
+        [activeTabId]: {
+          note: openNote,
+          draft,
+        },
+      }));
+    }
 
     const indexed = getNote(knowledgeIndex, id);
+    const buffered = tabBuffers[id];
     setStatus({
       kind: "busy",
-      message: `Opening ${indexed?.name ?? "note"}…`,
+      message: `Opening ${indexed?.name ?? buffered?.note.metadata.name ?? "note"}…`,
     });
 
     try {
-      const [content, metadata] = await Promise.all([
-        provider.readText(id),
-        provider.metadata(id),
-      ]);
-      setOpenNote({
-        metadata,
-        originalContent: content,
-      });
-      setDraft(content);
+      let nextNote: OpenNote;
+      let nextDraft: string;
+
+      if (buffered) {
+        nextNote = buffered.note;
+        nextDraft = buffered.draft;
+      } else {
+        const [content, metadata] = await Promise.all([
+          provider.readText(id),
+          provider.metadata(id),
+        ]);
+        nextNote = {
+          metadata,
+          originalContent: content,
+        };
+        nextDraft = content;
+        setTabBuffers((current) => ({
+          ...current,
+          [id]: { note: nextNote, draft: nextDraft },
+        }));
+      }
+
+      setOpenNote(nextNote);
+      setDraft(nextDraft);
 
       const existingTab = tabs.find((tab) => tab.noteId === id);
       const note = getNote(knowledgeIndex, id);
       const nextTab: WorkspaceTab = {
         noteId: id,
-        title: note?.title ?? metadata.name.replace(/\.md$/i, ""),
-        path: note?.path ?? metadata.name,
+        title:
+          note?.title ?? nextNote.metadata.name.replace(/\.md$/i, ""),
+        path: note?.path ?? nextNote.metadata.name,
         viewMode: existingTab?.viewMode ?? "edit",
       };
       setTabs((current) =>
@@ -487,6 +564,7 @@ export function App() {
       setActiveTabId(id);
       setViewMode(nextTab.viewMode);
       setMobileSidebarOpen(false);
+
       if (activeWorkspace) {
         setRecentNoteIds((current) =>
           rememberRecentNote(activeWorkspace.id, current, id),
@@ -505,7 +583,10 @@ export function App() {
         }
 
         if (current.entries[current.index] === id) return current;
-        const entries = [...current.entries.slice(0, current.index + 1), id].slice(-50);
+        const entries = [
+          ...current.entries.slice(0, current.index + 1),
+          id,
+        ].slice(-50);
         return { entries, index: entries.length - 1 };
       });
 
@@ -525,24 +606,39 @@ export function App() {
     await openNoteById(target, direction);
   }
 
-  function updateTags(tags: readonly string[]) {
+  function updateActiveDraft(value: string) {
+    setDraft(value);
+    if (!activeTabId || !openNote) return;
+    setTabBuffers((current) => ({
+      ...current,
+      [activeTabId]: {
+        note: openNote,
+        draft: value,
+      },
+    }));
+  }
+
+  function transformActiveDraft(
+    transform: (value: string) => string,
+  ) {
     try {
-      setDraft((current) =>
-        updateFrontmatterStringList(current, "tags", tags),
-      );
+      const next = transform(draft);
+      updateActiveDraft(next);
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
     }
   }
 
+  function updateTags(tags: readonly string[]) {
+    transformActiveDraft((current) =>
+      updateFrontmatterStringList(current, "tags", tags),
+    );
+  }
+
   function updateAliases(aliases: readonly string[]) {
-    try {
-      setDraft((current) =>
-        updateFrontmatterStringList(current, "aliases", aliases),
-      );
-    } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
-    }
+    transformActiveDraft((current) =>
+      updateFrontmatterStringList(current, "aliases", aliases),
+    );
   }
 
   function selectLeftPanel(panel: WorkspacePanel) {
@@ -566,9 +662,16 @@ export function App() {
     if (index < 0) return;
 
     const closingActive = activeTabId === noteId;
+    const buffer =
+      closingActive && openNote
+        ? { note: openNote, draft }
+        : tabBuffers[noteId];
+    const tabDirty =
+      buffer !== undefined &&
+      buffer.draft !== buffer.note.originalContent;
+
     if (
-      closingActive &&
-      dirty &&
+      tabDirty &&
       !window.confirm("Close this tab and discard unsaved changes?")
     ) {
       return;
@@ -576,6 +679,11 @@ export function App() {
 
     const remaining = tabs.filter((tab) => tab.noteId !== noteId);
     setTabs(remaining);
+    setTabBuffers((current) => {
+      const next = { ...current };
+      delete next[noteId];
+      return next;
+    });
 
     if (!closingActive) return;
 
@@ -588,7 +696,7 @@ export function App() {
       return;
     }
 
-    await openNoteById(next.noteId, "push", true);
+    await openNoteById(next.noteId, "push", false);
   }
 
   async function createWorkspaceItem(
@@ -656,7 +764,17 @@ export function App() {
           ? { expectedRevision: openNote.metadata.revision }
           : undefined,
       );
-      setOpenNote({ metadata, originalContent: draft });
+      const savedNote = { metadata, originalContent: draft };
+      setOpenNote(savedNote);
+      if (activeTabId) {
+        setTabBuffers((current) => ({
+          ...current,
+          [activeTabId]: {
+            note: savedNote,
+            draft,
+          },
+        }));
+      }
       if (knowledgeIndex) {
         const existing = getNote(knowledgeIndex, metadata.id);
         const updated = upsertKnowledgeDocument(knowledgeIndex, {
@@ -695,7 +813,7 @@ export function App() {
   }
 
   function leaveWorkspace() {
-    if (!confirmDiscardIfDirty()) return;
+    if (!confirmDiscardAllDirty()) return;
     setActiveWorkspace(undefined);
     setProvider(undefined);
     setTree([]);
@@ -703,6 +821,7 @@ export function App() {
     setOpenNote(undefined);
     setDraft("");
     setTabs([]);
+    setTabBuffers({});
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
@@ -714,7 +833,7 @@ export function App() {
   }
 
   function disconnect() {
-    if (!confirmDiscardIfDirty()) return;
+    if (!confirmDiscardAllDirty()) return;
     setAuthSession(undefined);
     setWorkspaceService(undefined);
     setWorkspaces([]);
@@ -725,6 +844,7 @@ export function App() {
     setOpenNote(undefined);
     setDraft("");
     setTabs([]);
+    setTabBuffers({});
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
@@ -736,8 +856,14 @@ export function App() {
     setStatus({ kind: "idle" });
   }
 
-  function confirmDiscardIfDirty(): boolean {
-    return !dirty || window.confirm("Discard your unsaved changes?");
+  function confirmDiscardAllDirty(): boolean {
+    const hasDirtyBuffer = Object.entries(tabBuffers).some(
+      ([noteId, buffer]) =>
+        noteId !== activeTabId &&
+        buffer.draft !== buffer.note.originalContent,
+    );
+    if (!dirty && !hasDirtyBuffer) return true;
+    return window.confirm("Discard unsaved changes in open tabs?");
   }
 
   if (!authSession || !workspaceService) {
@@ -980,6 +1106,7 @@ export function App() {
           <TabBar
             tabs={tabs}
             activeNoteId={activeTabId}
+            dirtyNoteIds={dirtyNoteIds}
             onActivate={(noteId) => void openNoteById(noteId)}
             onClose={(noteId) => void closeTab(noteId)}
             onNew={() =>
@@ -1023,7 +1150,7 @@ export function App() {
                     label={`Edit ${openNote.metadata.name}`}
                     linkTargets={editorLinkTargets}
                     tags={knownTags}
-                    onChange={setDraft}
+                    onChange={updateActiveDraft}
                   />
                 ) : (
                   <MarkdownPreview

@@ -66,12 +66,14 @@ export function SidebarFrame({
 export function TabBar({
   tabs,
   activeNoteId,
+  dirtyNoteIds,
   onActivate,
   onClose,
   onNew,
 }: {
   readonly tabs: readonly WorkspaceTab[];
   readonly activeNoteId: string | undefined;
+  readonly dirtyNoteIds: ReadonlySet<string>;
   readonly onActivate: (noteId: string) => void;
   readonly onClose: (noteId: string) => void;
   readonly onNew: () => void;
@@ -92,7 +94,10 @@ export function TabBar({
               title={tab.path}
               onClick={() => onActivate(tab.noteId)}
             >
-              {tab.title}
+              <span>{tab.title}</span>
+              {dirtyNoteIds.has(tab.noteId) ? (
+                <span className="workspace-tab-dirty" aria-hidden="true">●</span>
+              ) : null}
             </button>
             <button
               className="workspace-tab-close"
