@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export function PropertiesEditor({
   tags,
@@ -13,21 +14,23 @@ export function PropertiesEditor({
   readonly onTagsChange: (tags: readonly string[]) => void;
   readonly onAliasesChange: (aliases: readonly string[]) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
-    <section className="properties-editor" aria-label="Note properties">
-      <h3>Properties</h3>
+    <section className="properties-editor" aria-label={t("properties.aria")}>
+      <h3>{t("properties.title")}</h3>
       <PropertyList
-        label="Tags"
+        label={t("properties.tags")}
+        addLabel={t("properties.addTag")}
         values={tags}
-        placeholder="Add tag"
         suggestions={knownTags.filter((tag) => !tags.includes(tag))}
         prefix="#"
         onChange={onTagsChange}
       />
       <PropertyList
-        label="Aliases"
+        label={t("properties.aliases")}
+        addLabel={t("properties.addAlias")}
         values={aliases}
-        placeholder="Add alias"
         suggestions={[]}
         onChange={onAliasesChange}
       />
@@ -37,19 +40,20 @@ export function PropertiesEditor({
 
 function PropertyList({
   label,
+  addLabel,
   values,
-  placeholder,
   suggestions,
   prefix = "",
   onChange,
 }: {
   readonly label: string;
+  readonly addLabel: string;
   readonly values: readonly string[];
-  readonly placeholder: string;
   readonly suggestions: readonly string[];
   readonly prefix?: string;
   readonly onChange: (values: readonly string[]) => void;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState("");
 
   function add(raw: string) {
@@ -62,18 +66,32 @@ function PropertyList({
     setValue("");
   }
 
+  const listId = `property-${prefix ? "tags" : "aliases"}-suggestions`;
+
   return (
     <div className="property-editor-row">
       <span>{label}</span>
       <div className="property-editor-content">
         <div className="chip-list">
           {values.map((item) => (
-            <span className={prefix ? "tag-chip editable-chip" : "property-chip editable-chip"} key={item}>
+            <span
+              className={
+                prefix
+                  ? "tag-chip editable-chip"
+                  : "property-chip editable-chip"
+              }
+              key={item}
+            >
               {prefix}{item}
               <button
                 type="button"
-                aria-label={`Remove ${label.toLocaleLowerCase()} ${item}`}
-                onClick={() => onChange(values.filter((value) => value !== item))}
+                aria-label={t("properties.removeValue", {
+                  label: label.toLocaleLowerCase(),
+                  value: item,
+                })}
+                onClick={() =>
+                  onChange(values.filter((candidate) => candidate !== item))
+                }
               >
                 ×
               </button>
@@ -81,9 +99,9 @@ function PropertyList({
           ))}
         </div>
         <input
-          aria-label={`Add ${label.toLocaleLowerCase()}`}
+          aria-label={addLabel}
           value={value}
-          list={suggestions.length > 0 ? `${label}-suggestions` : undefined}
+          list={suggestions.length > 0 ? listId : undefined}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === ",") {
@@ -94,10 +112,10 @@ function PropertyList({
           onBlur={() => {
             if (value.trim()) add(value);
           }}
-          placeholder={placeholder}
+          placeholder={addLabel}
         />
         {suggestions.length > 0 ? (
-          <datalist id={`${label}-suggestions`}>
+          <datalist id={listId}>
             {suggestions.map((suggestion) => (
               <option value={suggestion} key={suggestion} />
             ))}

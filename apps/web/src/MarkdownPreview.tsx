@@ -1,6 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { KnowledgeEdge } from "@mind-context/knowledge";
+import { useTranslation } from "react-i18next";
 
 export function MarkdownPreview({
   content,
@@ -11,11 +12,12 @@ export function MarkdownPreview({
   readonly outgoingLinks: readonly KnowledgeEdge[];
   readonly onOpenNote: (noteId: string) => void;
 }) {
+  const { t } = useTranslation();
   const resolveWiki = (rawTarget: string) =>
     resolveEdge(rawTarget, "wikilink", outgoingLinks);
 
   return (
-    <article className="markdown-preview" aria-label="Reading view">
+    <article className="markdown-preview" aria-label={t("editor.readingAria")}>
       <Markdown
         remarkPlugins={[remarkGfm, [remarkWikilinks, { resolveWiki }]]}
         components={{
