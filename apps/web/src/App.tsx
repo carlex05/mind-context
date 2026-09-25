@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   getBacklinks,
@@ -16,6 +16,7 @@ import {
 import {
   IndexedDbEmbeddingIndexStore,
   IndexedDbKnowledgeIndexStore,
+  IndexedDbPendingNoteDraftStore,
   IndexedDbSearchIndexStore,
 } from "@mind-context/persistence-indexeddb";
 import {
@@ -86,6 +87,7 @@ import {
   TabBar,
   WorkspaceHeader,
   WorkspaceRail,
+  type NoteSyncState,
 } from "./WorkspaceShell";
 import {
   readWorkspaceUi,
@@ -104,7 +106,10 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
 const knowledgeStore = new IndexedDbKnowledgeIndexStore();
 const searchStore = new IndexedDbSearchIndexStore();
 const embeddingStore = new IndexedDbEmbeddingIndexStore();
+const pendingDraftStore = new IndexedDbPendingNoteDraftStore();
 const SEMANTIC_SEARCH_KEY = "mindcontext.semantic-search.enabled";
+const LOCAL_DRAFT_DEBOUNCE_MS = 120;
+const DRIVE_SYNC_DEBOUNCE_MS = 1200;
 
 type AppStatus =
   | { readonly kind: "idle" }
@@ -164,6 +169,18 @@ export function App() {
   const [tabBuffers, setTabBuffers] = useState<
     Readonly<Record<string, NoteBuffer>>
   >({});
+  const [noteSyncStates, setNoteSyncStates] = useState<
+    Readonly<Record<string, NoteSyncState>>
+  >({});
+  const tabBuffersRef = useRef<Readonly<Record<string, NoteBuffer>>>({});
+  const localDraftTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const driveSyncTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const syncInFlightRef = useRef<Set<string>>(new Set());
+  const syncRequestedRef = useRef<Set<string>>(new Set());
   const [activeTabId, setActiveTabId] = useState<string>();
   const [activeLeftPanel, setActiveLeftPanel] =
     useState<WorkspacePanel>("files");
@@ -226,6 +243,9 @@ export function App() {
 
   const dirty =
     openNote !== undefined && draft !== openNote.originalContent;
+  const activeSyncState: NoteSyncState = openNote
+    ? noteSyncStates[openNote.metadata.id] ?? (dirty ? "local" : "synced")
+    : "synced";
 
   const dirtyNoteIds = useMemo(() => {
     const result = new Set<string>();
@@ -310,6 +330,26 @@ export function App() {
     activeWorkspace?.id,
     searchSnapshot?.builtAt,
   ]);
+
+  useEffect(() => {
+    tabBuffersRef.current = tabBuffers;
+  }, [tabBuffers]);
+
+  useEffect(() => {
+    if (!provider || !activeWorkspace) return;
+    for (const [noteId, syncState] of Object.entries(noteSyncStates)) {
+      if (syncState === "local" && tabBuffersRef.current[noteId]) {
+        scheduleDriveSync(noteId);
+      }
+    }
+  }, [provider, activeWorkspace?.id, noteSyncStates]);
+
+  useEffect(
+    () => () => {
+      cancelAllScheduledSyncs();
+    },
+    [],
+  );
 
   useEffect(() => {
     applyThemePreference(themePreference);
@@ -1585,6 +1625,7 @@ export function App() {
             viewMode={viewMode}
             hasNote={openNote !== undefined}
             dirty={dirty}
+            syncState={activeSyncState}
             rightSidebarOpen={rightSidebarOpen}
             onBack={() => void navigateHistory("back")}
             onForward={() => void navigateHistory("forward")}
