@@ -162,25 +162,6 @@ export function WorkspaceExplorer({
 
   return (
     <>
-      <div className="sidebar-actions">
-        <button
-          className="sidebar-primary-action"
-          type="button"
-          onClick={() => onRequestNewNote(selectedFolderId)}
-        >
-          + New note
-        </button>
-        <button
-          className="icon-button quiet"
-          type="button"
-          aria-label="New folder"
-          title="New folder"
-          onClick={() => onRequestNewFolder(selectedFolderId)}
-        >
-          +
-        </button>
-      </div>
-
       <nav className="file-tree" aria-label="Workspace files">
         <button
           className={`tree-row root-row ${
