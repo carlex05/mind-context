@@ -376,7 +376,7 @@ export function App() {
   }
 
   async function connectDrive() {
-    setStatus({ kind: "busy", message: "Connecting to Google Drive…" });
+    setStatus({ kind: "busy", message: t("status.connectingDrive") });
     try {
       const session = await requestGoogleDriveAccess(GOOGLE_CLIENT_ID);
       const tokenProvider = {
@@ -392,11 +392,11 @@ export function App() {
         kind: "success",
         message:
           discovered.length > 0
-            ? "Google Drive connected."
-            : "Connected. Create your first MindContext workspace.",
+            ? t("status.driveConnected")
+            : t("status.connectedCreateFirst"),
       });
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
 
@@ -409,17 +409,17 @@ export function App() {
   async function createWorkspace() {
     if (!workspaceService) return;
 
-    setStatus({ kind: "busy", message: "Creating workspace…" });
+    setStatus({ kind: "busy", message: t("status.creatingWorkspace") });
     try {
       const workspace = await workspaceService.createWorkspace(workspaceName);
       await refreshWorkspaces(workspaceService);
       await openWorkspace(workspace);
       setStatus({
         kind: "success",
-        message: `Workspace “${workspace.name}” created and indexed locally.`,
+        message: t("status.workspaceCreated", { name: workspace.name }),
       });
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
 
@@ -434,7 +434,7 @@ export function App() {
       },
     });
 
-    setStatus({ kind: "busy", message: "Opening workspace…" });
+    setStatus({ kind: "busy", message: t("status.openingWorkspace") });
     try {
       const [cached, cachedSearch] = await Promise.all([
         knowledgeStore.get(workspace.id),
@@ -463,7 +463,7 @@ export function App() {
 
       setStatus({
         kind: "busy",
-        message: "Loading vault tree and rebuilding local knowledge index…",
+        message: t("status.rebuildingIndex"),
       });
       const [nextTree, derived] = await Promise.all([
         loadWorkspaceTree(nextProvider),
@@ -535,13 +535,16 @@ export function App() {
       setWorkspaceUiReady(true);
       setStatus({
         kind: "success",
-        message:
-          `Indexed ${derived.stats.totalNotes} Markdown note${derived.stats.totalNotes === 1 ? "" : "s"} locally · ` +
-          `${derived.stats.reusedNotes} reused · ${derived.stats.downloadedNotes} downloaded · ` +
-          `${derived.stats.chunks} chunks.`,
+        message: t("status.indexed", {
+          count: derived.stats.totalNotes,
+          total: derived.stats.totalNotes,
+          reused: derived.stats.reusedNotes,
+          downloaded: derived.stats.downloadedNotes,
+          chunks: derived.stats.chunks,
+        }),
       });
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
 
@@ -550,7 +553,7 @@ export function App() {
 
     setStatus({
       kind: "busy",
-      message: "Refreshing vault tree and rebuilding local index…",
+      message: t("status.refreshingIndex"),
     });
     try {
       const previousSearch =
@@ -678,12 +681,14 @@ export function App() {
 
       setStatus({
         kind: "success",
-        message:
-          `Vault refreshed · ${derived.stats.reusedNotes} unchanged note${derived.stats.reusedNotes === 1 ? "" : "s"} reused · ` +
-          `${derived.stats.downloadedNotes} downloaded.`,
+        message: t("status.refreshed", {
+          count: derived.stats.reusedNotes,
+          reused: derived.stats.reusedNotes,
+          downloaded: derived.stats.downloadedNotes,
+        }),
       });
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
 
@@ -713,7 +718,9 @@ export function App() {
     const buffered = tabBuffers[id];
     setStatus({
       kind: "busy",
-      message: `Opening ${indexed?.name ?? buffered?.note.metadata.name ?? "note"}…`,
+      message: t("status.openingNote", {
+        name: indexed?.name ?? buffered?.note.metadata.name ?? "note",
+      }),
     });
 
     try {
@@ -800,7 +807,7 @@ export function App() {
       setStatus({ kind: "idle" });
       return true;
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
       return false;
     }
   }
@@ -832,7 +839,7 @@ export function App() {
       const next = transform(draft);
       updateActiveDraft(next);
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
 
@@ -879,7 +886,7 @@ export function App() {
 
     if (
       tabDirty &&
-      !window.confirm("Close this tab and discard unsaved changes?")
+      !window.confirm(t("confirm.closeDirtyTab"))
     ) {
       return;
     }
@@ -911,7 +918,7 @@ export function App() {
     setSemanticEnabled(true);
     setSemanticUi({
       kind: "preparing",
-      message: "Preparing local semantic search…",
+      stage: "preparing",
     });
   }
 
@@ -935,8 +942,7 @@ export function App() {
     setSemanticUi({ kind: "disabled" });
     setStatus({
       kind: "success",
-      message:
-        "Local semantic embeddings cleared and semantic search disabled. Markdown in Drive was not changed.",
+      message: t("status.semanticCleared"),
     });
   }
 
@@ -947,7 +953,7 @@ export function App() {
 
     setSemanticUi({
       kind: "preparing",
-      message: "Checking local semantic index…",
+      stage: "checking",
     });
 
     try {
@@ -974,18 +980,17 @@ export function App() {
       setEmbeddingSnapshot(result.snapshot);
       setSemanticUi({
         kind: "ready",
-        message:
-          `Hybrid search ready · ${result.stats.reusedChunks} embeddings reused · ` +
-          `${result.stats.embeddedChunks} created` +
-          (embeddingProvider.runtime
-            ? ` · ${embeddingProvider.runtime.toUpperCase()}`
-            : ""),
+        reused: result.stats.reusedChunks,
+        created: result.stats.embeddedChunks,
+        ...(embeddingProvider.runtime
+          ? { runtime: embeddingProvider.runtime }
+          : {}),
       });
     } catch (error) {
       setEmbeddingSnapshot(undefined);
       setSemanticUi({
         kind: "error",
-        message: `Semantic search unavailable: ${errorMessage(error)}`,
+        error: errorMessage(error, t),
       });
     }
   }
@@ -999,7 +1004,10 @@ export function App() {
 
     setStatus({
       kind: "busy",
-      message: kind === "note" ? "Creating note…" : "Creating folder…",
+      message:
+        kind === "note"
+          ? t("status.creatingNote")
+          : t("status.creatingFolder"),
     });
 
     try {
@@ -1009,24 +1017,20 @@ export function App() {
         await refreshWorkspaceState();
         setStatus({
           kind: "success",
-          message: `Folder “${metadata.name}” created.`,
+          message: t("status.folderCreated", { name: metadata.name }),
         });
         return;
       }
 
-      const metadata = await provider.createText(
-        parentId,
-        name,
-        "# New note\n\n",
-      );
+      const metadata = await provider.createText(parentId, name, "");
       await refreshWorkspaceState();
       await openNoteById(metadata.id);
       setStatus({
         kind: "success",
-        message: `${metadata.name} created.`,
+        message: t("status.noteCreated", { name: metadata.name }),
       });
     } catch (error) {
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
       throw error;
     }
   }
@@ -1046,7 +1050,7 @@ export function App() {
   async function saveNote() {
     if (!provider || !openNote) return;
 
-    setStatus({ kind: "busy", message: "Saving to Google Drive…" });
+    setStatus({ kind: "busy", message: t("status.savingDrive") });
     try {
       const metadata = await provider.writeText(
         openNote.metadata.id,
@@ -1116,18 +1120,17 @@ export function App() {
 
       setStatus({
         kind: "success",
-        message: "Saved to Drive and updated the local knowledge index.",
+        message: t("status.saved"),
       });
     } catch (error) {
       if (error instanceof StorageConflictError) {
         setStatus({
           kind: "error",
-          message:
-            "This note changed in Drive after you opened it. Reload it before saving to avoid overwriting newer work.",
+          message: t("status.conflict"),
         });
         return;
       }
-      setStatus({ kind: "error", message: errorMessage(error) });
+      setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
 
@@ -1194,7 +1197,7 @@ export function App() {
         buffer.draft !== buffer.note.originalContent,
     );
     if (!dirty && !hasDirtyBuffer) return true;
-    return window.confirm("Discard unsaved changes in open tabs?");
+    return window.confirm(t("confirm.discardOpenTabs"));
   }
 
   if (!authSession || !workspaceService) {
