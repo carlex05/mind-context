@@ -1,10 +1,11 @@
 import type {
   Embedding,
   EmbeddingProvider,
+  EmbeddingRequestOptions,
 } from "@mind-context/embeddings";
 
 export const DEFAULT_BROWSER_EMBEDDING_MODEL =
-  "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
+  "Xenova/multilingual-e5-small";
 
 export type BrowserEmbeddingProgress = {
   readonly phase: "loading" | "ready";
@@ -18,6 +19,7 @@ interface EmbedRequest {
   readonly requestId: number;
   readonly model: string;
   readonly texts: readonly string[];
+  readonly inputType: "query" | "document";
 }
 
 type WorkerMessage =
@@ -64,7 +66,10 @@ export class BrowserEmbeddingProvider implements EmbeddingProvider {
     return this.runtimeValue;
   }
 
-  embed(texts: readonly string[]): Promise<readonly Embedding[]> {
+  embed(
+    texts: readonly string[],
+    options: EmbeddingRequestOptions = {},
+  ): Promise<readonly Embedding[]> {
     if (texts.length === 0) return Promise.resolve([]);
 
     const requestId = ++this.requestId;
@@ -75,6 +80,7 @@ export class BrowserEmbeddingProvider implements EmbeddingProvider {
         requestId,
         model: this.model,
         texts: [...texts],
+        inputType: options.inputType ?? "document",
       };
       this.worker().postMessage(request);
     });

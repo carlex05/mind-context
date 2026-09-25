@@ -505,7 +505,10 @@ export class SemanticSearchIndex implements SearchService {
     const queryText = query.text.trim();
     if (!queryText) return [];
 
-    const [queryEmbedding] = await this.provider.embed([queryText]);
+    const [queryEmbedding] = await this.provider.embed(
+      [queryText],
+      { inputType: "query" },
+    );
     if (!queryEmbedding) return [];
 
     const bestByNote = new Map<string, SearchHit>();

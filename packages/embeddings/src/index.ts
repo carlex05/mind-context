@@ -3,11 +3,20 @@ export interface Embedding {
   readonly values: readonly number[];
 }
 
+export type EmbeddingInputType = "query" | "document";
+
+export interface EmbeddingRequestOptions {
+  readonly inputType?: EmbeddingInputType;
+}
+
 export interface EmbeddingProvider {
   readonly id: string;
   readonly model: string;
 
-  embed(texts: readonly string[]): Promise<readonly Embedding[]>;
+  embed(
+    texts: readonly string[],
+    options?: EmbeddingRequestOptions,
+  ): Promise<readonly Embedding[]>;
 }
 
 export interface ChunkEmbedding {
@@ -96,7 +105,10 @@ export async function buildEmbeddingSnapshot(
   const created: ChunkEmbedding[] = [];
   for (let offset = 0; offset < missing.length; offset += batchSize) {
     const batch = missing.slice(offset, offset + batchSize);
-    const vectors = await provider.embed(batch.map((chunk) => chunk.text));
+    const vectors = await provider.embed(
+      batch.map((chunk) => chunk.text),
+      { inputType: "document" },
+    );
     if (vectors.length !== batch.length) {
       throw new Error(
         `Embedding provider returned ${vectors.length} vectors for ${batch.length} inputs.`,

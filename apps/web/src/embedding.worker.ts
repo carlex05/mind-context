@@ -13,6 +13,7 @@ interface EmbedRequest {
   readonly requestId: number;
   readonly model: string;
   readonly texts: readonly string[];
+  readonly inputType: "query" | "document";
 }
 
 let pipelinePromise:
@@ -31,7 +32,12 @@ self.addEventListener("message", (event: MessageEvent<EmbedRequest>) => {
 async function handleEmbed(request: EmbedRequest): Promise<void> {
   try {
     const { extractor, runtime } = await getPipeline(request.model);
-    const output = await extractor([...request.texts], {
+    const modelInputs = prepareInputs(
+      request.model,
+      request.texts,
+      request.inputType,
+    );
+    const output = await extractor(modelInputs, {
       pooling: "mean",
       normalize: true,
     });
@@ -187,4 +193,18 @@ function isProgressEvent(
   value: unknown,
 ): value is { readonly progress?: number } {
   return typeof value === "object" && value !== null;
+}
+
+
+function prepareInputs(
+  model: string,
+  texts: readonly string[],
+  inputType: "query" | "document",
+): readonly string[] {
+  if (!model.toLocaleLowerCase().includes("e5")) {
+    return [...texts];
+  }
+
+  const prefix = inputType === "query" ? "query: " : "passage: ";
+  return texts.map((text) => `${prefix}${text}`);
 }
