@@ -986,13 +986,19 @@ export function App() {
       return;
     }
 
+    cancelLocalDraftTimer(noteId);
+    cancelDriveSyncTimer(noteId);
+    if (tabDirty && activeWorkspace) {
+      await pendingDraftStore.delete(activeWorkspace.id, noteId);
+    }
+
     const remaining = tabs.filter((tab) => tab.noteId !== noteId);
     setTabs(remaining);
-    setTabBuffers((current) => {
-      const next = { ...current };
-      delete next[noteId];
-      return next;
-    });
+    removeTabBuffer(noteId);
+    const nextSyncStates = { ...noteSyncStatesRef.current };
+    delete nextSyncStates[noteId];
+    noteSyncStatesRef.current = nextSyncStates;
+    setNoteSyncStates(nextSyncStates);
 
     if (!closingActive) return;
 
@@ -1450,8 +1456,19 @@ export function App() {
     setMobileSidebarOpen(true);
   }
 
-  function leaveWorkspace() {
+  async function persistAllDirtyDraftsLocally() {
+    const entries = Object.entries(tabBuffersRef.current).filter(
+      ([, buffer]) => buffer.draft !== buffer.note.originalContent,
+    );
+    await Promise.all(
+      entries.map(([noteId]) => persistPendingDraft(noteId, false)),
+    );
+  }
+
+  async function leaveWorkspace() {
     if (!confirmDiscardAllDirty()) return;
+    await persistAllDirtyDraftsLocally();
+    cancelAllScheduledSyncs();
     setActiveWorkspace(undefined);
     setProvider(undefined);
     setTree([]);
@@ -1459,7 +1476,10 @@ export function App() {
     setOpenNote(undefined);
     setDraft("");
     setTabs([]);
-    setTabBuffers({});
+    replaceTabBuffers({});
+    noteSyncStatesRef.current = {};
+    setNoteSyncStates({});
+    activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
@@ -1474,8 +1494,10 @@ export function App() {
     setOnboardingMode(undefined);
   }
 
-  function disconnect() {
+  async function disconnect() {
     if (!confirmDiscardAllDirty()) return;
+    await persistAllDirtyDraftsLocally();
+    cancelAllScheduledSyncs();
     setAuthSession(undefined);
     setWorkspaceService(undefined);
     setWorkspaces([]);
@@ -1486,7 +1508,10 @@ export function App() {
     setOpenNote(undefined);
     setDraft("");
     setTabs([]);
-    setTabBuffers({});
+    replaceTabBuffers({});
+    noteSyncStatesRef.current = {};
+    setNoteSyncStates({});
+    activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
