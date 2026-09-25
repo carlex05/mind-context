@@ -694,7 +694,7 @@ export function App() {
         }),
       );
 
-      const sourceBuffers: Record<string, NoteBuffer> = { ...tabBuffers };
+      const sourceBuffers: Record<string, NoteBuffer> = { ...tabBuffersRef.current };
       if (activeTabId && openNote) {
         sourceBuffers[activeTabId] = { note: openNote, draft };
       }
@@ -737,7 +737,7 @@ export function App() {
             entry !== undefined,
         ),
       );
-      setTabBuffers(refreshedBuffers);
+      replaceTabBuffers(refreshedBuffers);
 
       if (activeTabId) {
         const activeBuffer = refreshedBuffers[activeTabId];
@@ -752,37 +752,6 @@ export function App() {
         !findWorkspaceNode(nextTree, selectedFolderId)
       ) {
         setSelectedFolderId(provider.rootId);
-      }
-
-      if (openNote) {
-        try {
-          const metadata = await provider.metadata(openNote.metadata.id);
-          setOpenNote((current) => {
-            if (!current) return current;
-            const next = { ...current, metadata };
-            if (activeTabId) {
-              setTabBuffers((buffers) => ({
-                ...buffers,
-                [activeTabId]: {
-                  note: next,
-                  draft,
-                },
-              }));
-            }
-            return next;
-          });
-        } catch {
-          setOpenNote(undefined);
-          setDraft("");
-          setActiveTabId(undefined);
-          setTabBuffers((current) => {
-            if (!openNote) return current;
-            const next = { ...current };
-            delete next[openNote.metadata.id];
-            return next;
-          });
-          setRightSidebarOpen(false);
-        }
       }
 
       setStatus({
@@ -811,17 +780,14 @@ export function App() {
     }
 
     if (storeCurrent && activeTabId && openNote) {
-      setTabBuffers((current) => ({
-        ...current,
-        [activeTabId]: {
-          note: openNote,
-          draft,
-        },
-      }));
+      putTabBuffer(activeTabId, {
+        note: openNote,
+        draft,
+      });
     }
 
     const indexed = getNote(knowledgeIndex, id);
-    const buffered = tabBuffers[id];
+    const buffered = tabBuffersRef.current[id];
     setStatus({
       kind: "busy",
       message: t("status.openingNote", {
@@ -851,11 +817,21 @@ export function App() {
           metadata,
           originalContent: content,
         };
-        nextDraft = content;
-        setTabBuffers((current) => ({
-          ...current,
-          [id]: { note: nextNote, draft: nextDraft },
-        }));
+        const pendingDraft = activeWorkspace
+          ? await pendingDraftStore.get(activeWorkspace.id, id)
+          : undefined;
+        nextDraft = pendingDraft?.content ?? content;
+        putTabBuffer(id, { note: nextNote, draft: nextDraft });
+        if (pendingDraft) {
+          setNoteSyncState(
+            id,
+            pendingDraft.baseRevision === metadata.revision
+              ? "local"
+              : "conflict",
+          );
+        } else {
+          setNoteSyncState(id, "synced");
+        }
       }
 
       setOpenNote(nextNote);
