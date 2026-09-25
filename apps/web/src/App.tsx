@@ -42,6 +42,21 @@ import {
 } from "./theme";
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
 import {
+  Icon,
+  PlaceholderPanel,
+  SidebarFrame,
+  TabBar,
+  WorkspaceHeader,
+  WorkspaceRail,
+} from "./WorkspaceShell";
+import {
+  readWorkspaceUi,
+  writeWorkspaceUi,
+  type NoteViewMode,
+  type WorkspacePanel,
+  type WorkspaceTab,
+} from "./workspaceUi";
+import {
   findWorkspaceNode,
   loadWorkspaceTree,
   type WorkspaceTreeNode,
@@ -80,8 +95,16 @@ export function App() {
   const [workspaceName, setWorkspaceName] = useState("My Second Brain");
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
-  const [mobileContextOpen, setMobileContextOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"edit" | "read">("edit");
+  const [tabs, setTabs] = useState<readonly WorkspaceTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string>();
+  const [activeLeftPanel, setActiveLeftPanel] =
+    useState<WorkspacePanel>("files");
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
+  const [workspaceUiReady, setWorkspaceUiReady] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string>();
+  const [viewMode, setViewMode] = useState<NoteViewMode>("edit");
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [newItem, setNewItem] = useState<
     | {
@@ -91,7 +114,6 @@ export function App() {
       }
     | undefined
   >();
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(
     () => readThemePreference(),
   );
@@ -154,19 +176,66 @@ export function App() {
   }, [themePreference]);
 
   useEffect(() => {
+    if (!activeWorkspace || !workspaceUiReady) return;
+    writeWorkspaceUi(activeWorkspace.id, {
+      tabs: tabs.map((tab) => ({
+        noteId: tab.noteId,
+        viewMode: tab.viewMode,
+      })),
+      ...(activeTabId ? { activeNoteId: activeTabId } : {}),
+      leftPanel: activeLeftPanel,
+      leftSidebarOpen,
+      rightSidebarOpen,
+    });
+  }, [
+    activeWorkspace,
+    workspaceUiReady,
+    tabs,
+    activeTabId,
+    activeLeftPanel,
+    leftSidebarOpen,
+    rightSidebarOpen,
+  ]);
+
+  useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "o") {
+      const key = event.key.toLocaleLowerCase();
+      const command = event.metaKey || event.ctrlKey;
+
+      if (command && key === "o") {
         event.preventDefault();
         if (activeWorkspace) setQuickSwitcherOpen(true);
       }
+      if (command && key === "n") {
+        event.preventDefault();
+        if (activeWorkspace) requestNewItem("note");
+      }
+      if (command && key === "b") {
+        event.preventDefault();
+        setLeftSidebarOpen((current) => !current);
+      }
+      if (command && key === "w" && activeTabId) {
+        event.preventDefault();
+        void closeTab(activeTabId);
+      }
+      if (event.altKey && event.key === "ArrowLeft") {
+        event.preventDefault();
+        void navigateHistory("back");
+      }
+      if (event.altKey && event.key === "ArrowRight") {
+        event.preventDefault();
+        void navigateHistory("forward");
+      }
       if (event.key === "Escape") {
         setQuickSwitcherOpen(false);
-        setSettingsOpen(false);
+        setMobileSidebarOpen(false);
+        setRightSidebarOpen(false);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [activeWorkspace]);
+  }, [activeWorkspace, activeTabId, navigation, dirty, tabs]);
+
 
   if (!GOOGLE_CLIENT_ID) {
     return <ConfigurationRequired />;
@@ -238,13 +307,17 @@ export function App() {
         setKnowledgeIndex(cached);
       }
 
+      setWorkspaceUiReady(false);
       setProvider(nextProvider);
       setActiveWorkspace(workspace);
       setSelectedFolderId(nextProvider.rootId);
       setOpenNote(undefined);
       setDraft("");
+      setTabs([]);
+      setActiveTabId(undefined);
       setNavigation({ entries: [], index: -1 });
-      setMobileContextOpen(false);
+      setRightSidebarOpen(false);
+      setMobileSidebarOpen(true);
 
       setStatus({
         kind: "busy",
@@ -258,6 +331,46 @@ export function App() {
       await knowledgeStore.put(rebuilt);
       setKnowledgeIndex(rebuilt);
       setRecentNoteIds(readRecentNotes(workspace.id));
+
+      const persistedUi = readWorkspaceUi(workspace.id);
+      const restoredTabs = persistedUi.tabs.flatMap((saved) => {
+        const note = getNote(rebuilt, saved.noteId);
+        return note
+          ? [{
+              noteId: note.id,
+              title: note.title,
+              path: note.path,
+              viewMode: saved.viewMode,
+            }]
+          : [];
+      });
+      const restoredActiveId =
+        restoredTabs.some((tab) => tab.noteId === persistedUi.activeNoteId)
+          ? persistedUi.activeNoteId
+          : restoredTabs[0]?.noteId;
+
+      setTabs(restoredTabs);
+      setActiveTabId(restoredActiveId);
+      setActiveLeftPanel(persistedUi.leftPanel);
+      setLeftSidebarOpen(persistedUi.leftSidebarOpen);
+      setRightSidebarOpen(persistedUi.rightSidebarOpen);
+
+      if (restoredActiveId) {
+        const [content, metadata] = await Promise.all([
+          nextProvider.readText(restoredActiveId),
+          nextProvider.metadata(restoredActiveId),
+        ]);
+        setOpenNote({ metadata, originalContent: content });
+        setDraft(content);
+        setViewMode(
+          restoredTabs.find((tab) => tab.noteId === restoredActiveId)?.viewMode ??
+            "edit",
+        );
+        setNavigation({ entries: [restoredActiveId], index: 0 });
+        setMobileSidebarOpen(false);
+      }
+
+      setWorkspaceUiReady(true);
       setStatus({
         kind: "success",
         message: `Indexed ${rebuilt.notes.length} Markdown note${
@@ -284,6 +397,18 @@ export function App() {
       await knowledgeStore.put(rebuilt);
       setTree(nextTree);
       setKnowledgeIndex(rebuilt);
+      setTabs((current) =>
+        current.flatMap((tab) => {
+          const note = getNote(rebuilt, tab.noteId);
+          return note
+            ? [{
+                ...tab,
+                title: note.title,
+                path: note.path,
+              }]
+            : [];
+        }),
+      );
 
       if (
         selectedFolderId !== provider.rootId &&
@@ -301,7 +426,8 @@ export function App() {
         } catch {
           setOpenNote(undefined);
           setDraft("");
-          setMobileContextOpen(false);
+          setActiveTabId(undefined);
+          setRightSidebarOpen(false);
         }
       }
 
@@ -319,9 +445,10 @@ export function App() {
   async function openNoteById(
     id: string,
     historyMode: "push" | "back" | "forward" = "push",
+    skipDirtyCheck = false,
   ): Promise<boolean> {
     if (!provider) return false;
-    if (!confirmDiscardIfDirty()) return false;
+    if (!skipDirtyCheck && !confirmDiscardIfDirty()) return false;
 
     const indexed = getNote(knowledgeIndex, id);
     setStatus({
@@ -339,8 +466,27 @@ export function App() {
         originalContent: content,
       });
       setDraft(content);
-      setViewMode("edit");
-      setMobileContextOpen(false);
+
+      const existingTab = tabs.find((tab) => tab.noteId === id);
+      const note = getNote(knowledgeIndex, id);
+      const nextTab: WorkspaceTab = {
+        noteId: id,
+        title: note?.title ?? metadata.name.replace(/\.md$/i, ""),
+        path: note?.path ?? metadata.name,
+        viewMode: existingTab?.viewMode ?? "edit",
+      };
+      setTabs((current) =>
+        current.some((tab) => tab.noteId === id)
+          ? current.map((tab) =>
+              tab.noteId === id
+                ? { ...tab, title: nextTab.title, path: nextTab.path }
+                : tab,
+            )
+          : [...current, nextTab],
+      );
+      setActiveTabId(id);
+      setViewMode(nextTab.viewMode);
+      setMobileSidebarOpen(false);
       if (activeWorkspace) {
         setRecentNoteIds((current) =>
           rememberRecentNote(activeWorkspace.id, current, id),
@@ -397,6 +543,52 @@ export function App() {
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error) });
     }
+  }
+
+  function selectLeftPanel(panel: WorkspacePanel) {
+    setActiveLeftPanel(panel);
+    setLeftSidebarOpen(true);
+    setMobileSidebarOpen(true);
+  }
+
+  function setActiveViewMode(mode: NoteViewMode) {
+    setViewMode(mode);
+    if (!activeTabId) return;
+    setTabs((current) =>
+      current.map((tab) =>
+        tab.noteId === activeTabId ? { ...tab, viewMode: mode } : tab,
+      ),
+    );
+  }
+
+  async function closeTab(noteId: string) {
+    const index = tabs.findIndex((tab) => tab.noteId === noteId);
+    if (index < 0) return;
+
+    const closingActive = activeTabId === noteId;
+    if (
+      closingActive &&
+      dirty &&
+      !window.confirm("Close this tab and discard unsaved changes?")
+    ) {
+      return;
+    }
+
+    const remaining = tabs.filter((tab) => tab.noteId !== noteId);
+    setTabs(remaining);
+
+    if (!closingActive) return;
+
+    const next = remaining[Math.min(index, remaining.length - 1)];
+    if (!next) {
+      setActiveTabId(undefined);
+      setOpenNote(undefined);
+      setDraft("");
+      setRightSidebarOpen(false);
+      return;
+    }
+
+    await openNoteById(next.noteId, "push", true);
   }
 
   async function createWorkspaceItem(
@@ -496,11 +688,10 @@ export function App() {
     }
   }
 
-  function closeNote() {
-    if (!confirmDiscardIfDirty()) return;
-    setOpenNote(undefined);
-    setDraft("");
-    setMobileContextOpen(false);
+  function showFiles() {
+    setActiveLeftPanel("files");
+    setLeftSidebarOpen(true);
+    setMobileSidebarOpen(true);
   }
 
   function leaveWorkspace() {
@@ -511,9 +702,13 @@ export function App() {
     setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
+    setTabs([]);
+    setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
-    setMobileContextOpen(false);
+    setWorkspaceUiReady(false);
+    setRightSidebarOpen(false);
+    setMobileSidebarOpen(true);
     setQuickSwitcherOpen(false);
     setNewItem(undefined);
   }
@@ -529,9 +724,13 @@ export function App() {
     setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
+    setTabs([]);
+    setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
-    setMobileContextOpen(false);
+    setWorkspaceUiReady(false);
+    setRightSidebarOpen(false);
+    setMobileSidebarOpen(true);
     setQuickSwitcherOpen(false);
     setNewItem(undefined);
     setStatus({ kind: "idle" });
@@ -561,197 +760,300 @@ export function App() {
     );
   }
 
+  const leftSidebar =
+    activeLeftPanel === "files" ? (
+      <SidebarFrame
+        title="Files"
+        actions={
+          <>
+            <button
+              type="button"
+              aria-label="New note"
+              title="New note"
+              onClick={() =>
+                requestNewItem("note", selectedFolderId || provider.rootId)
+              }
+            >
+              <Icon name="file-plus" />
+            </button>
+            <button
+              type="button"
+              aria-label="New folder"
+              title="New folder"
+              onClick={() =>
+                requestNewItem("folder", selectedFolderId || provider.rootId)
+              }
+            >
+              <Icon name="folder-plus" />
+            </button>
+            <button
+              type="button"
+              aria-label="Refresh vault and local index"
+              title="Refresh"
+              onClick={() => void refreshWorkspaceState()}
+            >
+              <Icon name="refresh" />
+            </button>
+            <button
+              type="button"
+              className="sidebar-collapse"
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+              onClick={() => {
+                setLeftSidebarOpen(false);
+                setMobileSidebarOpen(false);
+              }}
+            >
+              ‹
+            </button>
+          </>
+        }
+      >
+        <WorkspaceExplorer
+          provider={provider}
+          tree={tree}
+          index={knowledgeIndex}
+          activeNoteId={openNote?.metadata.id}
+          selectedFolderId={selectedFolderId || provider.rootId}
+          onSelectedFolderIdChange={setSelectedFolderId}
+          onOpenNote={(noteId) => void openNoteById(noteId)}
+          onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
+          onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
+          onChanged={refreshWorkspaceState}
+          onStatus={(message, kind = "success") =>
+            setStatus({ kind, message })
+          }
+        />
+      </SidebarFrame>
+    ) : activeLeftPanel === "search" ? (
+      <SidebarFrame
+        title="Search"
+        actions={
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label="Collapse sidebar"
+            onClick={() => {
+              setLeftSidebarOpen(false);
+              setMobileSidebarOpen(false);
+            }}
+          >
+            ‹
+          </button>
+        }
+      >
+        <PlaceholderPanel
+          icon="search"
+          title="Search your brain"
+          description="Full-text search is the next data slice. Quick Switcher is already available for note names, paths and aliases."
+          shortcut="Ctrl / Cmd + O"
+        />
+        <button
+          className="sidebar-call-to-action"
+          type="button"
+          onClick={() => setQuickSwitcherOpen(true)}
+        >
+          Open Quick Switcher
+        </button>
+      </SidebarFrame>
+    ) : activeLeftPanel === "graph" ? (
+      <SidebarFrame
+        title="Graph"
+        actions={
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label="Collapse sidebar"
+            onClick={() => {
+              setLeftSidebarOpen(false);
+              setMobileSidebarOpen(false);
+            }}
+          >
+            ‹
+          </button>
+        }
+      >
+        <div className="graph-summary">
+          <strong>{knowledgeIndex?.notes.length ?? 0}</strong>
+          <span>notes</span>
+          <strong>
+            {knowledgeIndex?.edges.filter(
+              (edge) => edge.resolution === "resolved",
+            ).length ?? 0}
+          </strong>
+          <span>connections</span>
+        </div>
+        <PlaceholderPanel
+          icon="graph"
+          title="Graph view"
+          description="This shell is now ready for Local Graph and Global Graph tabs without changing the vault format."
+        />
+      </SidebarFrame>
+    ) : activeLeftPanel === "tags" ? (
+      <SidebarFrame
+        title="Tags"
+        actions={
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label="Collapse sidebar"
+            onClick={() => {
+              setLeftSidebarOpen(false);
+              setMobileSidebarOpen(false);
+            }}
+          >
+            ‹
+          </button>
+        }
+      >
+        <TagsPanel
+          index={knowledgeIndex}
+          selectedTag={selectedTag}
+          onSelectTag={setSelectedTag}
+          onOpenNote={(noteId) => void openNoteById(noteId)}
+        />
+      </SidebarFrame>
+    ) : (
+      <SidebarFrame
+        title="Settings"
+        actions={
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label="Collapse sidebar"
+            onClick={() => {
+              setLeftSidebarOpen(false);
+              setMobileSidebarOpen(false);
+            }}
+          >
+            ‹
+          </button>
+        }
+      >
+        <section className="settings-panel-section">
+          <span className="section-label">Appearance</span>
+          <div className="settings-choice-list">
+            {(["system", "light", "dark"] as const).map((theme) => (
+              <button
+                type="button"
+                className={themePreference === theme ? "selected" : ""}
+                key={theme}
+                onClick={() => setThemePreference(theme)}
+              >
+                <span>{themePreference === theme ? "✓" : ""}</span>
+                {theme[0]?.toUpperCase()}{theme.slice(1)}
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="settings-panel-section">
+          <span className="section-label">Workspace</span>
+          <button className="sidebar-call-to-action" type="button" onClick={leaveWorkspace}>
+            Switch workspace
+          </button>
+          <p className="sidebar-help">
+            Tabs and panel layout are stored only in this browser. Your Markdown remains in Drive.
+          </p>
+        </section>
+      </SidebarFrame>
+    );
+
   return (
     <main
       className={[
-        "app-shell",
-        openNote ? "has-open-note" : "",
-        mobileContextOpen ? "context-open" : "",
+        "app-shell-v2",
+        leftSidebarOpen ? "left-sidebar-open" : "",
+        rightSidebarOpen ? "right-sidebar-open" : "",
+        mobileSidebarOpen ? "mobile-sidebar-open" : "",
       ].join(" ")}
     >
-      <header className="topbar">
-        <div className="topbar-copy">
-          <div className="history-controls" aria-label="Note navigation">
-            <button
-              type="button"
-              aria-label="Back"
-              disabled={!canNavigateBack}
-              onClick={() => void navigateHistory("back")}
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              aria-label="Forward"
-              disabled={!canNavigateForward}
-              onClick={() => void navigateHistory("forward")}
-            >
-              →
-            </button>
-          </div>
-          <button className="text-button" type="button" onClick={leaveWorkspace}>
-            {activeWorkspace.name}
-          </button>
-          {currentIndexedNote ? (
-            <>
-              <span aria-hidden="true">/</span>
-              <span className="breadcrumb-path">{currentIndexedNote.path.replace(/\.md$/i, "")}</span>
-            </>
-          ) : null}
-        </div>
-        <div className="topbar-actions">
-          <span className="privacy-dot" title="Drive canonical · local derived index" aria-label="Private local index">●</span>
-          <div className="settings-anchor">
-            <button
-              className="icon-button quiet"
-              type="button"
-              aria-label="Interface settings"
-              onClick={() => setSettingsOpen((current) => !current)}
-            >
-              ⋯
-            </button>
-            {settingsOpen ? (
-              <div className="settings-menu" role="menu">
-                <span className="section-label">Appearance</span>
-                {(["system", "light", "dark"] as const).map((theme) => (
-                  <button
-                    type="button"
-                    className={themePreference === theme ? "selected" : ""}
-                    key={theme}
-                    onClick={() => {
-                      setThemePreference(theme);
-                      setSettingsOpen(false);
-                    }}
-                  >
-                    <span>{themePreference === theme ? "✓" : ""}</span>
-                    {theme[0]?.toUpperCase()}{theme.slice(1)}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </header>
+      <div className="workspace-shell-v2">
+        <WorkspaceRail
+          activePanel={activeLeftPanel}
+          sidebarOpen={leftSidebarOpen}
+          onPanel={selectLeftPanel}
+        />
 
-      <div className="workspace-layout">
-        <aside className="note-sidebar" aria-label="Notes">
-          <div className="panel-heading">
-            <div>
-              <span className="section-label">Workspace</span>
-              <h1>{activeWorkspace.name}</h1>
-            </div>
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => void refreshWorkspaceState()}
-              aria-label="Refresh vault and local index"
-            >
-              ↻
-            </button>
-          </div>
+        {leftSidebarOpen ? leftSidebar : null}
 
-          <div className="sidebar-utility-row">
-            <button type="button" onClick={() => setQuickSwitcherOpen(true)}>
-              ⌕ Open
-            </button>
-            <small>{knowledgeIndex?.notes.length ?? 0} notes</small>
-          </div>
-
-          <WorkspaceExplorer
-            provider={provider}
-            tree={tree}
-            index={knowledgeIndex}
-            activeNoteId={openNote?.metadata.id}
-            selectedFolderId={selectedFolderId || provider.rootId}
-            onSelectedFolderIdChange={setSelectedFolderId}
-            onOpenNote={(noteId) => void openNoteById(noteId)}
-            onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
-            onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
-            onChanged={refreshWorkspaceState}
-            onStatus={(message, kind = "success") =>
-              setStatus({ kind, message })
+        <section className="workspace-main">
+          <TabBar
+            tabs={tabs}
+            activeNoteId={activeTabId}
+            onActivate={(noteId) => void openNoteById(noteId)}
+            onClose={(noteId) => void closeTab(noteId)}
+            onNew={() =>
+              requestNewItem("note", selectedFolderId || provider.rootId)
             }
           />
-        </aside>
 
-        <section className="editor-panel" aria-label="Markdown editor">
-          {openNote ? (
-            <>
-              <div className="editor-toolbar">
+          <WorkspaceHeader
+            canBack={canNavigateBack}
+            canForward={canNavigateForward}
+            breadcrumb={
+              currentIndexedNote
+                ? `${activeWorkspace.name} / ${currentIndexedNote.path.replace(/\.md$/i, "")}`
+                : activeWorkspace.name
+            }
+            viewMode={viewMode}
+            hasNote={openNote !== undefined}
+            dirty={dirty}
+            rightSidebarOpen={rightSidebarOpen}
+            onBack={() => void navigateHistory("back")}
+            onForward={() => void navigateHistory("forward")}
+            onViewMode={setActiveViewMode}
+            onContext={() => setRightSidebarOpen((current) => !current)}
+            onSave={() => void saveNote()}
+          />
+
+          <section className="editor-panel-v2" aria-label="Markdown editor">
+            {openNote ? (
+              <>
                 <button
-                  className="mobile-back"
+                  className="mobile-files-button"
                   type="button"
-                  onClick={closeNote}
+                  onClick={showFiles}
                 >
-                  ← Notes
+                  Files
                 </button>
-                <div className="editor-title">
-                  <strong>{currentIndexedNote?.title ?? openNote.metadata.name.replace(/\.md$/i, "")}</strong>
-                  <span>{dirty ? "Unsaved" : "Saved"}</span>
-                </div>
-                <div className="view-toggle" aria-label="Note view">
-                  <button
-                    type="button"
-                    className={viewMode === "edit" ? "selected" : ""}
-                    onClick={() => setViewMode("edit")}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className={viewMode === "read" ? "selected" : ""}
-                    onClick={() => setViewMode("read")}
-                  >
-                    Read
-                  </button>
-                </div>
+                {viewMode === "edit" ? (
+                  <MarkdownEditor
+                    key={openNote.metadata.id}
+                    value={draft}
+                    label={`Edit ${openNote.metadata.name}`}
+                    linkTargets={editorLinkTargets}
+                    tags={knownTags}
+                    onChange={setDraft}
+                  />
+                ) : (
+                  <MarkdownPreview
+                    content={draft}
+                    outgoingLinks={outgoingLinks}
+                    onOpenNote={(noteId) => void openNoteById(noteId)}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="workspace-empty-v2">
+                <span className="section-label">MindContext</span>
+                <h2>Open a note</h2>
+                <p>
+                  Pick a note from Files or use the Quick Switcher. Your
+                  workspace is plain Markdown in Google Drive.
+                </p>
                 <button
-                  className="context-button"
                   type="button"
-                  onClick={() => setMobileContextOpen(true)}
+                  className="secondary-button"
+                  onClick={() => setQuickSwitcherOpen(true)}
                 >
-                  Context
-                </button>
-                <button
-                  className="save-button"
-                  type="button"
-                  onClick={() => void saveNote()}
-                  disabled={!dirty || status.kind === "busy"}
-                >
-                  Save
+                  Open note
                 </button>
               </div>
-              {viewMode === "edit" ? (
-                <MarkdownEditor
-                  key={openNote.metadata.id}
-                  value={draft}
-                  label={`Edit ${openNote.metadata.name}`}
-                  linkTargets={editorLinkTargets}
-                  tags={knownTags}
-                  onChange={setDraft}
-                />
-              ) : (
-                <MarkdownPreview
-                  content={draft}
-                  outgoingLinks={outgoingLinks}
-                  onOpenNote={(noteId) => void openNoteById(noteId)}
-                />
-              )}
-            </>
-          ) : (
-            <div className="editor-empty">
-              <span className="section-label">Knowledge workspace</span>
-              <h2>Select a note</h2>
-              <p>
-                MindContext rebuilds links and backlinks locally from the
-                Markdown files in your Drive. IndexedDB is only a disposable
-                cache of that derived graph.
-              </p>
-            </div>
-          )}
+            )}
+          </section>
         </section>
 
-        {openNote ? (
+        {rightSidebarOpen && openNote ? (
           <KnowledgePanel
             noteTitle={currentIndexedNote?.title ?? openNote.metadata.name}
             outgoing={outgoingLinks}
@@ -765,7 +1067,7 @@ export function App() {
             onTagsChange={updateTags}
             onAliasesChange={updateAliases}
             onOpenNote={(noteId) => void openNoteById(noteId)}
-            onBackToNote={() => setMobileContextOpen(false)}
+            onBackToNote={() => setRightSidebarOpen(false)}
           />
         ) : null}
       </div>
@@ -796,6 +1098,72 @@ export function App() {
       />
       <StatusBar status={status} />
     </main>
+  );
+}
+
+function TagsPanel({
+  index,
+  selectedTag,
+  onSelectTag,
+  onOpenNote,
+}: {
+  readonly index: KnowledgeIndexSnapshot | undefined;
+  readonly selectedTag: string | undefined;
+  readonly onSelectTag: (tag: string | undefined) => void;
+  readonly onOpenNote: (noteId: string) => void;
+}) {
+  const counts = new Map<string, number>();
+  for (const note of index?.notes ?? []) {
+    for (const tag of note.tags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+  }
+
+  const tags = [...counts.entries()].sort((left, right) =>
+    left[0].localeCompare(right[0]),
+  );
+  const matchingNotes = selectedTag
+    ? (index?.notes ?? []).filter((note) => note.tags.includes(selectedTag))
+    : [];
+
+  return (
+    <div className="tags-panel">
+      {selectedTag ? (
+        <>
+          <button
+            className="tags-back"
+            type="button"
+            onClick={() => onSelectTag(undefined)}
+          >
+            ← All tags
+          </button>
+          <h3>#{selectedTag}</h3>
+          <div className="tag-note-list">
+            {matchingNotes.map((note) => (
+              <button
+                type="button"
+                key={note.id}
+                onClick={() => onOpenNote(note.id)}
+              >
+                <span>{note.title}</span>
+                <small>{note.path}</small>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : tags.length > 0 ? (
+        <div className="tag-browser-list">
+          {tags.map(([tag, count]) => (
+            <button type="button" key={tag} onClick={() => onSelectTag(tag)}>
+              <span>#{tag}</span>
+              <small>{count}</small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="sidebar-help">No tags in this workspace yet.</p>
+      )}
+    </div>
   );
 }
 
@@ -830,8 +1198,13 @@ function KnowledgePanel({
 }) {
   return (
     <aside className="knowledge-panel" aria-label="Knowledge context">
-      <button className="knowledge-back" type="button" onClick={onBackToNote}>
-        ← Note
+      <button
+        className="knowledge-back"
+        type="button"
+        aria-label="Close context"
+        onClick={onBackToNote}
+      >
+        ×
       </button>
       <span className="section-label">Context</span>
       <h2>{noteTitle}</h2>
