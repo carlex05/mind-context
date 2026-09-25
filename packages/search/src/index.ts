@@ -611,7 +611,11 @@ export function fuseRankedHits(
         hit:
           hit.semanticScore !== undefined &&
           (current.hit.semanticScore ?? -Infinity) < hit.semanticScore
-            ? { ...current.hit, excerpt: hit.excerpt, heading: hit.heading }
+            ? {
+                ...current.hit,
+                excerpt: hit.excerpt,
+                ...(hit.heading ? { heading: hit.heading } : {}),
+              }
             : current.hit,
         score: current.score + semanticContribution,
         ...(current.lexicalScore !== undefined
