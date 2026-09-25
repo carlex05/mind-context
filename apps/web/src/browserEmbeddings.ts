@@ -13,26 +13,49 @@ export type BrowserEmbeddingProgress = {
 
 type ProgressListener = (progress: BrowserEmbeddingProgress) => void;
 
-type FeatureExtractionPipeline = (
-  inputs: string | readonly string[],
-  options: {
-    readonly pooling: "mean";
-    readonly normalize: true;
-  },
-) => Promise<{
-  tolist(): unknown;
-}>;
+interface EmbedRequest {
+  readonly type: "embed";
+  readonly requestId: number;
+  readonly model: string;
+  readonly texts: readonly string[];
+}
+
+type WorkerMessage =
+  | {
+      readonly type: "progress";
+      readonly phase: "loading" | "ready";
+      readonly message: string;
+      readonly runtime?: "webgpu" | "wasm";
+    }
+  | {
+      readonly type: "result";
+      readonly requestId: number;
+      readonly vectors: readonly (readonly number[])[];
+      readonly runtime: "webgpu" | "wasm";
+    }
+  | {
+      readonly type: "error";
+      readonly requestId: number;
+      readonly message: string;
+    };
+
+interface PendingRequest {
+  readonly resolve: (embeddings: readonly Embedding[]) => void;
+  readonly reject: (error: Error) => void;
+}
 
 export class BrowserEmbeddingProvider implements EmbeddingProvider {
   readonly id = "transformers-js-browser";
   readonly model: string;
 
-  private pipelinePromise: Promise<FeatureExtractionPipeline> | undefined;
+  private workerValue: Worker | undefined;
+  private requestId = 0;
+  private readonly pending = new Map<number, PendingRequest>();
   private runtimeValue: "webgpu" | "wasm" | undefined;
 
   constructor(
     private readonly onProgress?: ProgressListener,
-    model = DEFAULT_BROWSER_EMBEDDING_MODEL,
+    model = DEFAULT_BROWSER_EMEDDING_MODEL_FALLBACK,
   ) {
     this.model = model;
   }
@@ -41,126 +64,76 @@ export class BrowserEmbeddingProvider implements EmbeddingProvider {
     return this.runtimeValue;
   }
 
-  async embed(texts: readonly string[]): Promise<readonly Embedding[]> {
-    if (texts.length === 0) return [];
+  embed(texts: readonly string[]): Promise<readonly Embedding[]> {
+    if (texts.length === 0) return Promise.resolve([]);
 
-    const extractor = await this.pipeline();
-    const output = await extractor([...texts], {
-      pooling: "mean",
-      normalize: true,
+    const requestId = ++this.requestId;
+    return new Promise((resolve, reject) => {
+      this.pending.set(requestId, { resolve, reject });
+      const request: EmbedRequest = {
+        type: "embed",
+        requestId,
+        model: this.model,
+        texts: [...texts],
+      };
+      this.worker().postMessage(request);
     });
-    const rows = normalizeRows(output.tolist());
-
-    if (rows.length !== texts.length) {
-      throw new Error(
-        `Local embedding model returned ${rows.length} vectors for ${texts.length} inputs.`,
-      );
-    }
-
-    return rows.map((values) => ({
-      dimensions: values.length,
-      values,
-    }));
   }
 
-  private pipeline(): Promise<FeatureExtractionPipeline> {
-    if (!this.pipelinePromise) {
-      this.pipelinePromise = this.createPipeline();
-    }
-    return this.pipelinePromise;
-  }
+  private worker(): Worker {
+    if (this.workerValue) return this.workerValue;
 
-  private async createPipeline(): Promise<FeatureExtractionPipeline> {
-    this.onProgress?.({
-      phase: "loading",
-      message: "Loading local multilingual embedding model…",
-    });
-
-    const { pipeline } = await import("@huggingface/transformers");
-    const hasWebGpu = Boolean(
-      (navigator as Navigator & { gpu?: unknown }).gpu,
+    const worker = new Worker(
+      new URL("./embedding.worker.ts", import.meta.url),
+      { type: "module", name: "mindcontext-embeddings" },
     );
+    worker.addEventListener("message", (event: MessageEvent<WorkerMessage>) => {
+      const message = event.data;
 
-    if (hasWebGpu) {
-      try {
-        const extractor = await pipeline(
-          "feature-extraction",
-          this.model,
-          {
-            device: "webgpu",
-            dtype: "q8",
-            progress_callback: (event: unknown) =>
-              this.reportDownloadProgress(event),
-          },
-        );
-        this.runtimeValue = "webgpu";
+      if (message.type === "progress") {
+        if (message.runtime) this.runtimeValue = message.runtime;
         this.onProgress?.({
-          phase: "ready",
-          message: "Local embedding model ready on WebGPU.",
+          phase: message.phase,
+          message: message.message,
         });
-        return extractor as unknown as FeatureExtractionPipeline;
-      } catch {
-        this.pipelinePromise = undefined;
+        return;
       }
-    }
 
-    const extractor = await pipeline(
-      "feature-extraction",
-      this.model,
-      {
-        dtype: "q8",
-        progress_callback: (event: unknown) =>
-          this.reportDownloadProgress(event),
-      },
-    );
-    this.runtimeValue = "wasm";
-    this.onProgress?.({
-      phase: "ready",
-      message: "Local embedding model ready on WASM.",
-    });
-    return extractor as unknown as FeatureExtractionPipeline;
-  }
+      const pending = this.pending.get(message.requestId);
+      if (!pending) return;
+      this.pending.delete(message.requestId);
 
-  private reportDownloadProgress(event: unknown): void {
-    if (!isProgressEvent(event)) return;
-    const percent =
-      typeof event.progress === "number"
-        ? Math.max(0, Math.min(100, Math.round(event.progress)))
-        : undefined;
-    this.onProgress?.({
-      phase: "loading",
-      message:
-        percent === undefined
-          ? "Downloading local embedding model…"
-          : `Downloading local embedding model… ${percent}%`,
-    });
-  }
-}
-
-function normalizeRows(value: unknown): number[][] {
-  if (!Array.isArray(value)) {
-    throw new Error("Local embedding model returned an unexpected tensor.");
-  }
-
-  if (value.length > 0 && typeof value[0] === "number") {
-    return [value.filter((item): item is number => typeof item === "number")];
-  }
-
-  return value.map((row) => {
-    if (!Array.isArray(row)) {
-      throw new Error("Local embedding model returned an unexpected row.");
-    }
-    return row.map((item) => {
-      if (typeof item !== "number") {
-        throw new Error("Local embedding model returned a non-numeric value.");
+      if (message.type === "error") {
+        pending.reject(new Error(message.message));
+        return;
       }
-      return item;
+
+      this.runtimeValue = message.runtime;
+      pending.resolve(
+        message.vectors.map((values) => ({
+          dimensions: values.length,
+          values: [...values],
+        })),
+      );
     });
-  });
+    worker.addEventListener("error", (event) => {
+      const error = new Error(
+        event.message || "Local embedding worker failed.",
+      );
+      for (const request of this.pending.values()) {
+        request.reject(error);
+      }
+      this.pending.clear();
+      worker.terminate();
+      this.workerValue = undefined;
+    });
+
+    this.workerValue = worker;
+    return worker;
+  }
 }
 
-function isProgressEvent(
-  value: unknown,
-): value is { readonly progress?: number } {
-  return typeof value === "object" && value !== null;
-}
+// Kept separate so constructor defaults remain statically evaluable in workers
+// and Vite does not accidentally pull the model runtime into the main bundle.
+const DEFAULT_BROWSER_EMEDDING_MODEL_FALLBACK =
+  DEFAULT_BROWSER_EMBEDDING_MODEL;
