@@ -242,7 +242,7 @@ function plainText(content: string): string {
   return content
     .replace(/^---\s*[\s\S]*?\n---\s*/u, "")
     .replace(/```[\s\S]*?```/gu, " ")
-    .replace(/![[([^\]]+)\]\]/gu, "$1")
+    .replace(/!\[\[([^\]]+)\]\]/gu, "$1")
     .replace(/\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]/gu, "$2 $1")
     .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
     .replace(/[#>*_`~|-]+/gu, " ")
