@@ -108,6 +108,77 @@ test("keeps newer local edits while an earlier Drive sync is in flight", async (
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
 });
 
+test("restores a locally persisted draft after a browser reload", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Recovery");
+
+  const editor = page.getByRole("textbox", { name: "Edit Recovery.md" });
+  const localDraft = "# Recovery\n\nOnly local so far";
+  await replaceEditorContent(page, editor, localDraft);
+
+  // Local recovery persistence is intentionally much faster than deferred
+  // Drive synchronization. Give IndexedDB time to receive the draft, then
+  // reload before the remote debounce fires.
+  await page.waitForTimeout(250);
+  expect(drive.noteContentByName("Recovery.md")).toBe("");
+
+  await page.reload();
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page.getByRole("button", { name: /My Second Brain/ }).click();
+
+  const restoredEditor = page.getByRole("textbox", {
+    name: "Edit Recovery.md",
+  });
+  await expect(restoredEditor).toBeVisible();
+  await expect(restoredEditor).toContainText("Only local so far");
+  await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+
+  await expect
+    .poll(() => drive.noteContentByName("Recovery.md"), { timeout: 5000 })
+    .toBe(localDraft);
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+});
+
+test("preserves a local draft and surfaces conflict after a remote Drive change", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Conflict");
+
+  const editor = page.getByRole("textbox", { name: "Edit Conflict.md" });
+  const localDraft = "# Conflict\n\nlocal version";
+  await replaceEditorContent(page, editor, localDraft);
+  await page.waitForTimeout(250);
+
+  expect(drive.noteContentByName("Conflict.md")).toBe("");
+  drive.externalUpdate("Conflict.md", "# Conflict\n\nremote version");
+
+  await page.reload();
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page.getByRole("button", { name: /My Second Brain/ }).click();
+
+  const restoredEditor = page.getByRole("textbox", {
+    name: "Edit Conflict.md",
+  });
+  await expect(restoredEditor).toBeVisible();
+  await expect(restoredEditor).toContainText("local version");
+  await expect(page.getByText("Conflict", { exact: true })).toBeVisible();
+
+  // The local draft is never allowed to overwrite a newer remote revision.
+  await page.waitForTimeout(1500);
+  expect(drive.noteContentByName("Conflict.md")).toBe(
+    "# Conflict\n\nremote version",
+  );
+});
+
 test("derives wikilinks, backlinks and broken links locally", async ({
   page,
 }, testInfo) => {
