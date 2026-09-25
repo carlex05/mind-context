@@ -103,6 +103,47 @@ test("derives wikilinks, backlinks and broken links locally", async ({
   await expect(alphaContext.getByText("Note not found")).toBeVisible();
 });
 
+test("switches UI language and persists the locale preference", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("complementary", { name: "Settings" });
+  await settings.getByRole("button", { name: "Español", exact: true }).click();
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(
+    page.getByRole("button", { name: "Archivos", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Buscar", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Grafo", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Etiquetas", exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Archivos", exact: true }).click();
+  const files = page.getByRole("complementary", { name: "Archivos" });
+  await files.getByRole("button", { name: "Nueva nota", exact: true }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Nueva nota" });
+  await expect(dialog.getByText("Ubicación")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+
+  await page.reload();
+
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(
+    page.getByRole("button", { name: "Conectar Google Drive", exact: true }),
+  ).toBeVisible();
+});
+
 test("persists theme, offers quick switching, reading view and wikilink suggestions", async ({
   page,
 }, testInfo) => {
