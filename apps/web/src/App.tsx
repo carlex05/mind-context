@@ -1174,91 +1174,265 @@ export function App() {
     });
   }
 
-  async function saveNote() {
-    if (!provider || !openNote) return;
+  function setNoteSyncState(noteId: string, state: NoteSyncState) {
+    const current = noteSyncStatesRef.current;
+    if (current[noteId] === state) return;
+    const next = { ...current, [noteId]: state };
+    noteSyncStatesRef.current = next;
+    setNoteSyncStates(next);
+  }
 
+  function replaceTabBuffers(next: Readonly<Record<string, NoteBuffer>>) {
+    tabBuffersRef.current = next;
+    setTabBuffers(next);
+  }
+
+  function putTabBuffer(noteId: string, buffer: NoteBuffer) {
+    replaceTabBuffers({
+      ...tabBuffersRef.current,
+      [noteId]: buffer,
+    });
+  }
+
+  function removeTabBuffer(noteId: string) {
+    const next = { ...tabBuffersRef.current };
+    delete next[noteId];
+    replaceTabBuffers(next);
+  }
+
+  function cancelLocalDraftTimer(noteId: string) {
+    const timer = localDraftTimersRef.current.get(noteId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      localDraftTimersRef.current.delete(noteId);
+    }
+  }
+
+  function cancelDriveSyncTimer(noteId: string) {
+    const timer = driveSyncTimersRef.current.get(noteId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      driveSyncTimersRef.current.delete(noteId);
+    }
+  }
+
+  function cancelAllScheduledSyncs() {
+    for (const timer of localDraftTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    for (const timer of driveSyncTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    localDraftTimersRef.current.clear();
+    driveSyncTimersRef.current.clear();
+  }
+
+  function scheduleLocalDraftPersist(noteId: string) {
+    cancelLocalDraftTimer(noteId);
+    const timer = setTimeout(() => {
+      localDraftTimersRef.current.delete(noteId);
+      void persistPendingDraft(noteId);
+    }, LOCAL_DRAFT_DEBOUNCE_MS);
+    localDraftTimersRef.current.set(noteId, timer);
+  }
+
+  function scheduleDriveSync(
+    noteId: string,
+    delay = DRIVE_SYNC_DEBOUNCE_MS,
+  ) {
+    if (noteSyncStatesRef.current[noteId] === "conflict") return;
+    cancelDriveSyncTimer(noteId);
+    const timer = setTimeout(() => {
+      driveSyncTimersRef.current.delete(noteId);
+      void syncNoteToDrive(noteId);
+    }, delay);
+    driveSyncTimersRef.current.set(noteId, timer);
+  }
+
+  async function persistPendingDraft(
+    noteId: string,
+    scheduleRemote = true,
+  ): Promise<boolean> {
+    if (!activeWorkspace) return false;
+    cancelLocalDraftTimer(noteId);
+
+    const buffer = tabBuffersRef.current[noteId];
+    if (!buffer) return false;
+
+    if (buffer.draft === buffer.note.originalContent) {
+      await pendingDraftStore.delete(activeWorkspace.id, noteId);
+      if (noteSyncStatesRef.current[noteId] !== "conflict") {
+        setNoteSyncState(noteId, "synced");
+      }
+      return false;
+    }
+
+    await pendingDraftStore.put({
+      workspaceId: activeWorkspace.id,
+      noteId,
+      content: buffer.draft,
+      baseContent: buffer.note.originalContent,
+      ...(buffer.note.metadata.revision
+        ? { baseRevision: buffer.note.metadata.revision }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (noteSyncStatesRef.current[noteId] !== "conflict") {
+      setNoteSyncState(noteId, "local");
+      if (scheduleRemote) scheduleDriveSync(noteId);
+    }
+    return true;
+  }
+
+  async function updateDerivedIndexesAfterRemoteSave(
+    metadata: StorageObjectMetadata,
+    content: string,
+  ) {
+    if (!knowledgeIndex) return;
+
+    const existing = getNote(knowledgeIndex, metadata.id);
+    const updated = upsertKnowledgeDocument(knowledgeIndex, {
+      id: metadata.id,
+      path: existing?.path ?? metadata.name,
+      name: metadata.name,
+      content,
+      ...(metadata.modifiedAt ? { modifiedAt: metadata.modifiedAt } : {}),
+      ...(metadata.revision ? { revision: metadata.revision } : {}),
+    });
+    setKnowledgeIndex(updated);
+
+    const indexedNote = getNote(updated, metadata.id);
+    if (!indexedNote || !activeWorkspace) {
+      await knowledgeStore.put(updated);
+      return;
+    }
+
+    const searchDocument = createSearchDocument({
+      noteId: indexedNote.id,
+      path: indexedNote.path,
+      name: indexedNote.name,
+      title: indexedNote.title,
+      aliases: indexedNote.aliases,
+      tags: indexedNote.tags,
+      headings: indexedNote.headings.map((heading) => heading.text),
+      content,
+      ...(metadata.revision ? { revision: metadata.revision } : {}),
+      ...(metadata.modifiedAt ? { modifiedAt: metadata.modifiedAt } : {}),
+    });
+    const baseSearchSnapshot =
+      searchSnapshot ??
+      createSearchIndexSnapshot(activeWorkspace.id, []);
+    const nextSearchSnapshot = upsertSearchDocument(
+      baseSearchSnapshot,
+      searchDocument,
+    );
+    setSearchSnapshot(nextSearchSnapshot);
+    setSearchIndex(new LexicalSearchIndex(nextSearchSnapshot.documents));
+
+    await Promise.all([
+      knowledgeStore.put(updated),
+      searchStore.put(nextSearchSnapshot),
+    ]);
+  }
+
+  async function syncNoteToDrive(noteId: string) {
+    if (!provider || !activeWorkspace) return;
+    if (noteSyncStatesRef.current[noteId] === "conflict") return;
+
+    cancelDriveSyncTimer(noteId);
+    if (syncInFlightRef.current.has(noteId)) return;
+
+    try {
+      await persistPendingDraft(noteId, false);
+    } catch (error) {
+      setNoteSyncState(noteId, "error");
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+      return;
+    }
+
+    const buffer = tabBuffersRef.current[noteId];
+    if (!buffer || buffer.draft === buffer.note.originalContent) return;
+
+    syncInFlightRef.current.add(noteId);
+    setNoteSyncState(noteId, "syncing");
     setStatus({ kind: "busy", message: t("status.savingDrive") });
+
+    const contentToSave = buffer.draft;
+    const noteAtStart = buffer.note;
+
     try {
       const metadata = await provider.writeText(
-        openNote.metadata.id,
-        draft,
-        openNote.metadata.revision
-          ? { expectedRevision: openNote.metadata.revision }
+        noteId,
+        contentToSave,
+        noteAtStart.metadata.revision
+          ? { expectedRevision: noteAtStart.metadata.revision }
           : undefined,
       );
-      const savedNote = { metadata, originalContent: draft };
-      setOpenNote(savedNote);
-      if (activeTabId) {
-        setTabBuffers((current) => ({
-          ...current,
-          [activeTabId]: {
-            note: savedNote,
-            draft,
-          },
-        }));
-      }
-      if (knowledgeIndex) {
-        const existing = getNote(knowledgeIndex, metadata.id);
-        const updated = upsertKnowledgeDocument(knowledgeIndex, {
-          id: metadata.id,
-          path: existing?.path ?? metadata.name,
-          name: metadata.name,
-          content: draft,
-          ...(metadata.modifiedAt ? { modifiedAt: metadata.modifiedAt } : {}),
-          ...(metadata.revision ? { revision: metadata.revision } : {}),
-        });
-        await knowledgeStore.put(updated);
-        setKnowledgeIndex(updated);
 
-        const indexedNote = getNote(updated, metadata.id);
-        if (indexedNote && activeWorkspace) {
-          const searchDocument = createSearchDocument({
-            noteId: indexedNote.id,
-            path: indexedNote.path,
-            name: indexedNote.name,
-            title: indexedNote.title,
-            aliases: indexedNote.aliases,
-            tags: indexedNote.tags,
-            headings: indexedNote.headings.map(
-              (heading) => heading.text,
-            ),
-            content: draft,
-            ...(metadata.revision
-              ? { revision: metadata.revision }
-              : {}),
-            ...(metadata.modifiedAt
-              ? { modifiedAt: metadata.modifiedAt }
-              : {}),
-          });
-          const baseSearchSnapshot =
-            searchSnapshot ??
-            createSearchIndexSnapshot(activeWorkspace.id, []);
-          const nextSearchSnapshot = upsertSearchDocument(
-            baseSearchSnapshot,
-            searchDocument,
-          );
-          await searchStore.put(nextSearchSnapshot);
-          setSearchSnapshot(nextSearchSnapshot);
-          setSearchIndex(
-            new LexicalSearchIndex(nextSearchSnapshot.documents),
-          );
-        }
+      const latest = tabBuffersRef.current[noteId] ?? buffer;
+      const savedNote: OpenNote = {
+        metadata,
+        originalContent: contentToSave,
+      };
+      const nextBuffer: NoteBuffer = {
+        note: savedNote,
+        draft: latest.draft,
+      };
+      putTabBuffer(noteId, nextBuffer);
+
+      if (activeTabIdRef.current === noteId) {
+        setOpenNote(savedNote);
+        setDraft(latest.draft);
+      }
+
+      if (latest.draft !== contentToSave) {
+        await pendingDraftStore.put({
+          workspaceId: activeWorkspace.id,
+          noteId,
+          content: latest.draft,
+          baseContent: contentToSave,
+          ...(metadata.revision ? { baseRevision: metadata.revision } : {}),
+          updatedAt: new Date().toISOString(),
+        });
+        setNoteSyncState(noteId, "local");
+        scheduleDriveSync(noteId, 0);
+      } else {
+        await pendingDraftStore.delete(activeWorkspace.id, noteId);
+        setNoteSyncState(noteId, "synced");
       }
 
       setStatus({
         kind: "success",
         message: t("status.saved"),
       });
+
+      void updateDerivedIndexesAfterRemoteSave(metadata, contentToSave).catch(
+        () => {
+          // Canonical Drive synchronization already succeeded. Derived indexes
+          // remain rebuildable and must not turn a successful save into a
+          // synchronization failure.
+        },
+      );
     } catch (error) {
       if (error instanceof StorageConflictError) {
+        setNoteSyncState(noteId, "conflict");
         setStatus({
           kind: "error",
           message: t("status.conflict"),
         });
         return;
       }
+      setNoteSyncState(noteId, "error");
       setStatus({ kind: "error", message: errorMessage(error, t) });
+    } finally {
+      syncInFlightRef.current.delete(noteId);
     }
+  }
+
+  async function saveNote() {
+    if (!activeTabId) return;
+    await syncNoteToDrive(activeTabId);
   }
 
   function showFiles() {
