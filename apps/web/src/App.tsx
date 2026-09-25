@@ -1223,13 +1223,13 @@ export function App() {
   const leftSidebar =
     activeLeftPanel === "files" ? (
       <SidebarFrame
-        title="Files"
+        title={t("nav.files")}
         actions={
           <>
             <button
               type="button"
-              aria-label="New note"
-              title="New note"
+              aria-label={t("actions.newNote")}
+              title={t("actions.newNote")}
               onClick={() =>
                 requestNewItem("note", selectedFolderId || provider.rootId)
               }
@@ -1238,8 +1238,8 @@ export function App() {
             </button>
             <button
               type="button"
-              aria-label="New folder"
-              title="New folder"
+              aria-label={t("actions.newFolder")}
+              title={t("actions.newFolder")}
               onClick={() =>
                 requestNewItem("folder", selectedFolderId || provider.rootId)
               }
@@ -1248,8 +1248,8 @@ export function App() {
             </button>
             <button
               type="button"
-              aria-label="Refresh vault and local index"
-              title="Refresh"
+              aria-label={t("actions.refreshVault")}
+              title={t("common.refresh")}
               onClick={() => void refreshWorkspaceState()}
             >
               <Icon name="refresh" />
@@ -1257,8 +1257,8 @@ export function App() {
             <button
               type="button"
               className="sidebar-collapse"
-              aria-label="Collapse sidebar"
-              title="Collapse sidebar"
+              aria-label={t("actions.collapseSidebar")}
+              title={t("actions.collapseSidebar")}
               onClick={() => {
                 setLeftSidebarOpen(false);
                 setMobileSidebarOpen(false);
@@ -1287,12 +1287,12 @@ export function App() {
       </SidebarFrame>
     ) : activeLeftPanel === "search" ? (
       <SidebarFrame
-        title="Search"
+        title={t("nav.search")}
         actions={
           <button
             type="button"
             className="sidebar-collapse"
-            aria-label="Collapse sidebar"
+            aria-label={t("actions.collapseSidebar")}
             onClick={() => {
               setLeftSidebarOpen(false);
               setMobileSidebarOpen(false);
@@ -1311,12 +1311,12 @@ export function App() {
       </SidebarFrame>
     ) : activeLeftPanel === "graph" ? (
       <SidebarFrame
-        title="Graph"
+        title={t("nav.graph")}
         actions={
           <button
             type="button"
             className="sidebar-collapse"
-            aria-label="Collapse sidebar"
+            aria-label={t("actions.collapseSidebar")}
             onClick={() => {
               setLeftSidebarOpen(false);
               setMobileSidebarOpen(false);
@@ -1328,13 +1328,13 @@ export function App() {
       >
         <div className="graph-summary">
           <strong>{knowledgeIndex?.notes.length ?? 0}</strong>
-          <span>notes in vault</span>
+          <span>{t("graph.notesInVault")}</span>
           <strong>
             {knowledgeIndex?.edges.filter(
               (edge) => edge.resolution === "resolved",
             ).length ?? 0}
           </strong>
-          <span>resolved links</span>
+          <span>{t("graph.resolvedLinks")}</span>
         </div>
         <LocalGraphPanel
           index={knowledgeIndex}
@@ -1344,12 +1344,12 @@ export function App() {
       </SidebarFrame>
     ) : activeLeftPanel === "tags" ? (
       <SidebarFrame
-        title="Tags"
+        title={t("nav.tags")}
         actions={
           <button
             type="button"
             className="sidebar-collapse"
-            aria-label="Collapse sidebar"
+            aria-label={t("actions.collapseSidebar")}
             onClick={() => {
               setLeftSidebarOpen(false);
               setMobileSidebarOpen(false);
@@ -1368,12 +1368,12 @@ export function App() {
       </SidebarFrame>
     ) : (
       <SidebarFrame
-        title="Settings"
+        title={t("nav.settings")}
         actions={
           <button
             type="button"
             className="sidebar-collapse"
-            aria-label="Collapse sidebar"
+            aria-label={t("actions.collapseSidebar")}
             onClick={() => {
               setLeftSidebarOpen(false);
               setMobileSidebarOpen(false);
@@ -1384,7 +1384,7 @@ export function App() {
         }
       >
         <section className="settings-panel-section">
-          <span className="section-label">Appearance</span>
+          <span className="section-label">{t("settings.appearance")}</span>
           <div className="settings-choice-list">
             {(["system", "light", "dark"] as const).map((theme) => (
               <button
@@ -1394,18 +1394,25 @@ export function App() {
                 onClick={() => setThemePreference(theme)}
               >
                 <span>{themePreference === theme ? "✓" : ""}</span>
-                {theme[0]?.toUpperCase()}{theme.slice(1)}
+                {theme === "system"
+                  ? t("common.system")
+                  : theme === "light"
+                    ? t("common.light")
+                    : t("common.dark")}
               </button>
             ))}
           </div>
         </section>
         <section className="settings-panel-section">
-          <span className="section-label">Local AI</span>
+          <span className="section-label">{t("settings.language")}</span>
+          <LanguageSelector />
+        </section>
+        <section className="settings-panel-section">
+          <span className="section-label">{t("settings.localAi")}</span>
           <div className="semantic-settings">
-            <strong>Semantic search</strong>
+            <strong>{t("semantic.title")}</strong>
             <p className="sidebar-help">
-              Optional multilingual embeddings run in this browser. Note
-              contents are not sent to MindContext servers.
+              {t("semantic.settingsDescription")}
             </p>
             <button
               className="sidebar-call-to-action"
@@ -1416,7 +1423,7 @@ export function App() {
                   : enableSemanticSearch
               }
             >
-              {semanticEnabled ? "Disable semantic search" : "Enable semantic search"}
+              {semanticEnabled ? t("semantic.disable") : t("semantic.enable")}
             </button>
             {semanticEnabled ? (
               <button
@@ -1424,21 +1431,21 @@ export function App() {
                 type="button"
                 onClick={() => void clearSemanticEmbeddings()}
               >
-                Clear local embeddings
+                {t("semantic.clear")}
               </button>
             ) : null}
             <small className="sidebar-help">
-              Model: {DEFAULT_BROWSER_EMBEDDING_MODEL}
+              {t("semantic.model", { model: DEFAULT_BROWSER_EMBEDDING_MODEL })}
             </small>
           </div>
         </section>
         <section className="settings-panel-section">
-          <span className="section-label">Workspace</span>
+          <span className="section-label">{t("settings.workspace")}</span>
           <button className="sidebar-call-to-action" type="button" onClick={leaveWorkspace}>
-            Switch workspace
+            {t("settings.switchWorkspace")}
           </button>
           <p className="sidebar-help">
-            Tabs and panel layout are stored only in this browser. Your Markdown remains in Drive.
+            {t("settings.workspaceState")}
           </p>
         </section>
       </SidebarFrame>
@@ -1493,7 +1500,7 @@ export function App() {
             onSave={() => void saveNote()}
           />
 
-          <section className="editor-panel-v2" aria-label="Markdown editor">
+          <section className="editor-panel-v2" aria-label={t("editor.aria")}>
             {openNote ? (
               <>
                 <button
@@ -1501,13 +1508,13 @@ export function App() {
                   type="button"
                   onClick={showFiles}
                 >
-                  Files
+                  {t("nav.files")}
                 </button>
                 {viewMode === "edit" ? (
                   <MarkdownEditor
                     key={openNote.metadata.id}
                     value={draft}
-                    label={`Edit ${openNote.metadata.name}`}
+                    label={t("editor.editFile", { name: openNote.metadata.name })}
                     linkTargets={editorLinkTargets}
                     tags={knownTags}
                     onChange={updateActiveDraft}
@@ -1523,17 +1530,16 @@ export function App() {
             ) : (
               <div className="workspace-empty-v2">
                 <span className="section-label">MindContext</span>
-                <h2>Open a note</h2>
+                <h2>{t("editor.emptyTitle")}</h2>
                 <p>
-                  Pick a note from Files or use the Quick Switcher. Your
-                  workspace is plain Markdown in Google Drive.
+                  {t("editor.emptyBody")}
                 </p>
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={() => setQuickSwitcherOpen(true)}
                 >
-                  Open note
+                  {t("actions.openNote")}
                 </button>
               </div>
             )}
