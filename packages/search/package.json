@@ -15,6 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mind-context/embeddings": "workspace:*",
     "@mind-context/markdown": "workspace:*"
   },
   "devDependencies": {

@@ -1,4 +1,9 @@
 import {
+  cosineSimilarity,
+  type EmbeddingIndexSnapshot,
+  type EmbeddingProvider,
+} from "@mind-context/embeddings";
+import {
   markdownParser,
   type MarkdownParser,
   type MarkdownSection,
@@ -475,4 +480,169 @@ function fingerprint(value: string): string {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+
+export class SemanticSearchIndex implements SearchService {
+  private readonly chunksById = new Map<
+    string,
+    { readonly document: SearchDocument; readonly chunk: SearchChunk }
+  >();
+
+  constructor(
+    private readonly snapshot: SearchIndexSnapshot,
+    private readonly embeddingSnapshot: EmbeddingIndexSnapshot,
+    private readonly provider: EmbeddingProvider,
+  ) {
+    for (const document of snapshot.documents) {
+      for (const chunk of document.chunks) {
+        this.chunksById.set(chunk.id, { document, chunk });
+      }
+    }
+  }
+
+  async search(query: SearchQuery): Promise<readonly SearchHit[]> {
+    const queryText = query.text.trim();
+    if (!queryText) return [];
+
+    const [queryEmbedding] = await this.provider.embed([queryText]);
+    if (!queryEmbedding) return [];
+
+    const bestByNote = new Map<string, SearchHit>();
+    for (const item of this.embeddingSnapshot.embeddings) {
+      const indexed = this.chunksById.get(item.chunkId);
+      if (!indexed) continue;
+      if (item.model !== this.provider.model) continue;
+      if (item.providerId !== this.provider.id) continue;
+      if (item.contentHash !== indexed.chunk.contentHash) continue;
+
+      const semanticScore = cosineSimilarity(
+        queryEmbedding.values,
+        item.values,
+      );
+      if (!Number.isFinite(semanticScore)) continue;
+
+      const hit: SearchHit = {
+        noteId: indexed.document.noteId,
+        path: indexed.document.path,
+        title: indexed.document.title,
+        ...(indexed.chunk.headingPath.length > 0
+          ? {
+              heading:
+                indexed.chunk.headingPath[
+                  indexed.chunk.headingPath.length - 1
+                ],
+            }
+          : {}),
+        excerpt: indexed.chunk.text,
+        score: semanticScore,
+        semanticScore,
+      };
+      const current = bestByNote.get(hit.noteId);
+      if (!current || hit.score > current.score) {
+        bestByNote.set(hit.noteId, hit);
+      }
+    }
+
+    return [...bestByNote.values()]
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.path.localeCompare(right.path),
+      )
+      .slice(0, Math.max(1, query.limit ?? 30));
+  }
+}
+
+export class HybridSearchService implements SearchService {
+  constructor(
+    private readonly lexical: SearchService,
+    private readonly semantic?: SearchService,
+  ) {}
+
+  async search(query: SearchQuery): Promise<readonly SearchHit[]> {
+    if (!this.semantic) return this.lexical.search(query);
+
+    const candidateLimit = Math.max(40, (query.limit ?? 30) * 3);
+    const [lexical, semantic] = await Promise.all([
+      this.lexical.search({ ...query, limit: candidateLimit }),
+      this.semantic.search({ ...query, limit: candidateLimit }),
+    ]);
+
+    return fuseRankedHits(
+      lexical,
+      semantic,
+      Math.max(1, query.limit ?? 30),
+    );
+  }
+}
+
+export function fuseRankedHits(
+  lexical: readonly SearchHit[],
+  semantic: readonly SearchHit[],
+  limit = 30,
+): readonly SearchHit[] {
+  const scoreByNote = new Map<
+    string,
+    {
+      hit: SearchHit;
+      score: number;
+      lexicalScore?: number;
+      semanticScore?: number;
+    }
+  >();
+  const k = 60;
+
+  lexical.forEach((hit, index) => {
+    scoreByNote.set(hit.noteId, {
+      hit,
+      score: 1 / (k + index + 1),
+      ...(hit.lexicalScore !== undefined
+        ? { lexicalScore: hit.lexicalScore }
+        : {}),
+    });
+  });
+
+  semantic.forEach((hit, index) => {
+    const current = scoreByNote.get(hit.noteId);
+    const semanticContribution = 1 / (k + index + 1);
+    if (current) {
+      scoreByNote.set(hit.noteId, {
+        hit:
+          hit.semanticScore !== undefined &&
+          (current.hit.semanticScore ?? -Infinity) < hit.semanticScore
+            ? { ...current.hit, excerpt: hit.excerpt, heading: hit.heading }
+            : current.hit,
+        score: current.score + semanticContribution,
+        ...(current.lexicalScore !== undefined
+          ? { lexicalScore: current.lexicalScore }
+          : {}),
+        ...(hit.semanticScore !== undefined
+          ? { semanticScore: hit.semanticScore }
+          : {}),
+      });
+    } else {
+      scoreByNote.set(hit.noteId, {
+        hit,
+        score: semanticContribution,
+        ...(hit.semanticScore !== undefined
+          ? { semanticScore: hit.semanticScore }
+          : {}),
+      });
+    }
+  });
+
+  return [...scoreByNote.values()]
+    .map(({ hit, score, lexicalScore, semanticScore }) => ({
+      ...hit,
+      score,
+      ...(lexicalScore !== undefined ? { lexicalScore } : {}),
+      ...(semanticScore !== undefined ? { semanticScore } : {}),
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.path.localeCompare(right.path),
+    )
+    .slice(0, Math.max(1, limit));
 }

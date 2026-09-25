@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  EmbeddingIndexSnapshot,
+  EmbeddingProvider,
+} from "@mind-context/embeddings";
 import {
+  HybridSearchService,
   LexicalSearchIndex,
+  SemanticSearchIndex,
   canReuseSearchDocument,
   chunkMarkdown,
   createSearchDocument,
@@ -184,5 +190,108 @@ describe("derived search snapshot", () => {
       "architecture",
       "privacy",
     ]);
+  });
+});
+
+
+class SearchFakeEmbeddingProvider implements EmbeddingProvider {
+  readonly id = "fake";
+  readonly model = "fake-semantic-v1";
+
+  async embed(texts: readonly string[]) {
+    return texts.map((text) => {
+      const normalized = text.toLocaleLowerCase();
+      const values = normalized.includes("architecture") ||
+        normalized.includes("system design") ||
+        normalized.includes("software boundaries")
+        ? [1, 0]
+        : normalized.includes("travel") ||
+            normalized.includes("coast") ||
+            normalized.includes("vacation")
+          ? [0, 1]
+          : [0.5, 0.5];
+      return { dimensions: 2, values };
+    });
+  }
+}
+
+describe("semantic and hybrid search", () => {
+  it("finds conceptually related chunks without lexical overlap", async () => {
+    const provider = new SearchFakeEmbeddingProvider();
+    const snapshot = createSearchIndexSnapshot("workspace", [
+      architecture,
+      travel,
+    ]);
+
+    const embeddingSnapshot: EmbeddingIndexSnapshot = {
+      schemaVersion: 1,
+      workspaceId: "workspace",
+      providerId: provider.id,
+      model: provider.model,
+      builtAt: new Date().toISOString(),
+      embeddings: snapshot.documents.flatMap((document) =>
+        document.chunks.map((chunk) => ({
+          chunkId: chunk.id,
+          noteId: chunk.noteId,
+          contentHash: chunk.contentHash,
+          providerId: provider.id,
+          model: provider.model,
+          dimensions: 2,
+          values:
+            document.noteId === "architecture" ? [1, 0] : [0, 1],
+        })),
+      ),
+    };
+
+    const semantic = new SemanticSearchIndex(
+      snapshot,
+      embeddingSnapshot,
+      provider,
+    );
+    const hits = await semantic.search({ text: "software boundaries" });
+
+    expect(hits[0]?.noteId).toBe("architecture");
+    expect(hits[0]?.semanticScore).toBeCloseTo(1);
+  });
+
+  it("fuses lexical and semantic rankings without comparing raw score scales", async () => {
+    const provider = new SearchFakeEmbeddingProvider();
+    const snapshot = createSearchIndexSnapshot("workspace", [
+      architecture,
+      travel,
+    ]);
+    const embeddingSnapshot: EmbeddingIndexSnapshot = {
+      schemaVersion: 1,
+      workspaceId: "workspace",
+      providerId: provider.id,
+      model: provider.model,
+      builtAt: new Date().toISOString(),
+      embeddings: snapshot.documents.flatMap((document) =>
+        document.chunks.map((chunk) => ({
+          chunkId: chunk.id,
+          noteId: chunk.noteId,
+          contentHash: chunk.contentHash,
+          providerId: provider.id,
+          model: provider.model,
+          dimensions: 2,
+          values:
+            document.noteId === "architecture" ? [1, 0] : [0, 1],
+        })),
+      ),
+    };
+
+    const hybrid = new HybridSearchService(
+      new LexicalSearchIndex(snapshot.documents),
+      new SemanticSearchIndex(snapshot, embeddingSnapshot, provider),
+    );
+
+    const hits = await hybrid.search({
+      text: "architecture",
+      limit: 5,
+    });
+
+    expect(hits[0]?.noteId).toBe("architecture");
+    expect(hits[0]?.lexicalScore).toBeDefined();
+    expect(hits[0]?.semanticScore).toBeDefined();
   });
 });
