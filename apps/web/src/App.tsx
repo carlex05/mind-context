@@ -448,9 +448,6 @@ export function App() {
               })
             : t("status.workspaceCreated", { name: workspace.name }),
       });
-      if (applied.startNoteId) {
-        await openNoteById(applied.startNoteId);
-      }
     } catch (error) {
       await refreshWorkspaces(workspaceService);
       setStatus({ kind: "error", message: errorMessage(error, t) });
@@ -1062,9 +1059,6 @@ export function App() {
       markWorkspaceOnboardingHandled(activeWorkspace.id);
       setOnboardingMode(undefined);
       await refreshWorkspaceState();
-      if (applied.startNoteId) {
-        await openNoteById(applied.startNoteId);
-      }
       setStatus({
         kind: "success",
         message: t("status.starterApplied", {
@@ -1316,6 +1310,7 @@ export function App() {
         onSubmit={createWorkspace}
       />
     </>
+    );
   }
 
   const leftSidebar =
