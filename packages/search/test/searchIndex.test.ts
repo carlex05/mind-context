@@ -254,6 +254,21 @@ describe("semantic and hybrid search", () => {
     expect(hits[0]?.semanticScore).toBeCloseTo(1);
   });
 
+  it("falls back to lexical results when semantic inference fails", async () => {
+    const lexical = new LexicalSearchIndex([architecture, travel]);
+    const failingSemantic = {
+      async search(): Promise<never> {
+        throw new Error("model unavailable");
+      },
+    };
+    const hybrid = new HybridSearchService(lexical, failingSemantic);
+
+    const hits = await hybrid.search({ text: "embeddings" });
+
+    expect(hits[0]?.noteId).toBe("architecture");
+    expect(hits[0]?.lexicalScore).toBeDefined();
+  });
+
   it("fuses lexical and semantic rankings without comparing raw score scales", async () => {
     const provider = new SearchFakeEmbeddingProvider();
     const snapshot = createSearchIndexSnapshot("workspace", [

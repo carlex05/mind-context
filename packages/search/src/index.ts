@@ -569,7 +569,9 @@ export class HybridSearchService implements SearchService {
     const candidateLimit = Math.max(40, (query.limit ?? 30) * 3);
     const [lexical, semantic] = await Promise.all([
       this.lexical.search({ ...query, limit: candidateLimit }),
-      this.semantic.search({ ...query, limit: candidateLimit }),
+      this.semantic
+        .search({ ...query, limit: candidateLimit })
+        .catch(() => []),
     ]);
 
     return fuseRankedHits(
