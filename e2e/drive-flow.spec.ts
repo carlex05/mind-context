@@ -308,7 +308,8 @@ async function openFreshWorkspace(page: Page): Promise<void> {
 }
 
 async function createNote(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "New note", exact: true }).click();
+  const files = page.getByRole("complementary", { name: "Files" });
+  await files.getByRole("button", { name: "New note", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "New note" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -318,7 +319,8 @@ async function createNote(page: Page, name: string): Promise<void> {
 }
 
 async function createFolder(page: Page, name: string): Promise<void> {
-  await page.getByRole("button", { name: "New folder", exact: true }).click();
+  const files = page.getByRole("complementary", { name: "Files" });
+  await files.getByRole("button", { name: "New folder", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
