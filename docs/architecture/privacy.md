@@ -28,3 +28,19 @@ Storage provider credentials are never extension capabilities.
 ## Verification direction
 
 The project should eventually include automated browser tests that create unique secret content and assert that the secret never appears in requests to MindContext-controlled domains during editing, indexing, search or local RAG.
+
+
+## Browser-local derived copies
+
+For incremental full-text retrieval, IndexedDB MAY contain local copies of
+Markdown text, provider revisions, chunks and future embeddings. These are
+sensitive derived data.
+
+They MUST:
+
+- remain on the user's device during the core local path;
+- never be included in telemetry;
+- remain fully reconstructible from canonical storage;
+- never be required to recover the user's knowledge;
+- use stable chunk/content fingerprints only for local change detection and
+  reuse, not as an external identifier.
