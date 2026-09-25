@@ -174,7 +174,7 @@ export function App() {
   >({});
   const tabBuffersRef = useRef<Readonly<Record<string, NoteBuffer>>>({});
   const noteSyncStatesRef = useRef<Readonly<Record<string, NoteSyncState>>>({});
-  const activeTabIdRef = useRef<string>();
+  const activeTabIdRef = useRef<string | undefined>(undefined);
   const localDraftTimersRef = useRef<
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
