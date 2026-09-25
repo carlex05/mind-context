@@ -909,13 +909,26 @@ export function App() {
   function updateActiveDraft(value: string) {
     setDraft(value);
     if (!activeTabId || !openNote) return;
-    setTabBuffers((current) => ({
-      ...current,
-      [activeTabId]: {
-        note: openNote,
-        draft: value,
-      },
-    }));
+
+    putTabBuffer(activeTabId, {
+      note: openNote,
+      draft: value,
+    });
+
+    if (value === openNote.originalContent) {
+      cancelLocalDraftTimer(activeTabId);
+      cancelDriveSyncTimer(activeTabId);
+      if (activeWorkspace) {
+        void pendingDraftStore.delete(activeWorkspace.id, activeTabId);
+      }
+      setNoteSyncState(activeTabId, "synced");
+      return;
+    }
+
+    if (noteSyncStatesRef.current[activeTabId] !== "conflict") {
+      setNoteSyncState(activeTabId, "local");
+    }
+    scheduleLocalDraftPersist(activeTabId);
   }
 
   function transformActiveDraft(
