@@ -14,17 +14,25 @@ import {
   updateFrontmatterStringList,
 } from "@mind-context/markdown";
 import {
+  IndexedDbEmbeddingIndexStore,
   IndexedDbKnowledgeIndexStore,
   IndexedDbSearchIndexStore,
 } from "@mind-context/persistence-indexeddb";
 import {
+  HybridSearchService,
   LexicalSearchIndex,
+  SemanticSearchIndex,
   canReuseSearchDocument,
   createSearchDocument,
   createSearchIndexSnapshot,
   upsertSearchDocument,
   type SearchIndexSnapshot,
+  type SearchService,
 } from "@mind-context/search";
+import {
+  buildEmbeddingSnapshot,
+  type EmbeddingIndexSnapshot,
+} from "@mind-context/embeddings";
 import {
   GoogleDriveApiError,
   GoogleDriveStorageProvider,
@@ -40,6 +48,10 @@ import {
   requestGoogleDriveAccess,
   type GoogleDriveAuthSession,
 } from "./googleIdentity";
+import {
+  BrowserEmbeddingProvider,
+  DEFAULT_BROWSER_EMBEDDING_MODEL,
+} from "./browserEmbeddings";
 import { buildWorkspaceDerivedState } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -47,7 +59,10 @@ import { LocalGraphPanel } from "./LocalGraphPanel";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
 import { PropertiesEditor } from "./PropertiesEditor";
 import { QuickSwitcher } from "./QuickSwitcher";
-import { SearchPanel } from "./SearchPanel";
+import {
+  SearchPanel,
+  type SemanticUiState,
+} from "./SearchPanel";
 import {
   applyThemePreference,
   readThemePreference,
@@ -78,6 +93,8 @@ import {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
 const knowledgeStore = new IndexedDbKnowledgeIndexStore();
 const searchStore = new IndexedDbSearchIndexStore();
+const embeddingStore = new IndexedDbEmbeddingIndexStore();
+const SEMANTIC_SEARCH_KEY = "mindcontext.semantic-search.enabled";
 
 type AppStatus =
   | { readonly kind: "idle" }
@@ -117,6 +134,19 @@ export function App() {
   const [searchIndex, setSearchIndex] = useState<LexicalSearchIndex>();
   const [searchSnapshot, setSearchSnapshot] =
     useState<SearchIndexSnapshot>();
+  const [embeddingSnapshot, setEmbeddingSnapshot] =
+    useState<EmbeddingIndexSnapshot>();
+  const [semanticEnabled, setSemanticEnabled] = useState(
+    () => window.localStorage.getItem(SEMANTIC_SEARCH_KEY) === "true",
+  );
+  const [semanticUi, setSemanticUi] = useState<SemanticUiState>(() =>
+    window.localStorage.getItem(SEMANTIC_SEARCH_KEY) === "true"
+      ? {
+          kind: "preparing",
+          message: "Semantic search will initialize for this workspace.",
+        }
+      : { kind: "disabled" },
+  );
   const [tabs, setTabs] = useState<readonly WorkspaceTab[]>([]);
   const [tabBuffers, setTabBuffers] = useState<
     Readonly<Record<string, NoteBuffer>>
@@ -148,6 +178,17 @@ export function App() {
     readonly index: number;
   }>({ entries: [], index: -1 });
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
+
+  const embeddingProvider = useMemo(
+    () =>
+      new BrowserEmbeddingProvider((progress) => {
+        setSemanticUi({
+          kind: progress.phase === "ready" ? "ready" : "preparing",
+          message: progress.message,
+        });
+      }),
+    [],
+  );
 
   const dirty =
     openNote !== undefined && draft !== openNote.originalContent;
@@ -198,6 +239,43 @@ export function App() {
         .sort((left, right) => left.localeCompare(right)),
     [knowledgeIndex],
   );
+
+  const searchService = useMemo<SearchService | undefined>(() => {
+    if (!searchIndex) return undefined;
+    if (
+      !semanticEnabled ||
+      semanticUi.kind !== "ready" ||
+      !searchSnapshot ||
+      !embeddingSnapshot
+    ) {
+      return searchIndex;
+    }
+
+    return new HybridSearchService(
+      searchIndex,
+      new SemanticSearchIndex(
+        searchSnapshot,
+        embeddingSnapshot,
+        embeddingProvider,
+      ),
+    );
+  }, [
+    searchIndex,
+    semanticEnabled,
+    semanticUi.kind,
+    searchSnapshot,
+    embeddingSnapshot,
+    embeddingProvider,
+  ]);
+
+  useEffect(() => {
+    if (!semanticEnabled || !activeWorkspace || !searchSnapshot) return;
+    void prepareSemanticSearch(searchSnapshot);
+  }, [
+    semanticEnabled,
+    activeWorkspace?.id,
+    searchSnapshot?.builtAt,
+  ]);
 
   useEffect(() => {
     applyThemePreference(themePreference);
@@ -806,6 +884,94 @@ export function App() {
     await openNoteById(next.noteId, "push", false);
   }
 
+  function enableSemanticSearch() {
+    window.localStorage.setItem(SEMANTIC_SEARCH_KEY, "true");
+    setSemanticEnabled(true);
+    setSemanticUi({
+      kind: "preparing",
+      message: "Preparing local semantic search…",
+    });
+  }
+
+  function disableSemanticSearch() {
+    window.localStorage.setItem(SEMANTIC_SEARCH_KEY, "false");
+    setSemanticEnabled(false);
+    setEmbeddingSnapshot(undefined);
+    setSemanticUi({ kind: "disabled" });
+  }
+
+  async function clearSemanticEmbeddings() {
+    if (!activeWorkspace) return;
+    await embeddingStore.delete(
+      activeWorkspace.id,
+      embeddingProvider.id,
+      embeddingProvider.model,
+    );
+    setEmbeddingSnapshot(undefined);
+    setStatus({
+      kind: "success",
+      message:
+        "Local semantic embeddings cleared. Markdown in Drive was not changed.",
+    });
+    if (semanticEnabled && searchSnapshot) {
+      setSemanticUi({
+        kind: "preparing",
+        message: "Local embeddings cleared. Rebuilding…",
+      });
+      void prepareSemanticSearch(searchSnapshot);
+    }
+  }
+
+  async function prepareSemanticSearch(
+    snapshot: SearchIndexSnapshot,
+  ) {
+    if (!activeWorkspace || !semanticEnabled) return;
+
+    setSemanticUi({
+      kind: "preparing",
+      message: "Checking local semantic index…",
+    });
+
+    try {
+      const previous = await embeddingStore.get(
+        activeWorkspace.id,
+        embeddingProvider.id,
+        embeddingProvider.model,
+      );
+      const chunks = snapshot.documents.flatMap((document) =>
+        document.chunks.map((chunk) => ({
+          chunkId: chunk.id,
+          noteId: chunk.noteId,
+          contentHash: chunk.contentHash,
+          text: chunk.text,
+        })),
+      );
+      const result = await buildEmbeddingSnapshot(
+        activeWorkspace.id,
+        embeddingProvider,
+        chunks,
+        previous,
+      );
+      await embeddingStore.put(result.snapshot);
+      setEmbeddingSnapshot(result.snapshot);
+      setSemanticUi({
+        kind: "ready",
+        message:
+          `Hybrid search ready · ${result.stats.reusedChunks} embeddings reused · ` +
+          `${result.stats.embeddedChunks} created` +
+          (embeddingProvider.runtime
+            ? ` · ${embeddingProvider.runtime.toUpperCase()}`
+            : ""),
+      });
+    } catch (error) {
+      setEmbeddingSnapshot(undefined);
+      setSemanticUi({
+        kind: "error",
+        message: `Semantic search unavailable: ${errorMessage(error)}`,
+      });
+    }
+  }
+
   async function createWorkspaceItem(
     kind: CreateItemKind,
     name: string,
@@ -968,6 +1134,7 @@ export function App() {
     setKnowledgeIndex(undefined);
     setSearchIndex(undefined);
     setSearchSnapshot(undefined);
+    setEmbeddingSnapshot(undefined);
     setWorkspaceUiReady(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
@@ -993,6 +1160,7 @@ export function App() {
     setKnowledgeIndex(undefined);
     setSearchIndex(undefined);
     setSearchSnapshot(undefined);
+    setEmbeddingSnapshot(undefined);
     setWorkspaceUiReady(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
@@ -1114,7 +1282,9 @@ export function App() {
         }
       >
         <SearchPanel
-          index={searchIndex}
+          service={searchService}
+          semantic={semanticUi}
+          onEnableSemantic={enableSemanticSearch}
           onOpenNote={(noteId) => void openNoteById(noteId)}
         />
       </SidebarFrame>
@@ -1206,6 +1376,39 @@ export function App() {
                 {theme[0]?.toUpperCase()}{theme.slice(1)}
               </button>
             ))}
+          </div>
+        </section>
+        <section className="settings-panel-section">
+          <span className="section-label">Local AI</span>
+          <div className="semantic-settings">
+            <strong>Semantic search</strong>
+            <p className="sidebar-help">
+              Optional multilingual embeddings run in this browser. Note
+              contents are not sent to MindContext servers.
+            </p>
+            <button
+              className="sidebar-call-to-action"
+              type="button"
+              onClick={
+                semanticEnabled
+                  ? disableSemanticSearch
+                  : enableSemanticSearch
+              }
+            >
+              {semanticEnabled ? "Disable semantic search" : "Enable semantic search"}
+            </button>
+            {semanticEnabled ? (
+              <button
+                className="sidebar-text-action"
+                type="button"
+                onClick={() => void clearSemanticEmbeddings()}
+              >
+                Clear local embeddings
+              </button>
+            ) : null}
+            <small className="sidebar-help">
+              Model: {DEFAULT_BROWSER_EMBEDDING_MODEL}
+            </small>
           </div>
         </section>
         <section className="settings-panel-section">
