@@ -356,7 +356,7 @@ export function App() {
         return note
           ? [{
               noteId: note.id,
-              title: note.title,
+              title: note.name.replace(/\.md$/i, ""),
               path: note.path,
               viewMode: saved.viewMode,
             }]
@@ -425,19 +425,59 @@ export function App() {
           return note
             ? [{
                 ...tab,
-                title: note.title,
+                title: note.name.replace(/\.md$/i, ""),
                 path: note.path,
               }]
             : [];
         }),
       );
-      setTabBuffers((current) =>
-        Object.fromEntries(
-          Object.entries(current).filter(([noteId]) =>
+
+      const sourceBuffers: Record<string, NoteBuffer> = { ...tabBuffers };
+      if (activeTabId && openNote) {
+        sourceBuffers[activeTabId] = { note: openNote, draft };
+      }
+
+      const refreshedBufferEntries = await Promise.all(
+        Object.entries(sourceBuffers)
+          .filter(([noteId]) =>
             rebuilt.notes.some((note) => note.id === noteId),
-          ),
+          )
+          .map(async ([noteId, buffer]) => {
+            if (buffer.draft !== buffer.note.originalContent) {
+              return [noteId, buffer] as const;
+            }
+
+            try {
+              const [content, metadata] = await Promise.all([
+                provider.readText(noteId),
+                provider.metadata(noteId),
+              ]);
+              const note = { metadata, originalContent: content };
+              return [
+                noteId,
+                { note, draft: content } satisfies NoteBuffer,
+              ] as const;
+            } catch {
+              return undefined;
+            }
+          }),
+      );
+
+      const refreshedBuffers = Object.fromEntries(
+        refreshedBufferEntries.filter(
+          (entry): entry is readonly [string, NoteBuffer] =>
+            entry !== undefined,
         ),
       );
+      setTabBuffers(refreshedBuffers);
+
+      if (activeTabId) {
+        const activeBuffer = refreshedBuffers[activeTabId];
+        if (activeBuffer) {
+          setOpenNote(activeBuffer.note);
+          setDraft(activeBuffer.draft);
+        }
+      }
 
       if (
         selectedFolderId !== provider.rootId &&
@@ -547,8 +587,7 @@ export function App() {
       const note = getNote(knowledgeIndex, id);
       const nextTab: WorkspaceTab = {
         noteId: id,
-        title:
-          note?.title ?? nextNote.metadata.name.replace(/\.md$/i, ""),
+        title: nextNote.metadata.name.replace(/\.md$/i, ""),
         path: note?.path ?? nextNote.metadata.name,
         viewMode: existingTab?.viewMode ?? "edit",
       };
@@ -564,6 +603,9 @@ export function App() {
       setActiveTabId(id);
       setViewMode(nextTab.viewMode);
       setMobileSidebarOpen(false);
+      if (window.matchMedia("(max-width: 760px)").matches) {
+        setRightSidebarOpen(false);
+      }
 
       if (activeWorkspace) {
         setRecentNoteIds((current) =>

@@ -2333,3 +2333,22 @@ h2 {
   color: #b7791f;
   font-size: 0.45rem;
 }
+
+
+@media (max-width: 760px) {
+  .app-shell-v2.mobile-sidebar-open .workspace-main {
+    visibility: hidden;
+  }
+
+  .workspace-shell-v2 > .knowledge-panel {
+    display: block;
+  }
+
+  .workspace-view-nav {
+    display: flex;
+  }
+
+  .workspace-view-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+}

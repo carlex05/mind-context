@@ -144,9 +144,7 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
 
   await expect(page.getByRole("button", { name: "Back" })).toBeEnabled();
   await page.getByRole("button", { name: "Back" }).click();
-  await expect(
-    page.getByRole("textbox", { name: "Edit Alpha.md" }),
-  ).toBeVisible();
+  await expect(page.getByLabel("Reading view")).toBeVisible();
   await expect(page.getByRole("button", { name: "Forward" })).toBeEnabled();
   await page.getByRole("button", { name: "Forward" }).click();
   await expect(
