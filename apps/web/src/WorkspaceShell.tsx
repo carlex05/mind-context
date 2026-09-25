@@ -307,4 +307,3 @@ export type IconName =
   | "file-plus"
   | "folder-plus"
   | "refresh";
-}
