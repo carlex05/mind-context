@@ -11,6 +11,10 @@ import type {
   SearchIndexSnapshot,
   SearchIndexSnapshotStore,
 } from "@mind-context/search";
+import type {
+  PendingNoteDraft,
+  PendingNoteDraftStore,
+} from "@mind-context/persistence";
 
 interface KnowledgeIndexRecord {
   readonly workspaceId: string;
@@ -33,6 +37,10 @@ interface EmbeddingIndexRecord {
   readonly snapshot: EmbeddingIndexSnapshot;
 }
 
+interface PendingNoteDraftRecord extends PendingNoteDraft {
+  readonly key: string;
+}
+
 function createDatabase(databaseName: string): Dexie {
   const database = new Dexie(databaseName);
   database.version(1).stores({
@@ -47,6 +55,14 @@ function createDatabase(databaseName: string): Dexie {
     searchIndexes: "&workspaceId,builtAt",
     embeddingIndexes:
       "&key,workspaceId,providerId,model,builtAt,[workspaceId+providerId+model]",
+  });
+  return database;
+}
+
+function createRecoveryDatabase(databaseName: string): Dexie {
+  const database = new Dexie(databaseName);
+  database.version(1).stores({
+    pendingDrafts: "&key,workspaceId,noteId,updatedAt,[workspaceId+noteId]",
   });
   return database;
 }
@@ -123,6 +139,63 @@ export class IndexedDbSearchIndexStore
   }
 }
 
+
+export class IndexedDbPendingNoteDraftStore
+  implements PendingNoteDraftStore
+{
+  private readonly database: Dexie;
+  private readonly drafts: Table<PendingNoteDraftRecord, string>;
+
+  constructor(databaseName = "mind-context-local") {
+    this.database = createRecoveryDatabase(databaseName);
+    this.drafts = this.database.table<PendingNoteDraftRecord, string>(
+      "pendingDrafts",
+    );
+  }
+
+  async get(
+    workspaceId: string,
+    noteId: string,
+  ): Promise<PendingNoteDraft | undefined> {
+    const record = await this.drafts.get(draftKey(workspaceId, noteId));
+    if (!record) return undefined;
+    const { key: _key, ...draft } = record;
+    return draft;
+  }
+
+  async list(workspaceId: string): Promise<readonly PendingNoteDraft[]> {
+    const records = await this.drafts
+      .where("workspaceId")
+      .equals(workspaceId)
+      .toArray();
+    return records.map(({ key: _key, ...draft }) => draft);
+  }
+
+  async put(draft: PendingNoteDraft): Promise<void> {
+    await this.drafts.put({
+      ...draft,
+      key: draftKey(draft.workspaceId, draft.noteId),
+    });
+  }
+
+  async delete(workspaceId: string, noteId: string): Promise<void> {
+    await this.drafts.delete(draftKey(workspaceId, noteId));
+  }
+
+  async clearWorkspace(workspaceId: string): Promise<void> {
+    const records = await this.drafts
+      .where("workspaceId")
+      .equals(workspaceId)
+      .toArray();
+    if (records.length > 0) {
+      await this.drafts.bulkDelete(records.map((record) => record.key));
+    }
+  }
+
+  close(): void {
+    this.database.close();
+  }
+}
 
 export class IndexedDbEmbeddingIndexStore
   implements EmbeddingIndexSnapshotStore
@@ -205,4 +278,8 @@ function embeddingKey(
   model: string,
 ): string {
   return `${workspaceId}::${providerId}::${model}`;
+}
+
+function draftKey(workspaceId: string, noteId: string): string {
+  return `${workspaceId}::${noteId}`;
 }
