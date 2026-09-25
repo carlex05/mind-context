@@ -2769,6 +2769,9 @@ h2 {
 
 .onboarding-sheet {
   width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .onboarding-intro {

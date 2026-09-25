@@ -231,6 +231,8 @@ test("suggests onboarding for an existing completely empty Second Brain and reme
       name: "This Second Brain is completely empty",
     }),
   ).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Files", exact: true }).click();
   await expect(
     page.getByRole("complementary", { name: "Files" }),
   ).toBeVisible();
