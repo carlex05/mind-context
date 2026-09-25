@@ -16,6 +16,7 @@
     "@mind-context/knowledge": "workspace:*",
     "@mind-context/markdown": "workspace:*",
     "@mind-context/persistence-indexeddb": "workspace:*",
+    "@mind-context/search": "workspace:*",
     "@mind-context/storage": "workspace:*",
     "@mind-context/storage-google-drive": "workspace:*",
     "codemirror": "^6.0.2",

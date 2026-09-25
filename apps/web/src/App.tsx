@@ -14,6 +14,7 @@ import {
   updateFrontmatterStringList,
 } from "@mind-context/markdown";
 import { IndexedDbKnowledgeIndexStore } from "@mind-context/persistence-indexeddb";
+import type { LexicalSearchIndex } from "@mind-context/search";
 import {
   GoogleDriveApiError,
   GoogleDriveStorageProvider,
@@ -29,12 +30,13 @@ import {
   requestGoogleDriveAccess,
   type GoogleDriveAuthSession,
 } from "./googleIdentity";
-import { buildWorkspaceKnowledgeIndex } from "./knowledgeWorkspace";
+import { buildWorkspaceDerivedState } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
 import { PropertiesEditor } from "./PropertiesEditor";
 import { QuickSwitcher } from "./QuickSwitcher";
+import { SearchPanel } from "./SearchPanel";
 import {
   applyThemePreference,
   readThemePreference,
@@ -100,6 +102,7 @@ export function App() {
   const [workspaceName, setWorkspaceName] = useState("My Second Brain");
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
+  const [searchIndex, setSearchIndex] = useState<LexicalSearchIndex>();
   const [tabs, setTabs] = useState<readonly WorkspaceTab[]>([]);
   const [tabBuffers, setTabBuffers] = useState<
     Readonly<Record<string, NoteBuffer>>
@@ -341,13 +344,15 @@ export function App() {
         kind: "busy",
         message: "Loading vault tree and rebuilding local knowledge index…",
       });
-      const [nextTree, rebuilt] = await Promise.all([
+      const [nextTree, derived] = await Promise.all([
         loadWorkspaceTree(nextProvider),
-        buildWorkspaceKnowledgeIndex(nextProvider, workspace.id),
+        buildWorkspaceDerivedState(nextProvider, workspace.id),
       ]);
+      const rebuilt = derived.knowledgeIndex;
       setTree(nextTree);
       await knowledgeStore.put(rebuilt);
       setKnowledgeIndex(rebuilt);
+      setSearchIndex(derived.searchIndex);
       setRecentNoteIds(readRecentNotes(workspace.id));
 
       const persistedUi = readWorkspaceUi(workspace.id);
@@ -412,13 +417,15 @@ export function App() {
       message: "Refreshing vault tree and rebuilding local index…",
     });
     try {
-      const [nextTree, rebuilt] = await Promise.all([
+      const [nextTree, derived] = await Promise.all([
         loadWorkspaceTree(provider),
-        buildWorkspaceKnowledgeIndex(provider, activeWorkspace.id),
+        buildWorkspaceDerivedState(provider, activeWorkspace.id),
       ]);
+      const rebuilt = derived.knowledgeIndex;
       await knowledgeStore.put(rebuilt);
       setTree(nextTree);
       setKnowledgeIndex(rebuilt);
+      setSearchIndex(derived.searchIndex);
       setTabs((current) =>
         current.flatMap((tab) => {
           const note = getNote(rebuilt, tab.noteId);
@@ -829,6 +836,23 @@ export function App() {
         });
         await knowledgeStore.put(updated);
         setKnowledgeIndex(updated);
+
+        const indexedNote = getNote(updated, metadata.id);
+        if (indexedNote) {
+          setSearchIndex((current) =>
+            current?.withDocument({
+              noteId: indexedNote.id,
+              path: indexedNote.path,
+              title: indexedNote.title,
+              aliases: indexedNote.aliases,
+              tags: indexedNote.tags,
+              headings: indexedNote.headings.map(
+                (heading) => heading.text,
+              ),
+              content: draft,
+            }),
+          );
+        }
       }
 
       setStatus({
@@ -867,6 +891,7 @@ export function App() {
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
+    setSearchIndex(undefined);
     setWorkspaceUiReady(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
@@ -890,6 +915,7 @@ export function App() {
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
     setKnowledgeIndex(undefined);
+    setSearchIndex(undefined);
     setWorkspaceUiReady(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
@@ -1010,19 +1036,10 @@ export function App() {
           </button>
         }
       >
-        <PlaceholderPanel
-          icon="search"
-          title="Search your brain"
-          description="Full-text search is the next data slice. Quick Switcher is already available for note names, paths and aliases."
-          shortcut="Ctrl / Cmd + O"
+        <SearchPanel
+          index={searchIndex}
+          onOpenNote={(noteId) => void openNoteById(noteId)}
         />
-        <button
-          className="sidebar-call-to-action"
-          type="button"
-          onClick={() => setQuickSwitcherOpen(true)}
-        >
-          Open Quick Switcher
-        </button>
       </SidebarFrame>
     ) : activeLeftPanel === "graph" ? (
       <SidebarFrame
