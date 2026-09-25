@@ -1605,6 +1605,7 @@ function TagsPanel({
   readonly onSelectTag: (tag: string | undefined) => void;
   readonly onOpenNote: (noteId: string) => void;
 }) {
+  const { t } = useTranslation();
   const counts = new Map<string, number>();
   for (const note of index?.notes ?? []) {
     for (const tag of note.tags) {
@@ -1628,7 +1629,7 @@ function TagsPanel({
             type="button"
             onClick={() => onSelectTag(undefined)}
           >
-            ← All tags
+            {t("tags.all")}
           </button>
           <h3>#{selectedTag}</h3>
           <div className="tag-note-list">
@@ -1654,7 +1655,7 @@ function TagsPanel({
           ))}
         </div>
       ) : (
-        <p className="sidebar-help">No tags in this workspace yet.</p>
+        <p className="sidebar-help">{t("tags.empty")}</p>
       )}
     </div>
   );
@@ -1689,17 +1690,19 @@ function KnowledgePanel({
   readonly onOpenNote: (noteId: string) => void;
   readonly onBackToNote: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
-    <aside className="knowledge-panel" aria-label="Knowledge context">
+    <aside className="knowledge-panel" aria-label={t("context.aria")}>
       <button
         className="knowledge-back"
         type="button"
-        aria-label="Close context"
+        aria-label={t("context.close")}
         onClick={onBackToNote}
       >
         ×
       </button>
-      <span className="section-label">Context</span>
+      <span className="section-label">{t("context.label")}</span>
       <h2>{noteTitle}</h2>
 
       <PropertiesEditor
@@ -1714,7 +1717,7 @@ function KnowledgePanel({
         (key) => key !== "tags" && key !== "aliases",
       ).length > 0 ? (
         <details className="other-properties">
-          <summary>Other properties</summary>
+          <summary>{t("properties.other")}</summary>
           {Object.entries(properties)
             .filter(([key]) => key !== "tags" && key !== "aliases")
             .map(([key, value]) => (
@@ -1726,7 +1729,7 @@ function KnowledgePanel({
         </details>
       ) : null}
 
-      <KnowledgeSection title="Links" empty="No outgoing links.">
+      <KnowledgeSection title={t("context.links")} empty={t("context.noOutgoing")}>
         {outgoing
           .filter((edge) => edge.resolution === "resolved")
           .map((edge, indexNumber) => (
@@ -1739,7 +1742,7 @@ function KnowledgePanel({
         ))}
       </KnowledgeSection>
 
-      <KnowledgeSection title="Backlinks" empty="No backlinks yet.">
+      <KnowledgeSection title={t("context.backlinks")} empty={t("context.noBacklinks")}>
         {backlinks.map((edge, indexNumber) => {
           const source = index?.notes.find(
             (note) => note.id === edge.sourceNoteId,
@@ -1759,14 +1762,14 @@ function KnowledgePanel({
       </KnowledgeSection>
 
       {broken.length > 0 ? (
-        <KnowledgeSection title="Broken" empty="">
+        <KnowledgeSection title={t("context.broken")} empty="">
           {broken.map((edge, indexNumber) => (
             <div
               className="broken-link"
               key={`${edge.target}-broken-${indexNumber}`}
             >
               <span>[[{edge.target}{edge.heading ? `#${edge.heading}` : ""}]]</span>
-              <small>{brokenReason(edge.resolution)}</small>
+              <small>{brokenReason(edge.resolution, t)}</small>
             </div>
           ))}
         </KnowledgeSection>
@@ -1810,7 +1813,7 @@ function EdgeRow({
     return (
       <div className="broken-link">
         <span>{label}</span>
-        <small>{brokenReason(edge.resolution)}</small>
+        <small>{brokenReason(edge.resolution, t)}</small>
       </div>
     );
   }
@@ -1827,18 +1830,21 @@ function EdgeRow({
   );
 }
 
-function brokenReason(resolution: KnowledgeEdge["resolution"]): string {
+function brokenReason(
+  resolution: KnowledgeEdge["resolution"],
+  t: (key: string) => string,
+): string {
   switch (resolution) {
     case "missing-note":
-      return "Note not found";
+      return t("context.missingNote");
     case "ambiguous-note":
-      return "Multiple notes match";
+      return t("context.ambiguousNote");
     case "missing-heading":
-      return "Heading not found";
+      return t("context.missingHeading");
     case "missing-block":
-      return "Block not found";
+      return t("context.missingBlock");
     case "resolved":
-      return "Resolved";
+      return t("context.resolved");
   }
 }
 
@@ -1849,30 +1855,40 @@ function Landing({
   readonly status: AppStatus;
   readonly onConnect: () => void;
 }) {
+  const { t } = useTranslation();
+  const principles = t("landing.principles", {
+    returnObjects: true,
+  }) as string[];
+
   return (
     <main className="landing-shell">
+      <div className="pre-auth-locale">
+        <LanguageSelector compact />
+      </div>
       <section className="hero">
-        <span className="eyebrow">MindContext / knowledge slice</span>
-        <h1>Your files. Your knowledge. Private by default.</h1>
-        <p className="lede">
-          Connect Google Drive to use Markdown as your canonical knowledge
-          source while links, backlinks and indexes are derived locally.
-        </p>
+        <span className="eyebrow">{t("landing.eyebrow")}</span>
+        <h1>{t("landing.title")}</h1>
+        <p className="lede">{t("landing.body")}</p>
         <button
           className="primary-button large"
           type="button"
           onClick={onConnect}
           disabled={status.kind === "busy"}
         >
-          {status.kind === "busy" ? "Connecting…" : "Connect Google Drive"}
+          {status.kind === "busy"
+            ? t("landing.connecting")
+            : t("landing.connect")}
         </button>
         <StatusBar status={status} />
       </section>
 
-      <section className="principles-card" aria-label="Product principles">
-        <span className="section-label">Architecture guardrails</span>
+      <section
+        className="principles-card"
+        aria-label={t("landing.principlesAria")}
+      >
+        <span className="section-label">{t("landing.guardrails")}</span>
         <ul>
-          {PRODUCT_PRINCIPLES.map((principle) => (
+          {principles.map((principle) => (
             <li key={principle}>{principle}</li>
           ))}
         </ul>
@@ -1902,26 +1918,30 @@ function WorkspaceChooser({
   readonly onRefresh: () => void;
   readonly onDisconnect: () => void;
 }) {
+  const { t, i18n } = useTranslation();
+
   return (
     <main className="chooser-shell">
+      <div className="pre-auth-locale">
+        <LanguageSelector compact />
+      </div>
       <header className="chooser-header">
         <div>
-          <span className="eyebrow">Google Drive connected</span>
-          <h1>Choose your brain.</h1>
+          <span className="eyebrow">{t("chooser.connected")}</span>
+          <h1>{t("chooser.title")}</h1>
           <p>
-            MindContext uses the narrow <code>drive.file</code> permission and
-            keeps its knowledge graph as a rebuildable browser-local projection.
+            {t("chooser.body")}
           </p>
         </div>
         <button className="secondary-button" type="button" onClick={onDisconnect}>
-          Disconnect
+          {t("chooser.disconnect")}
         </button>
       </header>
 
       <section className="chooser-grid">
         <article className="create-card">
-          <span className="section-label">New workspace</span>
-          <label htmlFor="workspace-name">Folder name in Google Drive</label>
+          <span className="section-label">{t("chooser.newWorkspace")}</span>
+          <label htmlFor="workspace-name">{t("chooser.folderName")}</label>
           <input
             id="workspace-name"
             value={workspaceName}
@@ -1934,23 +1954,28 @@ function WorkspaceChooser({
             onClick={onCreateWorkspace}
             disabled={!workspaceName.trim() || status.kind === "busy"}
           >
-            Create in Drive
+            {t("chooser.createDrive")}
           </button>
         </article>
 
         <article className="existing-card">
           <div className="panel-heading">
             <div>
-              <span className="section-label">Existing</span>
-              <h2>MindContext workspaces</h2>
+              <span className="section-label">{t("chooser.existing")}</span>
+              <h2>{t("chooser.workspaces")}</h2>
             </div>
-            <button className="icon-button" type="button" onClick={onRefresh}>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label={t("common.refresh")}
+              onClick={onRefresh}
+            >
               ↻
             </button>
           </div>
           <div className="workspace-list">
             {workspaces.length === 0 ? (
-              <p className="empty-state">No previous workspaces found.</p>
+              <p className="empty-state">{t("chooser.noWorkspaces")}</p>
             ) : (
               workspaces.map((workspace) => (
                 <button
@@ -1961,7 +1986,7 @@ function WorkspaceChooser({
                 >
                   <span>
                     <strong>{workspace.name}</strong>
-                    <small>Google Drive folder</small>
+                    <small>{t("chooser.driveFolder")}</small>
                   </span>
                   <span aria-hidden="true">→</span>
                 </button>
@@ -1972,8 +1997,11 @@ function WorkspaceChooser({
       </section>
 
       <p className="session-note">
-        Drive access token is kept only in memory for this session and is
-        expected to expire around {new Date(expiresAt).toLocaleTimeString()}.
+        {t("chooser.session", {
+          time: new Date(expiresAt).toLocaleTimeString(
+            i18n.resolvedLanguage ?? "en",
+          ),
+        })}
       </p>
       <StatusBar status={status} />
     </main>
@@ -1994,26 +2022,28 @@ Try editing [[Architecture]], [[Privacy#Boundaries]] or [[Google Drive|storage]]
 `;
 
 function ConfigurationRequired() {
+  const { t } = useTranslation();
   const [demoContent, setDemoContent] = useState(DEMO_MARKDOWN);
   const parsed = useMemo(
     () => markdownParser.parse(demoContent),
     [demoContent],
   );
+  const headingCount = parsed.sections.filter(
+    (section) => section.heading,
+  ).length;
 
   return (
     <main className="preview-shell">
+      <div className="pre-auth-locale">
+        <LanguageSelector compact />
+      </div>
       <header className="preview-intro">
         <div>
-          <span className="eyebrow">Public preview</span>
-          <h1>MindContext editor preview.</h1>
-          <p className="lede">
-            Google Drive is not configured for this deployment yet, but you can
-            already test the Markdown editing experience on desktop or mobile.
-          </p>
+          <span className="eyebrow">{t("demo.eyebrow")}</span>
+          <h1>{t("demo.title")}</h1>
+          <p className="lede">{t("demo.body")}</p>
         </div>
-        <div className="preview-warning">
-          Demo only · content stays in this page and is not persisted.
-        </div>
+        <div className="preview-warning">{t("demo.warning")}</div>
       </header>
 
       <section className="demo-editor-card">
@@ -2021,14 +2051,15 @@ function ConfigurationRequired() {
           <div className="editor-title">
             <strong>Demo.md</strong>
             <span>
-              {parsed.sections.filter((section) => section.heading).length} headings ·{" "}
-              {parsed.wikiLinks.length} wikilinks · {parsed.tags.length} tags
+              {t("demo.headings", { count: headingCount })} ·{" "}
+              {t("demo.wikilinks", { count: parsed.wikiLinks.length })} ·{" "}
+              {t("demo.tags", { count: parsed.tags.length })}
             </span>
           </div>
         </div>
         <MarkdownEditor
           value={demoContent}
-          label="Edit Demo.md"
+          label={t("editor.editFile", { name: "Demo.md" })}
           onChange={setDemoContent}
         />
       </section>
@@ -2046,16 +2077,18 @@ function StatusBar({ status }: { readonly status: AppStatus }) {
   );
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(
+  error: unknown,
+  t: (key: string) => string,
+): string {
   if (error instanceof GoogleDriveApiError && error.status === 401) {
-    return "Google Drive authorization expired. Disconnect and connect again.";
+    return t("errors.driveExpired");
   }
   if (error instanceof Error) {
     return error.message;
   }
-  return "Something unexpected happened.";
+  return t("errors.unexpected");
 }
-
 
 function recentNotesKey(workspaceId: string): string {
   return `mindcontext.recent.${workspaceId}`;
