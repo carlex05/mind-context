@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PRODUCT_PRINCIPLES } from "@mind-context/core";
+import { useTranslation } from "react-i18next";
 import {
   getBacklinks,
   getBrokenLinks,
@@ -56,6 +56,7 @@ import { buildWorkspaceDerivedState } from "./knowledgeWorkspace";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { LocalGraphPanel } from "./LocalGraphPanel";
+import { LanguageSelector } from "./LanguageSelector";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
 import { PropertiesEditor } from "./PropertiesEditor";
 import { QuickSwitcher } from "./QuickSwitcher";
@@ -113,6 +114,7 @@ interface NoteBuffer {
 }
 
 export function App() {
+  const { t } = useTranslation();
   const [authSession, setAuthSession] =
     useState<GoogleDriveAuthSession>();
   const [workspaceService, setWorkspaceService] =
@@ -128,7 +130,9 @@ export function App() {
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const [openNote, setOpenNote] = useState<OpenNote>();
   const [draft, setDraft] = useState("");
-  const [workspaceName, setWorkspaceName] = useState("My Second Brain");
+  const [workspaceName, setWorkspaceName] = useState(
+    () => t("chooser.defaultName"),
+  );
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
   const [searchIndex, setSearchIndex] = useState<LexicalSearchIndex>();
@@ -143,7 +147,7 @@ export function App() {
     window.localStorage.getItem(SEMANTIC_SEARCH_KEY) === "true"
       ? {
           kind: "preparing",
-          message: "Semantic search will initialize for this workspace.",
+          stage: "initialize",
         }
       : { kind: "disabled" },
   );
@@ -182,9 +186,27 @@ export function App() {
   const embeddingProvider = useMemo(
     () =>
       new BrowserEmbeddingProvider((progress) => {
+        if (progress.stage === "model-ready") {
+          setSemanticUi({
+            kind: "preparing",
+            stage: "model-ready",
+            runtime: progress.runtime,
+          });
+          return;
+        }
+        if (progress.stage === "downloading-model") {
+          setSemanticUi({
+            kind: "preparing",
+            stage: "downloading-model",
+            ...(progress.percent === undefined
+              ? {}
+              : { percent: progress.percent }),
+          });
+          return;
+        }
         setSemanticUi({
-          kind: progress.phase === "ready" ? "ready" : "preparing",
-          message: progress.message,
+          kind: "preparing",
+          stage: "loading-model",
         });
       }),
     [],
