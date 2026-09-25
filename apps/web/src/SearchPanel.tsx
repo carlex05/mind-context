@@ -3,6 +3,7 @@ import type {
   SearchHit,
   SearchService,
 } from "@mind-context/search";
+import { useTranslation } from "react-i18next";
 
 export type SemanticUiState =
   | { readonly kind: "disabled" }
@@ -21,6 +22,7 @@ export function SearchPanel({
   readonly onEnableSemantic: () => void;
   readonly onOpenNote: (noteId: string) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<readonly SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -60,7 +62,7 @@ export function SearchPanel({
   }, [service, query]);
 
   return (
-    <section className="search-panel" aria-label="Search notes">
+    <section className="search-panel" aria-label={t("search.aria")}>
       <div className="search-input-wrap">
         <svg
           width="16"
@@ -77,8 +79,8 @@ export function SearchPanel({
         <input
           ref={inputRef}
           type="search"
-          aria-label="Search notes"
-          placeholder="Search notes…"
+          aria-label={t("search.aria")}
+          placeholder={t("search.placeholder")}
           value={query}
           autoFocus
           onChange={(event) => setQuery(event.target.value)}
@@ -86,7 +88,7 @@ export function SearchPanel({
         {query ? (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={t("search.clear")}
             onClick={() => {
               setQuery("");
               inputRef.current?.focus();
@@ -104,31 +106,31 @@ export function SearchPanel({
 
       {!query.trim() ? (
         <div className="search-empty">
-          <strong>Search your brain</strong>
-          <p>
-            Titles, aliases, tags, headings, paths and Markdown contents are
-            searched locally in this browser.
-          </p>
+          <strong>{t("search.introTitle")}</strong>
+          <p>{t("search.intro")}</p>
           <small>
             {semantic.kind === "ready"
-              ? "Hybrid ranking combines lexical and local semantic search."
-              : "Lexical search works without loading an AI model."}
+              ? t("search.hybridHint")
+              : t("search.lexicalHint")}
           </small>
         </div>
       ) : searching ? (
         <div className="search-empty">
-          <strong>Searching locally…</strong>
+          <strong>{t("search.searching")}</strong>
         </div>
       ) : results.length === 0 ? (
         <div className="search-empty">
-          <strong>No matches</strong>
-          <p>Try fewer words or a different spelling.</p>
+          <strong>{t("search.noMatches")}</strong>
+          <p>{t("search.noMatchesHint")}</p>
         </div>
       ) : (
         <>
           <div className="search-results-meta">
-            {results.length} result{results.length === 1 ? "" : "s"}
-            {semantic.kind === "ready" ? " · hybrid" : " · lexical"}
+            {t("search.results", { count: results.length })}
+            {" · "}
+            {semantic.kind === "ready"
+              ? t("search.modeHybrid")
+              : t("search.modeLexical")}
           </div>
           <div className="search-results">
             {results.map((result) => (
@@ -164,19 +166,18 @@ function SemanticSearchCard({
   readonly state: SemanticUiState;
   readonly onEnable: () => void;
 }) {
+  const { t } = useTranslation();
+
   if (state.kind === "disabled") {
     return (
       <div className="semantic-search-card">
         <div>
-          <strong>Semantic search</strong>
-          <span>Optional · runs on this device</span>
+          <strong>{t("semantic.title")}</strong>
+          <span>{t("semantic.optionalLocal")}</span>
         </div>
-        <p>
-          Find related ideas even when they use different words. The first use
-          downloads a multilingual embedding model to the browser cache.
-        </p>
+        <p>{t("semantic.description")}</p>
         <button type="button" onClick={onEnable}>
-          Enable local semantic search
+          {t("semantic.enable")}
         </button>
       </div>
     );

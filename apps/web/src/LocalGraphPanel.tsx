@@ -4,6 +4,7 @@ import {
   type KnowledgeIndexSnapshot,
   type LocalGraphDirection,
 } from "@mind-context/knowledge";
+import { useTranslation } from "react-i18next";
 
 export function LocalGraphPanel({
   index,
@@ -14,6 +15,7 @@ export function LocalGraphPanel({
   readonly activeNoteId: string | undefined;
   readonly onOpenNote: (noteId: string) => void;
 }) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const graph = useMemo(
     () =>
@@ -55,9 +57,9 @@ export function LocalGraphPanel({
             },
             classes: node.direction,
           })),
-          ...graph.edges.map((edge, index) => ({
+          ...graph.edges.map((edge, indexNumber) => ({
             data: {
-              id: `edge-${index}-${edge.sourceNoteId}-${edge.targetNoteId}`,
+              id: `edge-${indexNumber}-${edge.sourceNoteId}-${edge.targetNoteId}`,
               source: edge.sourceNoteId,
               target: edge.targetNoteId,
             },
@@ -139,8 +141,8 @@ export function LocalGraphPanel({
   if (!activeNoteId) {
     return (
       <div className="graph-empty">
-        <strong>Local graph</strong>
-        <p>Open a note to see its outgoing links and backlinks.</p>
+        <strong>{t("graph.local")}</strong>
+        <p>{t("graph.openNoteHint")}</p>
       </div>
     );
   }
@@ -148,8 +150,8 @@ export function LocalGraphPanel({
   if (!graph) {
     return (
       <div className="graph-empty">
-        <strong>Local graph unavailable</strong>
-        <p>The active note is not present in the local knowledge index.</p>
+        <strong>{t("graph.unavailable")}</strong>
+        <p>{t("graph.missingActive")}</p>
       </div>
     );
   }
@@ -159,15 +161,14 @@ export function LocalGraphPanel({
   );
 
   return (
-    <section className="local-graph-panel" aria-label="Local graph">
+    <section className="local-graph-panel" aria-label={t("graph.local")}>
       <div
         ref={containerRef}
         className="local-graph-canvas"
         aria-hidden="true"
       />
       <div className="local-graph-meta">
-        <strong>{neighbors.length}</strong>
-        <span>connected note{neighbors.length === 1 ? "" : "s"}</span>
+        <span>{t("graph.connected", { count: neighbors.length })}</span>
       </div>
 
       {neighbors.length > 0 ? (
@@ -179,28 +180,29 @@ export function LocalGraphPanel({
               onClick={() => onOpenNote(node.noteId)}
             >
               <span>{node.title}</span>
-              <small>{directionLabel(node.direction)}</small>
+              <small>{directionLabel(node.direction, t)}</small>
             </button>
           ))}
         </div>
       ) : (
-        <p className="sidebar-help">
-          This note has no resolved links or backlinks yet.
-        </p>
+        <p className="sidebar-help">{t("graph.noConnections")}</p>
       )}
     </section>
   );
 }
 
-function directionLabel(direction: LocalGraphDirection): string {
+function directionLabel(
+  direction: LocalGraphDirection,
+  t: (key: string) => string,
+): string {
   switch (direction) {
     case "outgoing":
-      return "Outgoing";
+      return t("graph.outgoing");
     case "backlink":
-      return "Backlink";
+      return t("graph.backlink");
     case "both":
-      return "Both directions";
+      return t("graph.both");
     case "center":
-      return "Current note";
+      return t("graph.current");
   }
 }
