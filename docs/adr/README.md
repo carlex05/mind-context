@@ -13,6 +13,7 @@ Accepted decisions:
 | [ADR-007](ADR-007-safe-vault-file-mutations.md) | Safe file mutations + conservative link rewriting | Accepted for MVP |
 | [ADR-008](ADR-008-local-semantic-search.md) | Opt-in local semantic search | Accepted |
 | [ADR-009](ADR-009-open-workspace-starters-and-empty-vault-onboarding.md) | Open-format workspace starters + empty-vault onboarding | Accepted |
+| [ADR-010](ADR-010-persistent-local-drafts-and-deferred-drive-sync.md) | Persistent local drafts + deferred Drive synchronization | Accepted |
 
 ## ADR rule
 
