@@ -99,7 +99,9 @@ function PropertyList({
           ))}
         </div>
         <input
-          aria-label={addLabel}
+          aria-label={t("properties.addValue", {
+            label: label.toLocaleLowerCase(),
+          })}
           value={value}
           list={suggestions.length > 0 ? listId : undefined}
           onChange={(event) => setValue(event.target.value)}
