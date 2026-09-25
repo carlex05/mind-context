@@ -26,7 +26,7 @@ const en = {
     files: "Files",
     search: "Search",
     graph: "Graph",
-    tags_one: "Tags",
+    tags: "Tags",
     settings: "Settings",
     workspaceViews: "Workspace views",
     openTabs: "Open tabs",
@@ -126,7 +126,7 @@ const en = {
   properties: {
     aria: "Note properties",
     title: "Properties",
-    tags_one: "Tags",
+    tags: "Tags",
     aliases: "Aliases",
     addTag: "Add tag",
     addAlias: "Add alias",
@@ -205,7 +205,7 @@ const en = {
     switchWorkspace: "Switch workspace",
     workspaceState: "Tabs and panel layout are stored only in this browser. Your Markdown remains in Drive.",
   },
-  tags_one: {
+  tags: {
     all: "← All tags",
     empty: "No tags in this workspace yet.",
   },
@@ -234,7 +234,7 @@ const en = {
     ]
   },
   chooser: {
-    connected_one: "Google Drive connected",
+    connected: "Google Drive connected",
     title: "Choose your brain.",
     body: "MindContext uses the narrow drive.file permission and keeps its knowledge graph as a rebuildable browser-local projection.",
     disconnect: "Disconnect",
@@ -286,7 +286,7 @@ const es = {
     files: "Archivos",
     search: "Buscar",
     graph: "Grafo",
-    tags_one: "Etiquetas",
+    tags: "Etiquetas",
     settings: "Ajustes",
     workspaceViews: "Vistas del espacio",
     openTabs: "Pestañas abiertas",
@@ -386,7 +386,7 @@ const es = {
   properties: {
     aria: "Propiedades de la nota",
     title: "Propiedades",
-    tags_one: "Etiquetas",
+    tags: "Etiquetas",
     aliases: "Aliases",
     addTag: "Añadir etiqueta",
     addAlias: "Añadir alias",
@@ -465,7 +465,7 @@ const es = {
     switchWorkspace: "Cambiar de Second Brain",
     workspaceState: "Las pestañas y el layout de paneles se guardan sólo en este navegador. Tu Markdown permanece en Drive.",
   },
-  tags_one: {
+  tags: {
     all: "← Todas las etiquetas",
     empty: "Todavía no hay etiquetas en este Second Brain.",
   },
@@ -494,7 +494,7 @@ const es = {
     ]
   },
   chooser: {
-    connected_one: "Google Drive conectado",
+    connected: "Google Drive conectado",
     title: "Elige tu Second Brain.",
     body: "MindContext usa el permiso limitado drive.file y mantiene su grafo de conocimiento como una proyección local y reconstruible en el navegador.",
     disconnect: "Desconectar",
