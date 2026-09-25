@@ -30,6 +30,14 @@ Storage provider credentials are never extension capabilities.
 The project should eventually include automated browser tests that create unique secret content and assert that the secret never appears in requests to MindContext-controlled domains during editing, indexing, search or local RAG.
 
 
+## Browser-local pending drafts
+
+Pending local drafts MAY contain user changes that have not reached canonical
+storage yet. They are sensitive recovery state, remain browser-local and MUST
+NOT be cleared together with disposable search/embedding indexes. Once a draft
+is confirmed in canonical storage and no newer local edit exists, its pending
+record should be removed.
+
 ## Browser-local derived copies
 
 For incremental full-text retrieval, IndexedDB MAY contain local copies of
