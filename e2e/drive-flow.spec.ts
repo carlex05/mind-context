@@ -229,6 +229,42 @@ test("keeps multiple note tabs and restores them from local workspace state", as
   ).toHaveCount(0);
 });
 
+test("preserves unsaved drafts in memory while switching note tabs", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Alpha");
+  const alphaEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await replaceEditorContent(
+    page,
+    alphaEditor,
+    "# Alpha\n\nUnsaved tab draft",
+  );
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Beta");
+
+  const tabs = page.getByLabel("Open tabs");
+  await expect(tabs.locator(".workspace-tab-dirty")).toHaveCount(1);
+
+  await tabs.getByRole("button", { name: "Alpha", exact: true }).click();
+  const restoredAlpha = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await expect(restoredAlpha).toContainText("Unsaved tab draft");
+
+  expect(drive.noteContentByName("Alpha.md")).not.toContain(
+    "Unsaved tab draft",
+  );
+
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(
+    page.getByText("Saved to Drive and updated the local knowledge index."),
+  ).toBeVisible();
+  expect(drive.noteContentByName("Alpha.md")).toContain("Unsaved tab draft");
+});
+
 test("manages nested folders and safely rewrites resolved links on rename", async ({
   page,
 }, testInfo) => {

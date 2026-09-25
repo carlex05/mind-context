@@ -2313,3 +2313,23 @@ h2 {
     opacity: 1;
   }
 }
+
+
+.workspace-tab-main {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.workspace-tab-main > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-tab-dirty {
+  flex: 0 0 auto;
+  color: #b7791f;
+  font-size: 0.45rem;
+}
