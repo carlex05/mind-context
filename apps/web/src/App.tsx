@@ -13,8 +13,18 @@ import {
   markdownParser,
   updateFrontmatterStringList,
 } from "@mind-context/markdown";
-import { IndexedDbKnowledgeIndexStore } from "@mind-context/persistence-indexeddb";
-import type { LexicalSearchIndex } from "@mind-context/search";
+import {
+  IndexedDbKnowledgeIndexStore,
+  IndexedDbSearchIndexStore,
+} from "@mind-context/persistence-indexeddb";
+import {
+  LexicalSearchIndex,
+  canReuseSearchDocument,
+  createSearchDocument,
+  createSearchIndexSnapshot,
+  upsertSearchDocument,
+  type SearchIndexSnapshot,
+} from "@mind-context/search";
 import {
   GoogleDriveApiError,
   GoogleDriveStorageProvider,
@@ -67,6 +77,7 @@ import {
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
 const knowledgeStore = new IndexedDbKnowledgeIndexStore();
+const searchStore = new IndexedDbSearchIndexStore();
 
 type AppStatus =
   | { readonly kind: "idle" }
@@ -104,6 +115,8 @@ export function App() {
   const [knowledgeIndex, setKnowledgeIndex] =
     useState<KnowledgeIndexSnapshot>();
   const [searchIndex, setSearchIndex] = useState<LexicalSearchIndex>();
+  const [searchSnapshot, setSearchSnapshot] =
+    useState<SearchIndexSnapshot>();
   const [tabs, setTabs] = useState<readonly WorkspaceTab[]>([]);
   const [tabBuffers, setTabBuffers] = useState<
     Readonly<Record<string, NoteBuffer>>
