@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { KnowledgeIndexSnapshot } from "@mind-context/knowledge";
 import type { StorageProvider } from "@mind-context/storage";
+import { useTranslation } from "react-i18next";
 
 import {
   backlinkCountForNode,
@@ -41,6 +42,7 @@ export function WorkspaceExplorer({
     kind?: "busy" | "success" | "error",
   ) => void;
 }) {
+  const { t } = useTranslation();
   const [selectedItemId, setSelectedItemId] = useState<string>();
   const [menuItemId, setMenuItemId] = useState<string>();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
@@ -48,40 +50,33 @@ export function WorkspaceExplorer({
   );
 
   const folders = useMemo(() => workspaceFolders(tree), [tree]);
-  const selectedItem = selectedItemId
-    ? findWorkspaceNode(tree, selectedItemId)
-    : undefined;
 
   async function renameNode(node: WorkspaceTreeNode) {
-    const value = window.prompt("New name", node.metadata.name);
+    const value = window.prompt(t("explorer.newName"), node.metadata.name);
     if (value === null || value.trim() === node.metadata.name) return;
 
     const backlinks = backlinkCountForNode(index, node);
-    if (
-      !window.confirm(
-        backlinks > 0
-          ? `Rename “${node.metadata.name}”? ${backlinks} resolved incoming link${
-              backlinks === 1 ? "" : "s"
-            } can be updated safely.`
-          : `Rename “${node.metadata.name}”?`,
-      )
-    ) {
-      return;
-    }
+    const confirmation =
+      backlinks > 0
+        ? t("explorer.renameIncomingConfirm", {
+            name: node.metadata.name,
+            count: backlinks,
+          })
+        : t("explorer.renameConfirm", { name: node.metadata.name });
 
-    onStatus("Renaming and updating resolved links…", "busy");
+    if (!window.confirm(confirmation)) return;
+
+    onStatus(t("explorer.renaming"), "busy");
     try {
       const result = await renameVaultItem(provider, index, node, value);
       await onChanged();
       onStatus(
-        `Renamed. Updated ${result.rewrittenNotes} linked note${
-          result.rewrittenNotes === 1 ? "" : "s"
-        }.`,
+        t("explorer.linksUpdated", { count: result.rewrittenNotes }),
         "success",
       );
     } catch (error) {
       await onChanged();
-      onStatus(errorMessage(error), "error");
+      onStatus(errorMessage(error, t("errors.unexpected")), "error");
     }
   }
 
@@ -93,25 +88,26 @@ export function WorkspaceExplorer({
 
     if (
       !window.confirm(
-        `Move “${node.metadata.name}” to ${destination?.path ?? "/"}? Resolved links will be recalculated.`,
+        t("explorer.moveConfirm", {
+          name: node.metadata.name,
+          destination: destination?.path ?? "/",
+        }),
       )
     ) {
       return;
     }
 
-    onStatus("Moving and updating resolved links…", "busy");
+    onStatus(t("explorer.moving"), "busy");
     try {
       const result = await moveVaultItem(provider, index, node, destination);
       await onChanged();
       onStatus(
-        `Moved. Updated ${result.rewrittenNotes} linked note${
-          result.rewrittenNotes === 1 ? "" : "s"
-        }.`,
+        t("explorer.movedUpdated", { count: result.rewrittenNotes }),
         "success",
       );
     } catch (error) {
       await onChanged();
-      onStatus(errorMessage(error), "error");
+      onStatus(errorMessage(error, t("errors.unexpected")), "error");
     }
   }
 
@@ -119,18 +115,21 @@ export function WorkspaceExplorer({
     const backlinks = backlinkCountForNode(index, node);
     const detail =
       backlinks > 0
-        ? ` This leaves ${backlinks} incoming link${backlinks === 1 ? "" : "s"} unresolved.`
+        ? t("explorer.incomingLinks", { count: backlinks })
         : "";
 
     if (
       !window.confirm(
-        `Delete “${node.metadata.name}” from Google Drive?${detail}`,
+        t("explorer.deleteConfirm", {
+          name: node.metadata.name,
+          detail,
+        }),
       )
     ) {
       return;
     }
 
-    onStatus("Deleting from Google Drive…", "busy");
+    onStatus(t("explorer.deleting"), "busy");
     try {
       await provider.delete(
         node.metadata.id,
@@ -144,10 +143,10 @@ export function WorkspaceExplorer({
         onSelectedFolderIdChange(provider.rootId);
       }
       await onChanged();
-      onStatus("Deleted and local index rebuilt.", "success");
+      onStatus(t("explorer.deleted"), "success");
     } catch (error) {
       await onChanged();
-      onStatus(errorMessage(error), "error");
+      onStatus(errorMessage(error, t("errors.unexpected")), "error");
     }
   }
 
@@ -161,50 +160,48 @@ export function WorkspaceExplorer({
   }
 
   return (
-    <>
-      <nav className="file-tree" aria-label="Workspace files">
-        <button
-          className={`tree-row root-row ${
-            selectedFolderId === provider.rootId ? "selected" : ""
-          }`}
-          type="button"
-          onClick={() => {
-            onSelectedFolderIdChange(provider.rootId);
-            setSelectedItemId(undefined);
-            setMenuItemId(undefined);
-          }}
-        >
-          <span aria-hidden="true">⌂</span>
-          <span>/</span>
-        </button>
-        {tree.map((node) => (
-          <TreeNode
-            key={node.metadata.id}
-            node={node}
-            depth={0}
-            activeNoteId={activeNoteId}
-            selectedItemId={selectedItemId}
-            selectedFolderId={selectedFolderId}
-            menuItemId={menuItemId}
-            folders={folders}
-            rootId={provider.rootId}
-            expanded={expanded}
-            onToggleFolder={toggleFolder}
-            onSelectItem={setSelectedItemId}
-            onSelectFolder={onSelectedFolderIdChange}
-            onOpenNote={onOpenNote}
-            onMenuItem={setMenuItemId}
-            onNewNote={onRequestNewNote}
-            onNewFolder={onRequestNewFolder}
-            onRename={(node) => void renameNode(node)}
-            onMove={(node, destinationId) =>
-              void moveNode(node, destinationId)
-            }
-            onDelete={(node) => void deleteNode(node)}
-          />
-        ))}
-      </nav>
-    </>
+    <nav className="file-tree" aria-label={t("explorer.workspaceFiles")}>
+      <button
+        className={`tree-row root-row ${
+          selectedFolderId === provider.rootId ? "selected" : ""
+        }`}
+        type="button"
+        onClick={() => {
+          onSelectedFolderIdChange(provider.rootId);
+          setSelectedItemId(undefined);
+          setMenuItemId(undefined);
+        }}
+      >
+        <span aria-hidden="true">⌂</span>
+        <span>/</span>
+      </button>
+      {tree.map((node) => (
+        <TreeNode
+          key={node.metadata.id}
+          node={node}
+          depth={0}
+          activeNoteId={activeNoteId}
+          selectedItemId={selectedItemId}
+          selectedFolderId={selectedFolderId}
+          menuItemId={menuItemId}
+          folders={folders}
+          rootId={provider.rootId}
+          expanded={expanded}
+          onToggleFolder={toggleFolder}
+          onSelectItem={setSelectedItemId}
+          onSelectFolder={onSelectedFolderIdChange}
+          onOpenNote={onOpenNote}
+          onMenuItem={setMenuItemId}
+          onNewNote={onRequestNewNote}
+          onNewFolder={onRequestNewFolder}
+          onRename={(target) => void renameNode(target)}
+          onMove={(target, destinationId) =>
+            void moveNode(target, destinationId)
+          }
+          onDelete={(target) => void deleteNode(target)}
+        />
+      ))}
+    </nav>
   );
 }
 
@@ -249,6 +246,7 @@ function TreeNode({
   readonly onMove: (node: WorkspaceTreeNode, destinationId: string) => void;
   readonly onDelete: (node: WorkspaceTreeNode) => void;
 }) {
+  const { t } = useTranslation();
   const isFolder = node.metadata.kind === "directory";
   const isExpanded = expanded.has(node.metadata.id);
   const menuOpen = menuItemId === node.metadata.id;
@@ -269,8 +267,8 @@ function TreeNode({
             type="button"
             aria-label={
               isExpanded
-                ? `Collapse ${node.metadata.name}`
-                : `Expand ${node.metadata.name}`
+                ? t("explorer.collapse", { name: node.metadata.name })
+                : t("explorer.expand", { name: node.metadata.name })
             }
             onClick={() => onToggleFolder(node.metadata.id)}
           >
@@ -298,7 +296,7 @@ function TreeNode({
         <button
           className="tree-menu-trigger"
           type="button"
-          aria-label={`Actions for ${node.metadata.name}`}
+          aria-label={t("explorer.actionsFor", { name: node.metadata.name })}
           onClick={() => onMenuItem(menuOpen ? undefined : node.metadata.id)}
         >
           ⋯
@@ -313,16 +311,18 @@ function TreeNode({
           {isFolder ? (
             <>
               <button type="button" onClick={() => onNewNote(node.metadata.id)}>
-                New note here
+                {t("explorer.newNoteHere")}
               </button>
               <button type="button" onClick={() => onNewFolder(node.metadata.id)}>
-                New folder here
+                {t("explorer.newFolderHere")}
               </button>
             </>
           ) : null}
-          <button type="button" onClick={() => onRename(node)}>Rename</button>
+          <button type="button" onClick={() => onRename(node)}>
+            {t("explorer.rename")}
+          </button>
           <label>
-            Move to
+            {t("explorer.moveTo")}
             <select
               defaultValue=""
               onChange={(event) => {
@@ -331,7 +331,7 @@ function TreeNode({
                 if (destinationId) onMove(node, destinationId);
               }}
             >
-              <option value="">Choose…</option>
+              <option value="">{t("explorer.choose")}</option>
               <option value={rootId}>/</option>
               {folders
                 .filter(
@@ -346,8 +346,12 @@ function TreeNode({
                 ))}
             </select>
           </label>
-          <button className="danger-action" type="button" onClick={() => onDelete(node)}>
-            Delete
+          <button
+            className="danger-action"
+            type="button"
+            onClick={() => onDelete(node)}
+          >
+            {t("explorer.delete")}
           </button>
         </div>
       ) : null}
@@ -382,8 +386,6 @@ function TreeNode({
   );
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error
-    ? error.message
-    : "Something unexpected happened.";
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
