@@ -144,6 +144,98 @@ test("switches UI language and persists the locale preference", async ({
   ).toBeVisible();
 });
 
+test("creates a Spanish PARA starter independently of the UI language", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page.getByRole("button", { name: "Create in Drive" }).click();
+
+  const onboarding = page.getByRole("dialog", {
+    name: "How do you want to start?",
+  });
+  await expect(onboarding).toBeVisible();
+  await onboarding.getByRole("button", { name: /PARA/ }).click();
+  await onboarding.getByLabel("Template language").selectOption("es");
+  await onboarding
+    .getByRole("button", { name: "Create Second Brain", exact: true })
+    .click();
+
+  await expect(
+    page.getByRole("complementary", { name: "Files" }),
+  ).toBeVisible();
+
+  expect(drive.paths()).toEqual(
+    expect.arrayContaining([
+      "Empieza aquí.md",
+      "Proyectos",
+      "Proyectos/README.md",
+      "Áreas",
+      "Áreas/README.md",
+      "Recursos",
+      "Recursos/README.md",
+      "Archivo",
+      "Archivo/README.md",
+    ]),
+  );
+  expect(drive.contentByPath("Proyectos/README.md")).toContain("# Proyectos");
+  expect(drive.contentByPath("Empieza aquí.md")).toContain(
+    "[[Proyectos/README|Cómo usar Proyectos]]",
+  );
+  expect(drive.paths().some((path) => path.startsWith(".mindcontext"))).toBe(
+    false,
+  );
+});
+
+test("suggests onboarding for an existing completely empty Second Brain and remembers keep blank", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  drive.seedExistingWorkspace();
+  await prepareDrive(page, drive);
+
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page
+    .getByRole("button", { name: /My Second Brain/ })
+    .click();
+
+  const onboarding = page.getByRole("dialog", {
+    name: "This Second Brain is completely empty",
+  });
+  await expect(onboarding).toBeVisible();
+
+  await onboarding.getByRole("button", { name: /Blank/ }).click();
+  await onboarding
+    .getByRole("button", { name: "Keep blank", exact: true })
+    .click();
+  await expect(onboarding).not.toBeVisible();
+  expect(drive.paths()).toEqual([]);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("complementary", { name: "Settings" });
+  await settings
+    .getByRole("button", { name: "Switch workspace", exact: true })
+    .click();
+
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page
+    .getByRole("button", { name: /My Second Brain/ })
+    .click();
+
+  await expect(
+    page.getByRole("dialog", {
+      name: "This Second Brain is completely empty",
+    }),
+  ).not.toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Files" }),
+  ).toBeVisible();
+});
+
 test("persists theme, offers quick switching, reading view and wikilink suggestions", async ({
   page,
 }, testInfo) => {
@@ -560,6 +652,15 @@ async function openFreshWorkspace(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Connect Google Drive" }).click();
   await expect(page.getByText("Choose your brain.")).toBeVisible();
   await page.getByRole("button", { name: "Create in Drive" }).click();
+
+  const onboarding = page.getByRole("dialog", {
+    name: "How do you want to start?",
+  });
+  await expect(onboarding).toBeVisible();
+  await onboarding
+    .getByRole("button", { name: "Create Second Brain", exact: true })
+    .click();
+
   await expect(
     page.getByRole("complementary", { name: "Files" }),
   ).toBeVisible();
@@ -651,6 +752,10 @@ interface StoredObject {
 
 class FakeDrive {
   private workspaceCreated = false;
+
+  seedExistingWorkspace(): void {
+    this.workspaceCreated = true;
+  }
   private nextNoteNumber = 1;
   private nextFolderNumber = 1;
   private mediaReads = 0;
@@ -878,6 +983,19 @@ class FakeDrive {
     );
     if (!object) return undefined;
     return this.pathFor(object);
+  }
+
+  paths(): readonly string[] {
+    return Array.from(this.objects.values())
+      .map((object) => this.pathFor(object))
+      .sort((left, right) => left.localeCompare(right));
+  }
+
+  contentByPath(path: string): string | undefined {
+    const object = Array.from(this.objects.values()).find(
+      (candidate) => this.pathFor(candidate) === path,
+    );
+    return object?.content;
   }
 
   private pathFor(object: StoredObject): string {
