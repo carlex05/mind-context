@@ -642,10 +642,15 @@ export function App() {
           workspace.id,
           restoredActiveId,
         );
+        const {
+          revision: _remoteRevision,
+          contentRevision: _remoteContentRevision,
+          ...stableMetadata
+        } = metadata;
         const restoredNote: OpenNote = pendingDraft
           ? {
               metadata: {
-                ...metadata,
+                ...stableMetadata,
                 ...(pendingDraft.baseRevision
                   ? { revision: pendingDraft.baseRevision }
                   : {}),
@@ -864,10 +869,15 @@ export function App() {
         const pendingDraft = activeWorkspace
           ? await pendingDraftStore.get(activeWorkspace.id, id)
           : undefined;
+        const {
+          revision: _remoteRevision,
+          contentRevision: _remoteContentRevision,
+          ...stableMetadata
+        } = metadata;
         nextNote = pendingDraft
           ? {
               metadata: {
-                ...metadata,
+                ...stableMetadata,
                 ...(pendingDraft.baseRevision
                   ? { revision: pendingDraft.baseRevision }
                   : {}),
