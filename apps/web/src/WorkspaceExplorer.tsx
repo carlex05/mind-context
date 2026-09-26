@@ -18,6 +18,7 @@ export function WorkspaceExplorer({
   provider,
   tree,
   index,
+  loading,
   activeNoteId,
   selectedFolderId,
   onSelectedFolderIdChange,
@@ -30,6 +31,7 @@ export function WorkspaceExplorer({
   readonly provider: StorageProvider;
   readonly tree: readonly WorkspaceTreeNode[];
   readonly index: KnowledgeIndexSnapshot | undefined;
+  readonly loading: boolean;
   readonly activeNoteId: string | undefined;
   readonly selectedFolderId: string;
   readonly onSelectedFolderIdChange: (id: string) => void;
@@ -161,6 +163,21 @@ export function WorkspaceExplorer({
 
   return (
     <nav className="file-tree" aria-label={t("explorer.workspaceFiles")}>
+      {loading ? (
+        <div className="drive-tree-loading" role="status" aria-live="polite">
+          <div className="drive-tree-loading-title">
+            <span className="drive-loading-spinner" aria-hidden="true" />
+            <span>{t("workspaceLoading.files")}</span>
+          </div>
+          <div className="drive-tree-skeleton" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+      ) : (
+        <>
       <button
         className={`tree-row root-row ${
           selectedFolderId === provider.rootId ? "selected" : ""
@@ -201,6 +218,8 @@ export function WorkspaceExplorer({
           onDelete={(target) => void deleteNode(target)}
         />
       ))}
+        </>
+      )}
     </nav>
   );
 }
