@@ -54,6 +54,7 @@ import {
   DEFAULT_BROWSER_EMBEDDING_MODEL,
 } from "./browserEmbeddings";
 import { buildWorkspaceDerivedState } from "./knowledgeWorkspace";
+import { createRecoveryCopy } from "./recovery";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { LocalGraphPanel } from "./LocalGraphPanel";
@@ -127,6 +128,12 @@ interface NoteBuffer {
   readonly draft: string;
 }
 
+interface NoteConflict {
+  readonly remoteMetadata: StorageObjectMetadata;
+  readonly remoteContent: string;
+  readonly recoveryFileName: string;
+}
+
 export function App() {
   const { t, i18n } = useTranslation();
   const [authSession, setAuthSession] =
@@ -171,6 +178,9 @@ export function App() {
   >({});
   const [noteSyncStates, setNoteSyncStates] = useState<
     Readonly<Record<string, NoteSyncState>>
+  >({});
+  const [noteConflicts, setNoteConflicts] = useState<
+    Readonly<Record<string, NoteConflict>>
   >({});
   const tabBuffersRef = useRef<Readonly<Record<string, NoteBuffer>>>({});
   const noteSyncStatesRef = useRef<Readonly<Record<string, NoteSyncState>>>({});
@@ -918,12 +928,14 @@ export function App() {
     setDraft(value);
     if (!activeTabId || !openNote) return;
 
+    const currentBuffer = tabBuffersRef.current[activeTabId];
+    const currentNote = currentBuffer?.note ?? openNote;
     putTabBuffer(activeTabId, {
-      note: openNote,
+      note: currentNote,
       draft: value,
     });
 
-    if (value === openNote.originalContent) {
+    if (value === currentNote.originalContent) {
       cancelLocalDraftTimer(activeTabId);
       cancelDriveSyncTimer(activeTabId);
       if (activeWorkspace) {
@@ -1000,8 +1012,8 @@ export function App() {
 
     cancelLocalDraftTimer(noteId);
     cancelDriveSyncTimer(noteId);
-    if (tabDirty && activeWorkspace) {
-      await pendingDraftStore.delete(activeWorkspace.id, noteId);
+    if (tabDirty) {
+      await persistPendingDraft(noteId, false);
     }
 
     const remaining = tabs.filter((tab) => tab.noteId !== noteId);
@@ -1305,6 +1317,9 @@ export function App() {
       ...(buffer.note.metadata.revision
         ? { baseRevision: buffer.note.metadata.revision }
         : {}),
+      ...(buffer.note.metadata.contentRevision
+        ? { baseContentRevision: buffer.note.metadata.contentRevision }
+        : {}),
       updatedAt: new Date().toISOString(),
     });
 
@@ -1395,9 +1410,11 @@ export function App() {
       const metadata = await provider.writeText(
         noteId,
         contentToSave,
-        noteAtStart.metadata.revision
-          ? { expectedRevision: noteAtStart.metadata.revision }
-          : undefined,
+        noteAtStart.metadata.contentRevision
+          ? { expectedContentRevision: noteAtStart.metadata.contentRevision }
+          : noteAtStart.metadata.revision
+            ? { expectedRevision: noteAtStart.metadata.revision }
+            : undefined,
       );
 
       const latest = tabBuffersRef.current[noteId] ?? buffer;
@@ -1423,6 +1440,9 @@ export function App() {
           content: latest.draft,
           baseContent: contentToSave,
           ...(metadata.revision ? { baseRevision: metadata.revision } : {}),
+          ...(metadata.contentRevision
+            ? { baseContentRevision: metadata.contentRevision }
+            : {}),
           updatedAt: new Date().toISOString(),
         });
         setNoteSyncState(noteId, "local");
