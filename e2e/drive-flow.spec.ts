@@ -345,16 +345,23 @@ test("preserves a local draft and surfaces conflict after a remote Drive change"
     )
     .toBe(true);
 
+  await expect
+    .poll(() =>
+      drive.paths().find(
+        (path) =>
+          path.includes(".mindcontext-recovery/resolved--") &&
+          path.includes("Conflict.remote-before-overwrite.") &&
+          path.endsWith(".md"),
+      ),
+    )
+    .toBeTruthy();
   const remoteRecoveryPath = drive.paths().find(
     (path) =>
-      path.includes(
-        ".mindcontext-recovery/resolved--",
-      ) &&
+      path.includes(".mindcontext-recovery/resolved--") &&
       path.includes("Conflict.remote-before-overwrite.") &&
       path.endsWith(".md"),
-  );
-  expect(remoteRecoveryPath).toBeTruthy();
-  expect(drive.contentByPath(remoteRecoveryPath!)).toBe(
+  )!;
+  expect(drive.contentByPath(remoteRecoveryPath)).toBe(
     "# Conflict\n\nremote version",
   );
 
