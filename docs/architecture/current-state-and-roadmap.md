@@ -300,13 +300,13 @@ Implemented baseline:
 - preservation of the remote version before an explicit "keep mine" overwrite;
 - visible local/syncing/synced/conflict/error state;
 - explicit "keep mine" and "use Drive" conflict actions;
+- Settings → Recovery history with restore/delete actions and resolved-copy retention policy;
 - edits made during an in-flight Drive write are queued as a newer local draft;
 - closing a tab does not delete a pending recovery draft.
 
 Remaining hardening:
 
 - richer side-by-side compare and automatic three-way text merge;
-- recovery-management/retention UI for resolved temporary artifacts;
 - offline retry/backoff and explicit connectivity state;
 - future remote Drive change-feed detection for multi-device reconciliation.
 
