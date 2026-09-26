@@ -321,7 +321,8 @@ describe("GoogleDriveStorageProvider", () => {
     let unauthorized = 0;
     const expiringTokenProvider: AccessTokenProvider = {
       getAccessToken: () => "expired-token",
-      onUnauthorized: () => {
+      onUnauthorized: (accessToken) => {
+        expect(accessToken).toBe("expired-token");
         unauthorized += 1;
       },
     };
