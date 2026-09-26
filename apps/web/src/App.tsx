@@ -2149,44 +2149,43 @@ export function App() {
             onSave={() => void saveNote()}
           />
 
-          {openNote && activeConflict ? (
-            <section className="conflict-banner" role="alert">
-              <div>
-                <strong>{t("conflict.title")}</strong>
-                <p>
-                  {activeConflict.recoveryFileName
-                    ? t("conflict.recoveryCreated", {
-                        name: activeConflict.recoveryFileName,
-                      })
-                    : t("conflict.localOnly")}
-                </p>
-              </div>
-              <div className="conflict-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    void resolveConflictUseDrive(openNote.metadata.id)
-                  }
-                >
-                  {t("conflict.useDrive")}
-                </button>
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() =>
-                    void resolveConflictKeepLocal(openNote.metadata.id)
-                  }
-                >
-                  {t("conflict.keepMine")}
-                </button>
-              </div>
-            </section>
-          ) : null}
-
           <section className="editor-panel-v2" aria-label={t("editor.aria")}>
             {openNote ? (
               <>
+                {openNote && activeConflict ? (
+                  <section className="conflict-banner" role="alert">
+                    <div>
+                      <strong>{t("conflict.title")}</strong>
+                      <p>
+                        {activeConflict.recoveryFileName
+                          ? t("conflict.recoveryCreated", {
+                              name: activeConflict.recoveryFileName,
+                            })
+                          : t("conflict.localOnly")}
+                      </p>
+                    </div>
+                    <div className="conflict-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          void resolveConflictUseDrive(openNote.metadata.id)
+                        }
+                      >
+                        {t("conflict.useDrive")}
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() =>
+                          void resolveConflictKeepLocal(openNote.metadata.id)
+                        }
+                      >
+                        {t("conflict.keepMine")}
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
                 <button
                   className="mobile-files-button"
                   type="button"
