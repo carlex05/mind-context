@@ -561,6 +561,9 @@ export function App() {
 
     setWorkspaceLoading(true);
     setTree([]);
+    setActiveLeftPanel("files");
+    setLeftSidebarOpen(true);
+    setMobileSidebarOpen(true);
     setStatus({ kind: "busy", message: t("status.openingWorkspace") });
     try {
       const [cached, cachedSearch] = await Promise.all([
