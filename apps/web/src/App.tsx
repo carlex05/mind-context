@@ -54,7 +54,11 @@ import {
   DEFAULT_BROWSER_EMBEDDING_MODEL,
 } from "./browserEmbeddings";
 import { buildWorkspaceDerivedState } from "./knowledgeWorkspace";
-import { createRecoveryCopy } from "./recovery";
+import {
+  createRecoveryCopy,
+  markRecoveryCopiesResolvedForSource,
+} from "./recovery";
+import { RecoverySettings } from "./RecoverySettings";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { LocalGraphPanel } from "./LocalGraphPanel";
@@ -1686,6 +1690,12 @@ export function App() {
         setDraft(latest.draft);
       }
       clearNoteConflict(noteId);
+      void markRecoveryCopiesResolvedForSource(
+        provider,
+        conflict.remoteMetadata.name.replace(/\.md$/i, ""),
+      ).catch(() => {
+        // Unresolved recovery artifacts are safer than deleting too early.
+      });
 
       if (latest.draft === localToSave) {
         await pendingDraftStore.delete(activeWorkspace.id, noteId);
@@ -1741,6 +1751,12 @@ export function App() {
         provider.readText(noteId),
       ]);
       await applyRemoteCanonical(noteId, metadata, content);
+      void markRecoveryCopiesResolvedForSource(
+        provider,
+        conflict.remoteMetadata.name.replace(/\.md$/i, ""),
+      ).catch(() => {
+        // Keep recovery artifacts unresolved if resolution bookkeeping fails.
+      });
       setStatus({ kind: "success", message: t("status.conflictUsedDrive") });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error, t) });
@@ -2220,6 +2236,17 @@ export function App() {
               {t("semantic.model", { model: DEFAULT_BROWSER_EMBEDDING_MODEL })}
             </small>
           </div>
+        </section>
+        <section className="settings-panel-section">
+          <span className="section-label">{t("settings.recovery")}</span>
+          <RecoverySettings
+            provider={provider}
+            workspaceId={activeWorkspace.id}
+            onRestored={async (metadata) => {
+              await refreshWorkspaceState();
+              await openNoteById(metadata.id);
+            }}
+          />
         </section>
         <section className="settings-panel-section">
           <span className="section-label">{t("settings.workspace")}</span>
