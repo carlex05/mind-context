@@ -868,6 +868,7 @@ interface StoredObject {
   readonly mimeType: string;
   parents: string[];
   version: number;
+  contentRevision?: number;
   content: string;
   readonly appProperties?: Record<string, string>;
 }
@@ -983,6 +984,7 @@ class FakeDrive {
         mimeType: "text/markdown",
         parents: [parent],
         version: 1,
+        contentRevision: 1,
         content: noteContent,
       };
       this.objects.set(note.id, note);
@@ -1074,6 +1076,7 @@ class FakeDrive {
 
       object.content = request.postData() ?? "";
       object.version += 1;
+      object.contentRevision = (object.contentRevision ?? 0) + 1;
       await this.json(route, this.metadata(object));
       return;
     }
@@ -1100,6 +1103,7 @@ class FakeDrive {
     if (!object) throw new Error(`Missing fake Drive file ${name}`);
     object.content = content;
     object.version += 1;
+    object.contentRevision = (object.contentRevision ?? 0) + 1;
   }
 
   noteContentByName(name: string): string | undefined {
@@ -1154,6 +1158,9 @@ class FakeDrive {
       mimeType: object.mimeType,
       parents: object.parents,
       version: String(object.version),
+      ...(object.contentRevision === undefined
+        ? {}
+        : { headRevisionId: `content-${object.contentRevision}` }),
       modifiedTime: "2026-09-24T17:00:00.000Z",
       size: String(object.content.length),
       appProperties: object.appProperties,
