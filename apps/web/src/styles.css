@@ -17,6 +17,7 @@
   --accent: #1c1c1a;
   --accent-contrast: #ffffff;
   --danger: #9a3434;
+  --editor-caret: #2563eb;
   --shadow: 0 16px 44px rgb(25 25 20 / 0.14);
   --tap: 44px;
 }
@@ -35,6 +36,7 @@
   --accent: #ecece5;
   --accent-contrast: #151613;
   --danger: #e08383;
+  --editor-caret: #8ab4f8;
   --shadow: 0 18px 52px rgb(0 0 0 / 0.4);
 }
 
@@ -1963,7 +1965,12 @@ h2 {
   min-height: 100%;
   margin: 0 auto;
   padding: clamp(34px, 5vw, 64px) 0 120px;
-  caret-color: var(--ink);
+  caret-color: var(--editor-caret);
+}
+
+.editor-panel-v2 .markdown-editor .cm-cursor,
+.editor-panel-v2 .markdown-editor .cm-dropCursor {
+  border-left-color: var(--editor-caret);
 }
 
 .editor-panel-v2 .markdown-editor .cm-line {
@@ -2220,6 +2227,86 @@ h2 {
 
 .settings-choice-list button span {
   width: 16px;
+}
+
+.recovery-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.recovery-retention {
+  display: grid;
+  gap: 6px;
+}
+
+.recovery-retention > strong {
+  font-size: 0.78rem;
+}
+
+.recovery-retention select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 8px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.recovery-toolbar,
+.recovery-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.recovery-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recovery-item {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  background: var(--subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+}
+
+.recovery-item-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recovery-item-copy strong {
+  overflow: hidden;
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recovery-item-copy small {
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.recovery-item-actions button {
+  min-height: 34px;
+  flex: 1;
+  padding-inline: 8px;
+  font-size: 0.72rem;
+}
+
+.sidebar-text-action.danger,
+.recovery-error {
+  color: var(--danger);
+}
+
+.recovery-error {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
 }
 
 @media (max-width: 760px) {
