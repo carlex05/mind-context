@@ -23,6 +23,7 @@ const WORKSPACE_SCHEMA_VERSION = "1";
 
 export interface AccessTokenProvider {
   getAccessToken(): string | Promise<string>;
+  onUnauthorized?(): void;
 }
 
 export interface GoogleDriveProviderConfiguration {
@@ -466,6 +467,10 @@ async function authorizedFetch(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      accessTokenProvider.onUnauthorized?.();
+    }
+
     let message = `Google Drive request failed with HTTP ${response.status}.`;
     try {
       const body = (await response.json()) as DriveErrorBody;
