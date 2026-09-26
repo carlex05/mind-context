@@ -2,6 +2,7 @@ import type {
   StorageObjectMetadata,
   StorageProvider,
 } from "@mind-context/storage";
+import { isRecoveryDirectory } from "./recovery";
 
 export interface WorkspaceTreeNode {
   readonly metadata: StorageObjectMetadata;
@@ -72,7 +73,9 @@ async function loadChildren(
 ): Promise<readonly WorkspaceTreeNode[]> {
   const children = await provider.list(parentId);
   const visible = children.filter(
-    (item) => item.kind === "directory" || isMarkdown(item),
+    (item) =>
+      !isRecoveryDirectory(item) &&
+      (item.kind === "directory" || isMarkdown(item)),
   );
 
   return Promise.all(
