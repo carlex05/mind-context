@@ -53,6 +53,9 @@ const en = {
   status: {
     connectingDrive: "Connecting to Google Drive…",
     driveConnected: "Google Drive connected.",
+    reconnectingDrive: "Reconnecting Google Drive…",
+    driveReconnected: "Google Drive reconnected. Pending local changes will resume syncing.",
+    driveReconnectRequired: "Google Drive authorization expired. Your changes remain saved locally until you reconnect.",
     connectedCreateFirst: "Connected. Create your first MindContext workspace.",
     creatingWorkspace: "Creating workspace…",
     workspaceCreated: "Workspace “{{name}}” created and indexed locally.",
@@ -81,6 +84,15 @@ const en = {
     applyingStarter: "Building your Second Brain starter…",
     starterApplied: "PARA starter created: {{directories}} folders and {{files}} Markdown guides.",
     emptyKept: "This Second Brain will stay blank.",
+  },
+  driveSession: {
+    expiringTitle: "Google Drive session expires soon",
+    expiringBody: "Reconnect now to avoid pausing synchronization. Your local editing can continue either way.",
+    reconnectTitle: "Reconnect Google Drive",
+    reconnectBody: "Drive authorization expired. Your changes are still saved on this device and will sync after reconnecting.",
+    reconnectingTitle: "Reconnecting Google Drive…",
+    reconnectingBody: "Your local changes remain safe while authorization is renewed.",
+    reconnect: "Reconnect Drive",
   },
   confirm: {
     closeDirtyTab: "Close this tab? Local changes will stay saved for recovery.",
@@ -328,7 +340,7 @@ const en = {
     tags_other: "{{count}} tags",
   },
   errors: {
-    driveExpired: "Google Drive authorization expired. Disconnect and connect again.",
+    driveExpired: "Google Drive authorization expired. Reconnect Drive to continue syncing.",
     unexpected: "Something unexpected happened.",
   },
 };
@@ -380,6 +392,9 @@ const es = {
   status: {
     connectingDrive: "Conectando con Google Drive…",
     driveConnected: "Google Drive conectado.",
+    reconnectingDrive: "Reconectando Google Drive…",
+    driveReconnected: "Google Drive reconectado. Los cambios locales pendientes volverán a sincronizarse.",
+    driveReconnectRequired: "La autorización de Google Drive expiró. Tus cambios siguen guardados localmente hasta que reconectes.",
     connectedCreateFirst: "Conectado. Crea tu primer Second Brain en MindContext.",
     creatingWorkspace: "Creando Second Brain…",
     workspaceCreated: "Second Brain “{{name}}” creado e indexado localmente.",
@@ -408,6 +423,15 @@ const es = {
     applyingStarter: "Construyendo la base de tu Second Brain…",
     starterApplied: "Base PARA creada: {{directories}} carpetas y {{files}} guías Markdown.",
     emptyKept: "Este Second Brain se mantendrá vacío.",
+  },
+  driveSession: {
+    expiringTitle: "La sesión de Google Drive expirará pronto",
+    expiringBody: "Reconecta ahora para evitar pausar la sincronización. Puedes seguir editando localmente de todas formas.",
+    reconnectTitle: "Reconecta Google Drive",
+    reconnectBody: "La autorización de Drive expiró. Tus cambios siguen guardados en este dispositivo y se sincronizarán después de reconectar.",
+    reconnectingTitle: "Reconectando Google Drive…",
+    reconnectingBody: "Tus cambios locales siguen seguros mientras se renueva la autorización.",
+    reconnect: "Reconectar Drive",
   },
   confirm: {
     closeDirtyTab: "¿Cerrar esta pestaña? Los cambios locales seguirán guardados para recuperación.",
@@ -655,7 +679,7 @@ const es = {
     tags_other: "{{count}} etiquetas",
   },
   errors: {
-    driveExpired: "La autorización de Google Drive expiró. Desconecta y vuelve a conectar.",
+    driveExpired: "La autorización de Google Drive expiró. Reconecta Drive para continuar sincronizando.",
     unexpected: "Ocurrió algo inesperado.",
   },
 };
