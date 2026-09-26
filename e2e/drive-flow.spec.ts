@@ -164,6 +164,46 @@ test("keeps edits local after Drive authorization expires and resumes after reco
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
 });
 
+test("keeps a create-note intent open across Drive reconnect", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  drive.expireInitialToken();
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+  }
+
+  const files = page.getByRole("complementary", { name: "Files" });
+  await files.getByRole("button", { name: "New note", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "New note" });
+  await dialog.getByLabel("Name").fill("AfterReconnect");
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+
+  await expect(dialog).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Reconnect Drive", exact: true }),
+  ).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "Reconnect Drive", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Google Drive reconnected. Pending local changes will resume syncing.",
+    ),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Edit AfterReconnect.md" }),
+  ).toBeVisible();
+  expect(drive.noteContentByName("AfterReconnect.md")).toBe("");
+});
+
 test("keeps newer local edits while an earlier Drive sync is in flight", async ({
   page,
 }) => {
