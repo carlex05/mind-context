@@ -56,12 +56,14 @@ Pending IndexedDB drafts are never deleted merely because a tab closes.
 ## Recovery lifecycle
 
 Recovery files are temporary safety artifacts, not canonical knowledge. They
-remain outside normal MindContext projections and are retained conservatively
-until an explicit recovery-cleanup policy is implemented. Unresolved recovery
-artifacts MUST NOT be automatically deleted.
+remain outside normal MindContext projections. When a conflict is explicitly
+resolved, its recovery artifacts are marked resolved and become eligible for the
+workspace recovery-retention policy.
 
-A future cleanup UI may mark resolved recovery artifacts eligible for retention-
-based deletion without changing the canonical Markdown model.
+Settings exposes a Recovery Center that lists recovery history, restores a copy
+as a normal Markdown note, allows explicit deletion, and controls retention of
+resolved artifacts (30 days by default, 90 days, or forever). Unresolved
+recovery artifacts MUST NOT be automatically deleted.
 
 ## Future multi-device synchronization
 
