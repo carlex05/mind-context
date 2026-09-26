@@ -225,16 +225,49 @@ test("preserves a local draft and surfaces conflict after a remote Drive change"
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
   expect(drive.noteContentByName("Conflict.md")).toBe(updatedLocalDraft);
 
+  await expect
+    .poll(() =>
+      drive.paths().some(
+        (path) =>
+          path.includes(".mindcontext-recovery/resolved--") &&
+          path.includes("Conflict.local-conflict"),
+      ),
+    )
+    .toBe(true);
+
   const remoteRecoveryPath = drive.paths().find(
     (path) =>
-      path.startsWith(
-        ".mindcontext-recovery/Conflict.remote-before-overwrite.",
-      ) && path.endsWith(".md"),
+      path.includes(
+        ".mindcontext-recovery/resolved--",
+      ) &&
+      path.includes("Conflict.remote-before-overwrite.") &&
+      path.endsWith(".md"),
   );
   expect(remoteRecoveryPath).toBeTruthy();
   expect(drive.contentByPath(remoteRecoveryPath!)).toBe(
     "# Conflict\n\nremote version",
   );
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("complementary", { name: "Settings" });
+  await expect(settings.getByText("Recovery", { exact: true })).toBeVisible();
+  await expect(
+    settings.getByLabel("Resolved recovery retention"),
+  ).toHaveValue("30");
+  await expect(settings.getByText(/Resolved ·/).first()).toBeVisible();
+
+  const localRecovery = settings
+    .locator(".recovery-item")
+    .filter({ hasText: "Local draft backup" })
+    .first();
+  await expect(localRecovery).toBeVisible();
+  await localRecovery.getByRole("button", { name: "Restore as note" }).click();
+
+  const recoveredEditor = page.getByRole("textbox", {
+    name: /Edit Conflict \(Recovered .*\)\.md/,
+  });
+  await expect(recoveredEditor).toBeVisible();
+  await expect(recoveredEditor).toContainText("local version");
 });
 
 test("closing a dirty tab preserves its local recovery draft", async ({
@@ -521,6 +554,19 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   const settings = page.getByRole("complementary", { name: "Settings" });
   await settings.getByRole("button", { name: /Dark/ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await settings
+    .getByRole("button", { name: "Collapse sidebar" })
+    .click();
+
+  await page.getByRole("button", { name: "Editing view", exact: true }).click();
+  const darkEditor = page.getByRole("textbox", { name: "Edit Alpha.md" });
+  await darkEditor.click();
+  const caretColor = await page
+    .locator(".cm-cursor")
+    .first()
+    .evaluate((element) => getComputedStyle(element).borderLeftColor);
+  expect(caretColor).not.toBe("rgb(0, 0, 0)");
+  expect(caretColor).not.toBe("rgba(0, 0, 0, 0)");
 
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
