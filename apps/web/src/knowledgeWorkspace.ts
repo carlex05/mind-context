@@ -16,6 +16,7 @@ import type {
   StorageObjectMetadata,
   StorageProvider,
 } from "@mind-context/storage";
+import { isRecoveryDirectory } from "./recovery";
 
 export interface WorkspaceIndexingStats {
   readonly totalNotes: number;
@@ -141,6 +142,7 @@ async function collectMarkdownDocuments(
     const path = joinPath(parentPath, child.name);
 
     if (child.kind === "directory") {
+      if (isRecoveryDirectory(child)) continue;
       documents.push(
         ...(await collectMarkdownDocuments(
           provider,
