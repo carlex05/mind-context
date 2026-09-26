@@ -201,6 +201,78 @@ describe("GoogleDriveStorageProvider", () => {
     expect(String(requests[0]!.body ?? "")).not.toContain("stale content");
   });
 
+  it("rejects stale content revisions even when only expectedContentRevision is supplied", async () => {
+    const requests: CapturedRequest[] = [];
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse({
+          id: "note-1",
+          name: "Retry.md",
+          mimeType: "text/markdown",
+          version: "8",
+          headRevisionId: "content-8",
+          parents: ["workspace-1"],
+        }),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: tokenProvider,
+      fetchImplementation,
+    });
+
+    await expect(
+      provider.writeText("note-1", "stale content", {
+        expectedContentRevision: "content-7",
+      }),
+    ).rejects.toBeInstanceOf(StorageConflictError);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.method).toBe("GET");
+  });
+
+  it("allows metadata version changes when the content revision still matches", async () => {
+    const requests: CapturedRequest[] = [];
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse({
+          id: "note-1",
+          name: "Renamed.md",
+          mimeType: "text/markdown",
+          version: "9",
+          headRevisionId: "content-7",
+          parents: ["workspace-1"],
+        }),
+        jsonResponse({
+          id: "note-1",
+          name: "Renamed.md",
+          mimeType: "text/markdown",
+          version: "10",
+          headRevisionId: "content-8",
+          parents: ["workspace-1"],
+        }),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: tokenProvider,
+      fetchImplementation,
+    });
+
+    const result = await provider.writeText("note-1", "# Updated", {
+      expectedContentRevision: "content-7",
+    });
+
+    expect(result.contentRevision).toBe("content-8");
+    expect(requests).toHaveLength(2);
+    expect(requests[0]!.method).toBe("GET");
+    expect(requests[1]!.method).toBe("PATCH");
+  });
+
   it("writes when the revision still matches", async () => {
     const requests: CapturedRequest[] = [];
     const fetchImplementation = createFetchMock(
