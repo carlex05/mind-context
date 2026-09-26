@@ -6,6 +6,7 @@ import type {
 export const RECOVERY_FOLDER_NAME = ".mindcontext-recovery";
 
 export type RecoveryKind = "local-conflict" | "remote-before-overwrite";
+export type RecoveryRetentionDays = 30 | 90 | "never";
 
 export interface RecoveryCopyRequest {
   readonly source: StorageObjectMetadata;
@@ -18,6 +19,13 @@ export interface RecoveryCopyRequest {
 export interface RecoveryCopyResult {
   readonly metadata: StorageObjectMetadata;
   readonly created: boolean;
+}
+
+export interface RecoveryEntry {
+  readonly metadata: StorageObjectMetadata;
+  readonly sourceName: string;
+  readonly kind?: RecoveryKind;
+  readonly resolvedAt?: number;
 }
 
 export function isRecoveryDirectory(
@@ -45,13 +53,121 @@ export async function createRecoveryCopy(
   return { metadata, created: true };
 }
 
+export async function listRecoveryCopies(
+  provider: StorageProvider,
+): Promise<readonly RecoveryEntry[]> {
+  const folder = await findRecoveryFolder(provider);
+  if (!folder) return [];
+
+  const entries = (await provider.list(folder.id))
+    .filter((item) => item.kind === "file" && item.name.endsWith(".md"))
+    .map(toRecoveryEntry)
+    .sort((left, right) => {
+      const leftTime =
+        left.resolvedAt ??
+        Date.parse(left.metadata.modifiedAt ?? "") ??
+        0;
+      const rightTime =
+        right.resolvedAt ??
+        Date.parse(right.metadata.modifiedAt ?? "") ??
+        0;
+      return rightTime - leftTime;
+    });
+
+  return entries;
+}
+
+export async function readRecoveryCopy(
+  provider: StorageProvider,
+  entry: RecoveryEntry,
+): Promise<string> {
+  return provider.readText(entry.metadata.id);
+}
+
+export async function deleteRecoveryCopy(
+  provider: StorageProvider,
+  entry: RecoveryEntry,
+): Promise<void> {
+  await provider.delete(entry.metadata.id);
+}
+
+export async function restoreRecoveryCopy(
+  provider: StorageProvider,
+  entry: RecoveryEntry,
+): Promise<StorageObjectMetadata> {
+  const content = await readRecoveryCopy(provider, entry);
+  const suffix = new Date().toISOString().replace(/[:.]/g, "-");
+  const name = `${entry.sourceName} (Recovered ${suffix})`;
+  return provider.createText(provider.rootId, name, content);
+}
+
+export async function markRecoveryCopiesResolved(
+  provider: StorageProvider,
+  entries: readonly StorageObjectMetadata[],
+): Promise<void> {
+  const resolvedAt = Date.now();
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (entry.name.startsWith("resolved--")) return;
+      const parentId = entry.parentIds[0];
+      if (!parentId) return;
+      await provider.move(
+        entry.id,
+        parentId,
+        `resolved--${resolvedAt}--${entry.name}`,
+      );
+    }),
+  );
+}
+
+export async function cleanupResolvedRecoveryCopies(
+  provider: StorageProvider,
+  retention: RecoveryRetentionDays,
+  now = Date.now(),
+): Promise<number> {
+  if (retention === "never") return 0;
+
+  const threshold = now - retention * 24 * 60 * 60 * 1000;
+  const entries = await listRecoveryCopies(provider);
+  const expired = entries.filter(
+    (entry) => entry.resolvedAt !== undefined && entry.resolvedAt < threshold,
+  );
+  await Promise.all(expired.map((entry) => provider.delete(entry.metadata.id)));
+  return expired.length;
+}
+
+async function findRecoveryFolder(
+  provider: StorageProvider,
+): Promise<StorageObjectMetadata | undefined> {
+  const rootItems = await provider.list(provider.rootId);
+  return rootItems.find(isRecoveryDirectory);
+}
+
 async function ensureRecoveryFolder(
   provider: StorageProvider,
 ): Promise<StorageObjectMetadata> {
-  const rootItems = await provider.list(provider.rootId);
-  const existing = rootItems.find(isRecoveryDirectory);
+  const existing = await findRecoveryFolder(provider);
   if (existing) return existing;
   return provider.createDirectory(provider.rootId, RECOVERY_FOLDER_NAME);
+}
+
+function toRecoveryEntry(metadata: StorageObjectMetadata): RecoveryEntry {
+  const resolvedMatch = /^resolved--(\d+)--(.+)$/.exec(metadata.name);
+  const rawName = resolvedMatch?.[2] ?? metadata.name;
+  const kindMatch =
+    /^(.*)\.(local-conflict|remote-before-overwrite)\.base-/.exec(rawName);
+  const sourceName = (kindMatch?.[1] ?? rawName.replace(/\.md$/i, "")).trim();
+
+  return {
+    metadata,
+    sourceName,
+    ...(kindMatch?.[2]
+      ? { kind: kindMatch[2] as RecoveryKind }
+      : {}),
+    ...(resolvedMatch
+      ? { resolvedAt: Number.parseInt(resolvedMatch[1]!, 10) }
+      : {}),
+  };
 }
 
 function recoveryFileName(
