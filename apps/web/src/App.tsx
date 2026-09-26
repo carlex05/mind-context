@@ -611,11 +611,24 @@ export function App() {
         )
           ? cachedDocument.content
           : await nextProvider.readText(restoredActiveId);
-        const restoredNote = { metadata, originalContent: content };
         const pendingDraft = await pendingDraftStore.get(
           workspace.id,
           restoredActiveId,
         );
+        const restoredNote: OpenNote = pendingDraft
+          ? {
+              metadata: {
+                ...metadata,
+                ...(pendingDraft.baseRevision
+                  ? { revision: pendingDraft.baseRevision }
+                  : {}),
+                ...(pendingDraft.baseContentRevision
+                  ? { contentRevision: pendingDraft.baseContentRevision }
+                  : {}),
+              },
+              originalContent: pendingDraft.baseContent,
+            }
+          : { metadata, originalContent: content };
         const restoredDraft = pendingDraft?.content ?? content;
         setOpenNote(restoredNote);
         setDraft(restoredDraft);
@@ -623,16 +636,10 @@ export function App() {
           note: restoredNote,
           draft: restoredDraft,
         });
-        if (pendingDraft) {
-          setNoteSyncState(
-            restoredActiveId,
-            pendingDraft.baseRevision === metadata.revision
-              ? "local"
-              : "conflict",
-          );
-        } else {
-          setNoteSyncState(restoredActiveId, "synced");
-        }
+        setNoteSyncState(
+          restoredActiveId,
+          pendingDraft ? "local" : "synced",
+        );
         setViewMode(
           restoredTabs.find((tab) => tab.noteId === restoredActiveId)?.viewMode ??
             "edit",
@@ -716,18 +723,8 @@ export function App() {
           )
           .map(async ([noteId, buffer]) => {
             if (buffer.draft !== buffer.note.originalContent) {
-              try {
-                const metadata = await provider.metadata(noteId);
-                if (
-                  buffer.note.metadata.revision &&
-                  metadata.revision !== buffer.note.metadata.revision
-                ) {
-                  setNoteSyncState(noteId, "conflict");
-                }
-              } catch {
-                // Keep the recoverable local draft even if remote metadata
-                // cannot be checked during this refresh.
-              }
+              // Preserve the local baseline. Deferred synchronization performs
+              // content-aware reconciliation if Drive has changed.
               return [noteId, buffer] as const;
             }
 
@@ -1002,13 +999,6 @@ export function App() {
     const tabDirty =
       buffer !== undefined &&
       buffer.draft !== buffer.note.originalContent;
-
-    if (
-      tabDirty &&
-      !window.confirm(t("confirm.closeDirtyTab"))
-    ) {
-      return;
-    }
 
     cancelLocalDraftTimer(noteId);
     cancelDriveSyncTimer(noteId);
