@@ -63,14 +63,8 @@ export async function listRecoveryCopies(
     .filter((item) => item.kind === "file" && item.name.endsWith(".md"))
     .map(toRecoveryEntry)
     .sort((left, right) => {
-      const leftTime =
-        left.resolvedAt ??
-        Date.parse(left.metadata.modifiedAt ?? "") ??
-        0;
-      const rightTime =
-        right.resolvedAt ??
-        Date.parse(right.metadata.modifiedAt ?? "") ??
-        0;
+      const leftTime = recoveryTimestamp(left);
+      const rightTime = recoveryTimestamp(right);
       return rightTime - leftTime;
     });
 
@@ -120,6 +114,20 @@ export async function markRecoveryCopiesResolved(
   );
 }
 
+export async function markRecoveryCopiesResolvedForSource(
+  provider: StorageProvider,
+  sourceName: string,
+): Promise<void> {
+  const entries = await listRecoveryCopies(provider);
+  const matching = entries
+    .filter(
+      (entry) =>
+        entry.resolvedAt === undefined && entry.sourceName === sourceName,
+    )
+    .map((entry) => entry.metadata);
+  await markRecoveryCopiesResolved(provider, matching);
+}
+
 export async function cleanupResolvedRecoveryCopies(
   provider: StorageProvider,
   retention: RecoveryRetentionDays,
@@ -149,6 +157,12 @@ async function ensureRecoveryFolder(
   const existing = await findRecoveryFolder(provider);
   if (existing) return existing;
   return provider.createDirectory(provider.rootId, RECOVERY_FOLDER_NAME);
+}
+
+function recoveryTimestamp(entry: RecoveryEntry): number {
+  if (entry.resolvedAt !== undefined) return entry.resolvedAt;
+  const parsed = Date.parse(entry.metadata.modifiedAt ?? "");
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function toRecoveryEntry(metadata: StorageObjectMetadata): RecoveryEntry {
