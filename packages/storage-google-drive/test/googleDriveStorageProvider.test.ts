@@ -316,6 +316,45 @@ describe("GoogleDriveStorageProvider", () => {
     expect(requests[1]!.body).toBe("# Updated");
   });
 
+  it("notifies the access token provider when Drive returns 401", async () => {
+    const requests: CapturedRequest[] = [];
+    let unauthorized = 0;
+    const expiringTokenProvider: AccessTokenProvider = {
+      getAccessToken: () => "expired-token",
+      onUnauthorized: () => {
+        unauthorized += 1;
+      },
+    };
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse(
+          {
+            error: {
+              message: "Invalid Credentials",
+            },
+          },
+          401,
+        ),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: expiringTokenProvider,
+      fetchImplementation,
+    });
+
+    await expect(provider.list()).rejects.toMatchObject({
+      name: "GoogleDriveApiError",
+      status: 401,
+    });
+    expect(unauthorized).toBe(1);
+    expect(requests[0]!.headers.get("Authorization")).toBe(
+      "Bearer expired-token",
+    );
+  });
+
   it("uses the narrow drive.file scope", () => {
     expect(GOOGLE_DRIVE_FILE_SCOPE).toBe(
       "https://www.googleapis.com/auth/drive.file",
