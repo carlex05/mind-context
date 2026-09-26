@@ -385,6 +385,55 @@ export function App() {
   }, [activeTabId]);
 
   useEffect(() => {
+    if (!authSession) return;
+
+    const evaluate = () => {
+      if (
+        driveSessionStateRef.current === "reconnecting" ||
+        driveSessionStateRef.current === "reconnect-required"
+      ) {
+        return;
+      }
+
+      const remaining = authSession.expiresAt - Date.now();
+      if (remaining <= 0) {
+        updateDriveSessionState("reconnect-required");
+      } else if (remaining <= DRIVE_SESSION_WARNING_MS) {
+        updateDriveSessionState("expiring");
+      } else {
+        updateDriveSessionState("connected");
+      }
+    };
+
+    evaluate();
+
+    const warningDelay = Math.max(
+      0,
+      authSession.expiresAt - Date.now() - DRIVE_SESSION_WARNING_MS,
+    );
+    const expiryDelay = Math.max(0, authSession.expiresAt - Date.now());
+    const warningTimer = window.setTimeout(evaluate, warningDelay);
+    const expiryTimer = window.setTimeout(() => {
+      if (driveSessionStateRef.current !== "reconnecting") {
+        updateDriveSessionState("reconnect-required");
+      }
+    }, expiryDelay);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") evaluate();
+    };
+
+    window.addEventListener("focus", evaluate);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearTimeout(warningTimer);
+      window.clearTimeout(expiryTimer);
+      window.removeEventListener("focus", evaluate);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [authSession?.expiresAt]);
+
+  useEffect(() => {
     if (!provider || !activeWorkspace) return;
     for (const [noteId, syncState] of Object.entries(noteSyncStates)) {
       if (syncState === "local" && tabBuffersRef.current[noteId]) {
@@ -495,6 +544,45 @@ export function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [activeWorkspace, activeTabId, navigation, dirty, tabs, tabBuffers]);
 
+
+  function updateDriveSessionState(next: DriveSessionState) {
+    driveSessionStateRef.current = next;
+    setDriveSessionState(next);
+  }
+
+  function driveSessionCanSync(): boolean {
+    return (
+      driveSessionStateRef.current === "connected" ||
+      driveSessionStateRef.current === "expiring"
+    );
+  }
+
+  async function reconnectDrive() {
+    if (!GOOGLE_CLIENT_ID || driveSessionStateRef.current === "reconnecting") {
+      return;
+    }
+
+    updateDriveSessionState("reconnecting");
+    setStatus({ kind: "busy", message: t("status.reconnectingDrive") });
+    try {
+      const session = await requestGoogleDriveAccess(GOOGLE_CLIENT_ID);
+      driveTokenProvider.setSession(session);
+      setAuthSession(session);
+      updateDriveSessionState("connected");
+      setStatus({ kind: "success", message: t("status.driveReconnected") });
+
+      if (activeWorkspace) {
+        for (const [noteId, buffer] of Object.entries(tabBuffersRef.current)) {
+          if (buffer.draft === buffer.note.originalContent) continue;
+          setNoteSyncState(noteId, "local");
+          scheduleDriveSync(noteId, 0);
+        }
+      }
+    } catch (error) {
+      updateDriveSessionState("reconnect-required");
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
 
   if (!GOOGLE_CLIENT_ID) {
     return <ConfigurationRequired />;
