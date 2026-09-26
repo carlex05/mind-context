@@ -185,6 +185,7 @@ export function App() {
   >({});
   const tabBuffersRef = useRef<Readonly<Record<string, NoteBuffer>>>({});
   const noteSyncStatesRef = useRef<Readonly<Record<string, NoteSyncState>>>({});
+  const noteConflictsRef = useRef<Readonly<Record<string, NoteConflict>>>({});
   const activeTabIdRef = useRef<string | undefined>(undefined);
   const localDraftTimersRef = useRef<
     Map<string, ReturnType<typeof setTimeout>>
@@ -577,6 +578,7 @@ export function App() {
       replaceTabBuffers({});
       noteSyncStatesRef.current = {};
       setNoteSyncStates({});
+      noteConflictsRef.current = {};
       setNoteConflicts({});
       activeTabIdRef.current = undefined;
       setActiveTabId(undefined);
@@ -992,7 +994,7 @@ export function App() {
     if (noteSyncStatesRef.current[activeTabId] !== "conflict") {
       setNoteSyncState(activeTabId, "local");
     } else {
-      const conflict = noteConflicts[activeTabId];
+      const conflict = noteConflictsRef.current[activeTabId];
       if (conflict) {
         scheduleConflictRecovery(
           activeTabId,
@@ -1058,7 +1060,7 @@ export function App() {
 
     if (tabDirty) {
       await persistPendingDraft(noteId, false);
-      const conflict = noteConflicts[noteId];
+      const conflict = noteConflictsRef.current[noteId];
       if (conflict && provider && buffer) {
         try {
           await createRecoveryCopy(provider, {
@@ -1495,20 +1497,21 @@ export function App() {
   }
 
   function setNoteConflict(noteId: string, conflict: NoteConflict) {
-    setNoteConflicts((current) => ({
-      ...current,
+    const next = {
+      ...noteConflictsRef.current,
       [noteId]: conflict,
-    }));
+    };
+    noteConflictsRef.current = next;
+    setNoteConflicts(next);
   }
 
   function clearNoteConflict(noteId: string) {
     cancelConflictRecoveryTimer(noteId);
-    setNoteConflicts((current) => {
-      if (!current[noteId]) return current;
-      const next = { ...current };
-      delete next[noteId];
-      return next;
-    });
+    if (!noteConflictsRef.current[noteId]) return;
+    const next = { ...noteConflictsRef.current };
+    delete next[noteId];
+    noteConflictsRef.current = next;
+    setNoteConflicts(next);
   }
 
   async function applyRemoteCanonical(
@@ -1637,7 +1640,7 @@ export function App() {
 
   async function resolveConflictKeepLocal(noteId: string) {
     if (!provider || !activeWorkspace) return;
-    const conflict = noteConflicts[noteId];
+    const conflict = noteConflictsRef.current[noteId];
     const buffer = tabBuffersRef.current[noteId];
     if (!conflict || !buffer) return;
 
@@ -1712,7 +1715,7 @@ export function App() {
 
   async function resolveConflictUseDrive(noteId: string) {
     if (!provider) return;
-    const conflict = noteConflicts[noteId];
+    const conflict = noteConflictsRef.current[noteId];
     const buffer = tabBuffersRef.current[noteId];
     if (!conflict || !buffer) return;
 
@@ -1865,7 +1868,7 @@ export function App() {
     await Promise.all(
       entries.map(async ([noteId, buffer]) => {
         await persistPendingDraft(noteId, false);
-        const conflict = noteConflicts[noteId];
+        const conflict = noteConflictsRef.current[noteId];
         if (!conflict || !provider) return;
         try {
           await createRecoveryCopy(provider, {
@@ -1904,6 +1907,7 @@ export function App() {
     replaceTabBuffers({});
     noteSyncStatesRef.current = {};
     setNoteSyncStates({});
+    noteConflictsRef.current = {};
     setNoteConflicts({});
     activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
@@ -1937,6 +1941,7 @@ export function App() {
     replaceTabBuffers({});
     noteSyncStatesRef.current = {};
     setNoteSyncStates({});
+    noteConflictsRef.current = {};
     setNoteConflicts({});
     activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
