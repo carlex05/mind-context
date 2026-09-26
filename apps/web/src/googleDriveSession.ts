@@ -27,7 +27,8 @@ export class MutableGoogleDriveAccessTokenProvider
     return this.session.accessToken;
   }
 
-  onUnauthorized(): void {
+  onUnauthorized(accessToken: string): void {
+    if (this.session?.accessToken !== accessToken) return;
     this.unauthorized();
   }
 }
