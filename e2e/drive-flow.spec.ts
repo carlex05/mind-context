@@ -463,6 +463,41 @@ test("creates a Spanish PARA starter independently of the UI language", async ({
   );
 });
 
+test("shows Drive loading feedback before deciding a vault is empty", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  drive.seedExistingWorkspace();
+  drive.setListDelay(700);
+  await prepareDrive(page, drive);
+
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page.getByRole("button", { name: /My Second Brain/ }).click();
+
+  await expect(
+    page.getByRole("status").filter({ hasText: "Loading your Second Brain" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Loading files from Google Drive…", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Open a note", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("dialog", {
+      name: "This Second Brain is completely empty",
+    }),
+  ).not.toBeVisible();
+
+  await expect(
+    page.getByRole("dialog", {
+      name: "This Second Brain is completely empty",
+    }),
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    page.getByText("Loading files from Google Drive…", { exact: true }),
+  ).toHaveCount(0);
+});
+
 test("suggests onboarding for an existing completely empty Second Brain and remembers keep blank", async ({
   page,
 }) => {
@@ -1042,9 +1077,14 @@ interface StoredObject {
 class FakeDrive {
   private workspaceCreated = false;
   private uploadDelayMs = 0;
+  private listDelayMs = 0;
 
   setUploadDelay(delayMs: number): void {
     this.uploadDelayMs = delayMs;
+  }
+
+  setListDelay(delayMs: number): void {
+    this.listDelayMs = delayMs;
   }
 
   seedExistingWorkspace(): void {
@@ -1119,6 +1159,9 @@ class FakeDrive {
       const query = url.searchParams.get("q") ?? "";
       const parentId = /'([^']+)' in parents/.exec(query)?.[1];
       if (parentId) {
+        if (this.listDelayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, this.listDelayMs));
+        }
         await this.json(route, {
           files: Array.from(this.objects.values())
             .filter((object) => object.parents.includes(parentId))
