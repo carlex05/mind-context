@@ -238,6 +238,52 @@ h2 {
   border-style: dashed;
 }
 
+.drive-session-banner {
+  position: fixed;
+  z-index: 80;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  width: min(720px, calc(100% - 32px));
+  padding: 12px 14px;
+  transform: translateX(-50%);
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.drive-session-banner.expiring {
+  border-style: dashed;
+}
+
+.drive-session-banner.reconnect-required {
+  border-color: var(--danger);
+}
+
+.drive-session-banner strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font-size: 0.8rem;
+}
+
+.drive-session-banner p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.drive-session-banner .primary-button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .chooser-header,
 .preview-intro {
   display: flex;
@@ -3104,5 +3150,20 @@ h2 {
 
   .conflict-actions button {
     flex: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .drive-session-banner {
+    top: max(8px, env(safe-area-inset-top));
+    width: calc(100% - 20px);
+    padding: 11px 12px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .drive-session-banner .primary-button {
+    width: 100%;
   }
 }
