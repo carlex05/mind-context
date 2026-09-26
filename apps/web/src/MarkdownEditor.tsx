@@ -83,6 +83,12 @@ export function MarkdownEditor({
       editor.destroy();
       editorRef.current = null;
     };
+  }, []);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.contentDOM.setAttribute("aria-label", label);
   }, [label]);
 
   useEffect(() => {
