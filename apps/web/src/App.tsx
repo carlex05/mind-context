@@ -131,7 +131,7 @@ interface NoteBuffer {
 interface NoteConflict {
   readonly remoteMetadata: StorageObjectMetadata;
   readonly remoteContent: string;
-  readonly recoveryFileName: string;
+  readonly recoveryFileName?: string;
 }
 
 export function App() {
@@ -1371,6 +1371,240 @@ export function App() {
     ]);
   }
 
+  function setNoteConflict(noteId: string, conflict: NoteConflict) {
+    setNoteConflicts((current) => ({
+      ...current,
+      [noteId]: conflict,
+    }));
+  }
+
+  function clearNoteConflict(noteId: string) {
+    setNoteConflicts((current) => {
+      if (!current[noteId]) return current;
+      const next = { ...current };
+      delete next[noteId];
+      return next;
+    });
+  }
+
+  async function applyRemoteCanonical(
+    noteId: string,
+    metadata: StorageObjectMetadata,
+    content: string,
+  ) {
+    if (!activeWorkspace) return;
+    const note: OpenNote = { metadata, originalContent: content };
+    putTabBuffer(noteId, { note, draft: content });
+    if (activeTabIdRef.current === noteId) {
+      setOpenNote(note);
+      setDraft(content);
+    }
+    await pendingDraftStore.delete(activeWorkspace.id, noteId);
+    clearNoteConflict(noteId);
+    setNoteSyncState(noteId, "synced");
+    void updateDerivedIndexesAfterRemoteSave(metadata, content);
+  }
+
+  async function reconcileDriveConflict(
+    noteId: string,
+    noteAtStart: OpenNote,
+  ) {
+    if (!provider || !activeWorkspace) return;
+
+    const [remoteMetadata, remoteContent] = await Promise.all([
+      provider.metadata(noteId),
+      provider.readText(noteId),
+    ]);
+    const latest = tabBuffersRef.current[noteId];
+    const localContent = latest?.draft ?? noteAtStart.originalContent;
+    const baseContent = noteAtStart.originalContent;
+
+    if (remoteContent === localContent) {
+      await applyRemoteCanonical(noteId, remoteMetadata, remoteContent);
+      setStatus({ kind: "success", message: t("status.saved") });
+      return;
+    }
+
+    if (localContent === baseContent) {
+      await applyRemoteCanonical(noteId, remoteMetadata, remoteContent);
+      setStatus({ kind: "success", message: t("status.remoteAccepted") });
+      return;
+    }
+
+    if (remoteContent === baseContent) {
+      const rebasedNote: OpenNote = {
+        metadata: remoteMetadata,
+        originalContent: baseContent,
+      };
+      putTabBuffer(noteId, { note: rebasedNote, draft: localContent });
+      if (activeTabIdRef.current === noteId) {
+        setOpenNote(rebasedNote);
+        setDraft(localContent);
+      }
+      await pendingDraftStore.put({
+        workspaceId: activeWorkspace.id,
+        noteId,
+        content: localContent,
+        baseContent,
+        ...(remoteMetadata.revision
+          ? { baseRevision: remoteMetadata.revision }
+          : {}),
+        ...(remoteMetadata.contentRevision
+          ? { baseContentRevision: remoteMetadata.contentRevision }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      });
+      clearNoteConflict(noteId);
+      setNoteSyncState(noteId, "local");
+      scheduleDriveSync(noteId, 0);
+      return;
+    }
+
+    await pendingDraftStore.put({
+      workspaceId: activeWorkspace.id,
+      noteId,
+      content: localContent,
+      baseContent,
+      ...(noteAtStart.metadata.revision
+        ? { baseRevision: noteAtStart.metadata.revision }
+        : {}),
+      ...(noteAtStart.metadata.contentRevision
+        ? { baseContentRevision: noteAtStart.metadata.contentRevision }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    });
+
+    let recoveryFileName: string | undefined;
+    try {
+      const recovery = await createRecoveryCopy(provider, {
+        source: remoteMetadata,
+        content: localContent,
+        kind: "local-conflict",
+        ...(noteAtStart.metadata.contentRevision
+          ? { baseRevision: noteAtStart.metadata.contentRevision }
+          : noteAtStart.metadata.revision
+            ? { baseRevision: noteAtStart.metadata.revision }
+            : {}),
+        ...(remoteMetadata.contentRevision
+          ? { remoteRevision: remoteMetadata.contentRevision }
+          : remoteMetadata.revision
+            ? { remoteRevision: remoteMetadata.revision }
+            : {}),
+      });
+      recoveryFileName = recovery.metadata.name;
+    } catch {
+      // The IndexedDB draft remains authoritative recovery state if Drive
+      // cannot create the secondary recovery copy.
+    }
+
+    setNoteConflict(noteId, {
+      remoteMetadata,
+      remoteContent,
+      ...(recoveryFileName ? { recoveryFileName } : {}),
+    });
+    setNoteSyncState(noteId, "conflict");
+    setStatus({
+      kind: "error",
+      message: recoveryFileName
+        ? t("status.conflictRecoveryCreated", { name: recoveryFileName })
+        : t("status.conflictRecoveryLocalOnly"),
+    });
+  }
+
+  async function resolveConflictKeepLocal(noteId: string) {
+    if (!provider || !activeWorkspace) return;
+    const conflict = noteConflicts[noteId];
+    const buffer = tabBuffersRef.current[noteId];
+    if (!conflict || !buffer) return;
+
+    const localToSave = buffer.draft;
+    setStatus({ kind: "busy", message: t("status.resolvingConflict") });
+
+    try {
+      await createRecoveryCopy(provider, {
+        source: conflict.remoteMetadata,
+        content: conflict.remoteContent,
+        kind: "remote-before-overwrite",
+        ...(conflict.remoteMetadata.contentRevision
+          ? { remoteRevision: conflict.remoteMetadata.contentRevision }
+          : conflict.remoteMetadata.revision
+            ? { remoteRevision: conflict.remoteMetadata.revision }
+            : {}),
+      });
+
+      const metadata = await provider.writeText(noteId, localToSave);
+      const latest = tabBuffersRef.current[noteId] ?? buffer;
+      const savedNote: OpenNote = {
+        metadata,
+        originalContent: localToSave,
+      };
+      putTabBuffer(noteId, { note: savedNote, draft: latest.draft });
+      if (activeTabIdRef.current === noteId) {
+        setOpenNote(savedNote);
+        setDraft(latest.draft);
+      }
+      clearNoteConflict(noteId);
+
+      if (latest.draft === localToSave) {
+        await pendingDraftStore.delete(activeWorkspace.id, noteId);
+        setNoteSyncState(noteId, "synced");
+      } else {
+        await pendingDraftStore.put({
+          workspaceId: activeWorkspace.id,
+          noteId,
+          content: latest.draft,
+          baseContent: localToSave,
+          ...(metadata.revision ? { baseRevision: metadata.revision } : {}),
+          ...(metadata.contentRevision
+            ? { baseContentRevision: metadata.contentRevision }
+            : {}),
+          updatedAt: new Date().toISOString(),
+        });
+        setNoteSyncState(noteId, "local");
+        scheduleDriveSync(noteId, 0);
+      }
+
+      setStatus({ kind: "success", message: t("status.conflictKeptLocal") });
+      void updateDerivedIndexesAfterRemoteSave(metadata, localToSave);
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
+  async function resolveConflictUseDrive(noteId: string) {
+    if (!provider) return;
+    const conflict = noteConflicts[noteId];
+    const buffer = tabBuffersRef.current[noteId];
+    if (!conflict || !buffer) return;
+
+    setStatus({ kind: "busy", message: t("status.resolvingConflict") });
+    try {
+      await createRecoveryCopy(provider, {
+        source: conflict.remoteMetadata,
+        content: buffer.draft,
+        kind: "local-conflict",
+        ...(buffer.note.metadata.contentRevision
+          ? { baseRevision: buffer.note.metadata.contentRevision }
+          : buffer.note.metadata.revision
+            ? { baseRevision: buffer.note.metadata.revision }
+            : {}),
+        ...(conflict.remoteMetadata.contentRevision
+          ? { remoteRevision: conflict.remoteMetadata.contentRevision }
+          : conflict.remoteMetadata.revision
+            ? { remoteRevision: conflict.remoteMetadata.revision }
+            : {}),
+      });
+      const [metadata, content] = await Promise.all([
+        provider.metadata(noteId),
+        provider.readText(noteId),
+      ]);
+      await applyRemoteCanonical(noteId, metadata, content);
+      setStatus({ kind: "success", message: t("status.conflictUsedDrive") });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
   async function syncNoteToDrive(noteId: string) {
     if (!provider || !activeWorkspace) return;
     if (noteSyncStatesRef.current[noteId] === "conflict") return;
@@ -1456,11 +1690,15 @@ export function App() {
       );
     } catch (error) {
       if (error instanceof StorageConflictError) {
-        setNoteSyncState(noteId, "conflict");
-        setStatus({
-          kind: "error",
-          message: t("status.conflict"),
-        });
+        try {
+          await reconcileDriveConflict(noteId, noteAtStart);
+        } catch (reconcileError) {
+          setNoteSyncState(noteId, "error");
+          setStatus({
+            kind: "error",
+            message: errorMessage(reconcileError, t),
+          });
+        }
         return;
       }
       setNoteSyncState(noteId, "error");
