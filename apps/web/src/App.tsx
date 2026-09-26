@@ -2386,11 +2386,7 @@ export function App() {
                 )}
               </>
             ) : workspaceLoading ? (
-              <div
-                className="workspace-loading-v2"
-                role="status"
-                aria-live="polite"
-              >
+              <div className="workspace-loading-v2">
                 <span className="drive-loading-spinner" aria-hidden="true" />
                 <h2>{t("workspaceLoading.title")}</h2>
                 <p>{t("workspaceLoading.body")}</p>
