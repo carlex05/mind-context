@@ -7,12 +7,14 @@ export interface StorageObjectMetadata {
   readonly parentIds: readonly string[];
   readonly modifiedAt?: string;
   readonly revision?: string;
+  readonly contentRevision?: string;
   readonly mediaType?: string;
   readonly size?: number;
 }
 
 export interface WriteCondition {
   readonly expectedRevision?: string;
+  readonly expectedContentRevision?: string;
 }
 
 export class StorageConflictError extends Error {
