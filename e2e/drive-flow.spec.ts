@@ -85,6 +85,41 @@ test("syncs repeated edits to the same note with the latest Drive revision", asy
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
 });
 
+test("keeps editor focus and cursor position across autosync completion", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  drive.setUploadDelay(350);
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Focus");
+
+  const editor = page.getByRole("textbox", { name: "Edit Focus.md" });
+  await replaceEditorContent(page, editor, "# Focus\n\nTyping");
+  await expect(editor).toBeFocused();
+
+  await expect(page.getByText("Syncing…", { exact: true })).toBeVisible();
+  await page.keyboard.insertText(" during sync");
+  await expect(editor).toBeFocused();
+
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible({
+    timeout: 7000,
+  });
+  await expect(editor).toBeFocused();
+
+  await page.keyboard.insertText(" after sync");
+  await expect(editor).toContainText(
+    "# Focus\n\nTyping during sync after sync",
+  );
+
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible({
+    timeout: 7000,
+  });
+  expect(drive.noteContentByName("Focus.md")).toBe(
+    "# Focus\n\nTyping during sync after sync",
+  );
+});
+
 test("keeps newer local edits while an earlier Drive sync is in flight", async ({
   page,
 }) => {
