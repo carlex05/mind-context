@@ -250,6 +250,11 @@ const en = {
     all: "← All tags",
     empty: "No tags in this workspace yet.",
   },
+  workspaceLoading: {
+    title: "Loading your Second Brain",
+    body: "Reading files from Google Drive and rebuilding the local index…",
+    files: "Loading files from Google Drive…",
+  },
   editor: {
     aria: "Markdown editor",
     editFile: "Edit {{name}}",
@@ -571,6 +576,11 @@ const es = {
   tags: {
     all: "← Todas las etiquetas",
     empty: "Todavía no hay etiquetas en este Second Brain.",
+  },
+  workspaceLoading: {
+    title: "Cargando tu Second Brain",
+    body: "Leyendo archivos desde Google Drive y reconstruyendo el índice local…",
+    files: "Cargando archivos desde Google Drive…",
   },
   editor: {
     aria: "Editor Markdown",
