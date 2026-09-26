@@ -60,6 +60,8 @@ The repository already contains:
   standard internal links, wikilinks, embeds and block references;
 - local knowledge graph, backlinks, broken links and Local Graph;
 - serialized per-note Drive synchronization with explicit local/syncing/conflict states;
+- content-aware BASE / LOCAL / REMOTE conflict reconciliation;
+- hidden `.mindcontext-recovery/` Markdown safety copies for real conflicts;
 - local lexical full-text search;
 - revision-aware persisted search snapshots and heading-aware retrieval chunks;
 - opt-in multilingual semantic search using Transformers.js in a Web Worker,
