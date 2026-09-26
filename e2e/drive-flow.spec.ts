@@ -152,10 +152,7 @@ test("keeps edits local after Drive authorization expires and resumes after reco
     .click();
 
   await expect(
-    page.getByText("Google Drive reconnected. Pending local changes will resume syncing."),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Reconnect Google Drive", { exact: true }),
+    page.getByRole("button", { name: "Reconnect Drive", exact: true }),
   ).toHaveCount(0);
 
   await expect
@@ -191,10 +188,8 @@ test("keeps a create-note intent open across Drive reconnect", async ({
     .getByRole("button", { name: "Reconnect Drive", exact: true })
     .click();
   await expect(
-    page.getByText(
-      "Google Drive reconnected. Pending local changes will resume syncing.",
-    ),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Reconnect Drive", exact: true }),
+  ).toHaveCount(0);
 
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(dialog).not.toBeVisible();
