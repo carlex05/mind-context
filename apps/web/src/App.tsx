@@ -49,6 +49,7 @@ import {
   requestGoogleDriveAccess,
   type GoogleDriveAuthSession,
 } from "./googleIdentity";
+import { MutableGoogleDriveAccessTokenProvider } from "./googleDriveSession";
 import {
   BrowserEmbeddingProvider,
   DEFAULT_BROWSER_EMBEDDING_MODEL,
@@ -116,6 +117,13 @@ const SEMANTIC_SEARCH_KEY = "mindcontext.semantic-search.enabled";
 const LOCAL_DRAFT_DEBOUNCE_MS = 120;
 const DRIVE_SYNC_DEBOUNCE_MS = 1200;
 const CONFLICT_RECOVERY_DEBOUNCE_MS = 2000;
+const DRIVE_SESSION_WARNING_MS = 5 * 60 * 1000;
+
+type DriveSessionState =
+  | "connected"
+  | "expiring"
+  | "reconnect-required"
+  | "reconnecting";
 
 type AppStatus =
   | { readonly kind: "idle" }
@@ -143,6 +151,16 @@ export function App() {
   const { t, i18n } = useTranslation();
   const [authSession, setAuthSession] =
     useState<GoogleDriveAuthSession>();
+  const [driveSessionState, setDriveSessionState] =
+    useState<DriveSessionState>("connected");
+  const driveSessionStateRef = useRef<DriveSessionState>("connected");
+  const [driveTokenProvider] = useState(
+    () =>
+      new MutableGoogleDriveAccessTokenProvider(() => {
+        driveSessionStateRef.current = "reconnect-required";
+        setDriveSessionState("reconnect-required");
+      }),
+  );
   const [workspaceService, setWorkspaceService] =
     useState<GoogleDriveWorkspaceService>();
   const [workspaces, setWorkspaces] = useState<
