@@ -1896,6 +1896,47 @@ h2 {
   font-weight: 700;
 }
 
+.conflict-banner {
+  position: absolute;
+  z-index: 6;
+  top: 14px;
+  left: 50%;
+  display: flex;
+  width: min(720px, calc(100% - 32px));
+  padding: 12px 14px;
+  transform: translateX(-50%);
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgb(0 0 0 / 12%);
+}
+
+.conflict-banner strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 0.8rem;
+}
+
+.conflict-banner p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.conflict-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.conflict-actions button {
+  min-height: 36px;
+  white-space: nowrap;
+}
 
 .editor-panel-v2 {
   position: relative;
@@ -2887,4 +2928,22 @@ h2 {
 .onboarding-preview small {
   color: var(--ink-muted);
   line-height: 1.4;
+}
+
+@media (max-width: 760px) {
+  .conflict-banner {
+    top: 52px;
+    width: calc(100% - 24px);
+    padding: 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .conflict-actions {
+    width: 100%;
+  }
+
+  .conflict-actions button {
+    flex: 1;
+  }
 }
