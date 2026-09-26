@@ -2075,6 +2075,8 @@ export function App() {
     if (!confirmDiscardAllDirty()) return;
     await persistAllDirtyDraftsLocally();
     cancelAllScheduledSyncs();
+    driveTokenProvider.clearSession();
+    updateDriveSessionState("connected");
     setAuthSession(undefined);
     setWorkspaceService(undefined);
     setWorkspaces([]);
@@ -3073,6 +3075,10 @@ function StatusBar({ status }: { readonly status: AppStatus }) {
       {status.message}
     </div>
   );
+}
+
+function isDriveUnauthorized(error: unknown): boolean {
+  return error instanceof GoogleDriveApiError && error.status === 401;
 }
 
 function errorMessage(
