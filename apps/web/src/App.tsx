@@ -592,10 +592,9 @@ export function App() {
     setStatus({ kind: "busy", message: t("status.connectingDrive") });
     try {
       const session = await requestGoogleDriveAccess(GOOGLE_CLIENT_ID);
-      const tokenProvider = {
-        getAccessToken: () => session.accessToken,
-      };
-      const service = new GoogleDriveWorkspaceService(tokenProvider);
+      driveTokenProvider.setSession(session);
+      updateDriveSessionState("connected");
+      const service = new GoogleDriveWorkspaceService(driveTokenProvider);
       const discovered = await service.listWorkspaces();
 
       setAuthSession(session);
@@ -629,7 +628,7 @@ export function App() {
     setStatus({ kind: "busy", message: t("status.creatingWorkspace") });
     try {
       const workspace = await workspaceService.createWorkspace(workspaceName);
-      const nextProvider = storageProviderFor(workspace, authSession);
+      const nextProvider = storageProviderFor(workspace, driveTokenProvider);
       const applied = await applyWorkspaceTemplate(
         nextProvider,
         starter,
@@ -662,7 +661,7 @@ export function App() {
     if (!confirmDiscardAllDirty()) return;
 
     cancelAllScheduledSyncs();
-    const nextProvider = storageProviderFor(workspace, authSession);
+    const nextProvider = storageProviderFor(workspace, driveTokenProvider);
     setOnboardingMode(undefined);
 
     setWorkspaceLoading(true);
@@ -3074,13 +3073,11 @@ function errorMessage(
 
 function storageProviderFor(
   workspace: GoogleDriveWorkspace,
-  authSession: GoogleDriveAuthSession,
+  accessTokenProvider: MutableGoogleDriveAccessTokenProvider,
 ): GoogleDriveStorageProvider {
   return new GoogleDriveStorageProvider({
     workspaceFolderId: workspace.id,
-    accessTokenProvider: {
-      getAccessToken: () => authSession.accessToken,
-    },
+    accessTokenProvider,
   });
 }
 
