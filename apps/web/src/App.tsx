@@ -2126,6 +2126,10 @@ export function App() {
   if (!activeWorkspace || !provider) {
     return (
       <>
+      <DriveSessionBanner
+        state={driveSessionState}
+        onReconnect={() => void reconnectDrive()}
+      />
       <WorkspaceChooser
         workspaces={workspaces}
         workspaceName={workspaceName}
@@ -2407,6 +2411,10 @@ export function App() {
         mobileSidebarOpen ? "mobile-sidebar-open" : "",
       ].join(" ")}
     >
+      <DriveSessionBanner
+        state={driveSessionState}
+        onReconnect={() => void reconnectDrive()}
+      />
       <div className="workspace-shell-v2">
         <WorkspaceRail
           activePanel={activeLeftPanel}
@@ -3064,6 +3072,53 @@ function ConfigurationRequired() {
         />
       </section>
     </main>
+  );
+}
+
+function DriveSessionBanner({
+  state,
+  onReconnect,
+}: {
+  readonly state: DriveSessionState;
+  readonly onReconnect: () => void;
+}) {
+  const { t } = useTranslation();
+  if (state === "connected") return null;
+
+  const reconnecting = state === "reconnecting";
+  const expiring = state === "expiring";
+  const title = reconnecting
+    ? t("driveSession.reconnectingTitle")
+    : expiring
+      ? t("driveSession.expiringTitle")
+      : t("driveSession.reconnectTitle");
+  const body = reconnecting
+    ? t("driveSession.reconnectingBody")
+    : expiring
+      ? t("driveSession.expiringBody")
+      : t("driveSession.reconnectBody");
+
+  return (
+    <aside
+      className={`drive-session-banner ${state}`}
+      role="alert"
+      aria-live="assertive"
+    >
+      <div>
+        <strong>{title}</strong>
+        <p>{body}</p>
+      </div>
+      <button
+        type="button"
+        className="primary-button"
+        disabled={reconnecting}
+        onClick={onReconnect}
+      >
+        {reconnecting
+          ? t("driveSession.reconnectingTitle")
+          : t("driveSession.reconnect")}
+      </button>
+    </aside>
   );
 }
 
