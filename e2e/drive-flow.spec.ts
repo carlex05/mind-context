@@ -151,9 +151,7 @@ test("keeps edits local after Drive authorization expires and resumes after reco
     .getByRole("button", { name: "Reconnect Drive", exact: true })
     .click();
 
-  await expect(
-    page.getByRole("button", { name: "Reconnect Drive", exact: true }),
-  ).toHaveCount(0);
+  await expect(page.locator(".drive-session-banner")).toHaveCount(0);
 
   await expect
     .poll(() => drive.noteContentByName("Session.md"), { timeout: 7000 })
@@ -187,9 +185,7 @@ test("keeps a create-note intent open across Drive reconnect", async ({
   await page
     .getByRole("button", { name: "Reconnect Drive", exact: true })
     .click();
-  await expect(
-    page.getByRole("button", { name: "Reconnect Drive", exact: true }),
-  ).toHaveCount(0);
+  await expect(page.locator(".drive-session-banner")).toHaveCount(0);
 
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(dialog).not.toBeVisible();
