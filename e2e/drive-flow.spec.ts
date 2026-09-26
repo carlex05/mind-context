@@ -476,11 +476,9 @@ test("shows Drive loading feedback before deciding a vault is empty", async ({
   await page.getByRole("button", { name: /My Second Brain/ }).click();
 
   await expect(
-    page.getByRole("status").filter({ hasText: "Loading your Second Brain" }),
-  ).toBeVisible();
-  await expect(
     page.getByText("Loading files from Google Drive…", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".drive-tree-skeleton")).toBeVisible();
   await expect(page.getByText("Open a note", { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("dialog", {
