@@ -252,8 +252,12 @@ export function App() {
     [],
   );
 
+  const activeBufferedNote = openNote
+    ? tabBuffers[openNote.metadata.id]?.note ?? openNote
+    : undefined;
   const dirty =
-    openNote !== undefined && draft !== openNote.originalContent;
+    activeBufferedNote !== undefined &&
+    draft !== activeBufferedNote.originalContent;
   const activeSyncState: NoteSyncState = openNote
     ? noteSyncStates[openNote.metadata.id] ?? (dirty ? "local" : "synced")
     : "synced";
@@ -367,6 +371,26 @@ export function App() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!activeWorkspace) return;
+
+    const persistVisibleDrafts = () => {
+      void persistAllDirtyDraftsLocally();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        persistVisibleDrafts();
+      }
+    };
+
+    window.addEventListener("pagehide", persistVisibleDrafts);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("pagehide", persistVisibleDrafts);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [activeWorkspace.id]);
 
   useEffect(() => {
     applyThemePreference(themePreference);
@@ -714,8 +738,10 @@ export function App() {
         }),
       );
 
-      const sourceBuffers: Record<string, NoteBuffer> = { ...tabBuffersRef.current };
-      if (activeTabId && openNote) {
+      const sourceBuffers: Record<string, NoteBuffer> = {
+        ...tabBuffersRef.current,
+      };
+      if (activeTabId && openNote && !sourceBuffers[activeTabId]) {
         sourceBuffers[activeTabId] = { note: openNote, draft };
       }
 
@@ -835,25 +861,29 @@ export function App() {
         )
           ? cachedDocument.content
           : await provider.readText(id);
-        nextNote = {
-          metadata,
-          originalContent: content,
-        };
         const pendingDraft = activeWorkspace
           ? await pendingDraftStore.get(activeWorkspace.id, id)
           : undefined;
+        nextNote = pendingDraft
+          ? {
+              metadata: {
+                ...metadata,
+                ...(pendingDraft.baseRevision
+                  ? { revision: pendingDraft.baseRevision }
+                  : {}),
+                ...(pendingDraft.baseContentRevision
+                  ? { contentRevision: pendingDraft.baseContentRevision }
+                  : {}),
+              },
+              originalContent: pendingDraft.baseContent,
+            }
+          : {
+              metadata,
+              originalContent: content,
+            };
         nextDraft = pendingDraft?.content ?? content;
         putTabBuffer(id, { note: nextNote, draft: nextDraft });
-        if (pendingDraft) {
-          setNoteSyncState(
-            id,
-            pendingDraft.baseRevision === metadata.revision
-              ? "local"
-              : "conflict",
-          );
-        } else {
-          setNoteSyncState(id, "synced");
-        }
+        setNoteSyncState(id, pendingDraft ? "local" : "synced");
       }
 
       setOpenNote(nextNote);
@@ -996,9 +1026,8 @@ export function App() {
 
     const closingActive = activeTabId === noteId;
     const buffer =
-      closingActive && openNote
-        ? { note: openNote, draft }
-        : tabBuffersRef.current[noteId];
+      tabBuffersRef.current[noteId] ??
+      (closingActive && openNote ? { note: openNote, draft } : undefined);
     const tabDirty =
       buffer !== undefined &&
       buffer.draft !== buffer.note.originalContent;
