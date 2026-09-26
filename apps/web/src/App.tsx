@@ -390,7 +390,7 @@ export function App() {
       window.removeEventListener("pagehide", persistVisibleDrafts);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [activeWorkspace.id]);
+  }, [activeWorkspace?.id]);
 
   useEffect(() => {
     applyThemePreference(themePreference);
