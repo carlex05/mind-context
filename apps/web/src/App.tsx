@@ -208,6 +208,7 @@ export function App() {
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(true);
   const [workspaceUiReady, setWorkspaceUiReady] = useState(false);
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string>();
   const [viewMode, setViewMode] = useState<NoteViewMode>("edit");
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
@@ -558,6 +559,8 @@ export function App() {
     const nextProvider = storageProviderFor(workspace, authSession);
     setOnboardingMode(undefined);
 
+    setWorkspaceLoading(true);
+    setTree([]);
     setStatus({ kind: "busy", message: t("status.openingWorkspace") });
     try {
       const [cached, cachedSearch] = await Promise.all([
@@ -691,6 +694,7 @@ export function App() {
       }
 
       setWorkspaceUiReady(true);
+      setWorkspaceLoading(false);
       setStatus({
         kind: "success",
         message: t("status.indexed", {
@@ -709,6 +713,7 @@ export function App() {
         setOnboardingMode("empty-existing");
       }
     } catch (error) {
+      setWorkspaceLoading(false);
       setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
@@ -1933,6 +1938,7 @@ export function App() {
     setSearchSnapshot(undefined);
     setEmbeddingSnapshot(undefined);
     setWorkspaceUiReady(false);
+    setWorkspaceLoading(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
     setQuickSwitcherOpen(false);
@@ -1967,6 +1973,7 @@ export function App() {
     setSearchSnapshot(undefined);
     setEmbeddingSnapshot(undefined);
     setWorkspaceUiReady(false);
+    setWorkspaceLoading(false);
     setRightSidebarOpen(false);
     setMobileSidebarOpen(true);
     setQuickSwitcherOpen(false);
@@ -2028,6 +2035,7 @@ export function App() {
               type="button"
               aria-label={t("actions.newNote")}
               title={t("actions.newNote")}
+              disabled={workspaceLoading}
               onClick={() =>
                 requestNewItem("note", selectedFolderId || provider.rootId)
               }
@@ -2038,6 +2046,7 @@ export function App() {
               type="button"
               aria-label={t("actions.newFolder")}
               title={t("actions.newFolder")}
+              disabled={workspaceLoading}
               onClick={() =>
                 requestNewItem("folder", selectedFolderId || provider.rootId)
               }
@@ -2048,6 +2057,7 @@ export function App() {
               type="button"
               aria-label={t("actions.refreshVault")}
               title={t("common.refresh")}
+              disabled={workspaceLoading}
               onClick={() => void refreshWorkspaceState()}
             >
               <Icon name="refresh" />
@@ -2070,6 +2080,7 @@ export function App() {
         <WorkspaceExplorer
           provider={provider}
           tree={tree}
+          loading={workspaceLoading}
           index={knowledgeIndex}
           activeNoteId={openNote?.metadata.id}
           selectedFolderId={selectedFolderId || provider.rootId}
@@ -2371,6 +2382,16 @@ export function App() {
                   />
                 )}
               </>
+            ) : workspaceLoading ? (
+              <div
+                className="workspace-loading-v2"
+                role="status"
+                aria-live="polite"
+              >
+                <span className="drive-loading-spinner" aria-hidden="true" />
+                <h2>{t("workspaceLoading.title")}</h2>
+                <p>{t("workspaceLoading.body")}</p>
+              </div>
             ) : (
               <div className="workspace-empty-v2">
                 <span className="section-label">MindContext</span>
