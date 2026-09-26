@@ -1056,12 +1056,34 @@ export function App() {
       buffer !== undefined &&
       buffer.draft !== buffer.note.originalContent;
 
+    if (tabDirty) {
+      await persistPendingDraft(noteId, false);
+      const conflict = noteConflicts[noteId];
+      if (conflict && provider && buffer) {
+        try {
+          await createRecoveryCopy(provider, {
+            source: conflict.remoteMetadata,
+            content: buffer.draft,
+            kind: "local-conflict",
+            ...(buffer.note.metadata.contentRevision
+              ? { baseRevision: buffer.note.metadata.contentRevision }
+              : buffer.note.metadata.revision
+                ? { baseRevision: buffer.note.metadata.revision }
+                : {}),
+            ...(conflict.remoteMetadata.contentRevision
+              ? { remoteRevision: conflict.remoteMetadata.contentRevision }
+              : conflict.remoteMetadata.revision
+                ? { remoteRevision: conflict.remoteMetadata.revision }
+                : {}),
+          });
+        } catch {
+          // The local IndexedDB draft remains available after the tab closes.
+        }
+      }
+    }
     cancelLocalDraftTimer(noteId);
     cancelDriveSyncTimer(noteId);
     cancelConflictRecoveryTimer(noteId);
-    if (tabDirty) {
-      await persistPendingDraft(noteId, false);
-    }
 
     const remaining = tabs.filter((tab) => tab.noteId !== noteId);
     setTabs(remaining);
@@ -1625,6 +1647,21 @@ export function App() {
     try {
       await createRecoveryCopy(provider, {
         source: conflict.remoteMetadata,
+        content: localToSave,
+        kind: "local-conflict",
+        ...(buffer.note.metadata.contentRevision
+          ? { baseRevision: buffer.note.metadata.contentRevision }
+          : buffer.note.metadata.revision
+            ? { baseRevision: buffer.note.metadata.revision }
+            : {}),
+        ...(conflict.remoteMetadata.contentRevision
+          ? { remoteRevision: conflict.remoteMetadata.contentRevision }
+          : conflict.remoteMetadata.revision
+            ? { remoteRevision: conflict.remoteMetadata.revision }
+            : {}),
+      });
+      await createRecoveryCopy(provider, {
+        source: conflict.remoteMetadata,
         content: conflict.remoteContent,
         kind: "remote-before-overwrite",
         ...(conflict.remoteMetadata.contentRevision
@@ -1826,7 +1863,30 @@ export function App() {
       ([, buffer]) => buffer.draft !== buffer.note.originalContent,
     );
     await Promise.all(
-      entries.map(([noteId]) => persistPendingDraft(noteId, false)),
+      entries.map(async ([noteId, buffer]) => {
+        await persistPendingDraft(noteId, false);
+        const conflict = noteConflicts[noteId];
+        if (!conflict || !provider) return;
+        try {
+          await createRecoveryCopy(provider, {
+            source: conflict.remoteMetadata,
+            content: buffer.draft,
+            kind: "local-conflict",
+            ...(buffer.note.metadata.contentRevision
+              ? { baseRevision: buffer.note.metadata.contentRevision }
+              : buffer.note.metadata.revision
+                ? { baseRevision: buffer.note.metadata.revision }
+                : {}),
+            ...(conflict.remoteMetadata.contentRevision
+              ? { remoteRevision: conflict.remoteMetadata.contentRevision }
+              : conflict.remoteMetadata.revision
+                ? { remoteRevision: conflict.remoteMetadata.revision }
+                : {}),
+          });
+        } catch {
+          // Leaving the workspace must never discard the IndexedDB recovery.
+        }
+      }),
     );
   }
 
