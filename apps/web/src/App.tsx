@@ -1515,6 +1515,7 @@ export function App() {
     delay = DRIVE_SYNC_DEBOUNCE_MS,
   ) {
     if (noteSyncStatesRef.current[noteId] === "conflict") return;
+    if (!driveSessionCanSync()) return;
     cancelDriveSyncTimer(noteId);
     const timer = setTimeout(() => {
       driveSyncTimersRef.current.delete(noteId);
@@ -1881,6 +1882,13 @@ export function App() {
     if (noteSyncStatesRef.current[noteId] === "conflict") return;
 
     cancelDriveSyncTimer(noteId);
+    if (!driveSessionCanSync()) {
+      await persistPendingDraft(noteId, false);
+      if (tabBuffersRef.current[noteId]) {
+        setNoteSyncState(noteId, "local");
+      }
+      return;
+    }
     if (syncInFlightRef.current.has(noteId)) return;
 
     try {
@@ -1960,6 +1968,15 @@ export function App() {
         },
       );
     } catch (error) {
+      if (isDriveUnauthorized(error)) {
+        await persistPendingDraft(noteId, false);
+        setNoteSyncState(noteId, "local");
+        setStatus({
+          kind: "error",
+          message: t("status.driveReconnectRequired"),
+        });
+        return;
+      }
       if (error instanceof StorageConflictError) {
         try {
           await reconcileDriveConflict(noteId, noteAtStart);
