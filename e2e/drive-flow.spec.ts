@@ -118,6 +118,52 @@ test("keeps editor focus and cursor position across autosync completion", async 
   );
 });
 
+test("keeps edits local after Drive authorization expires and resumes after reconnect", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Session");
+
+  const editor = page.getByRole("textbox", { name: "Edit Session.md" });
+  await replaceEditorContent(page, editor, "# Session\n\nbefore expiry");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  expect(drive.noteContentByName("Session.md")).toBe(
+    "# Session\n\nbefore expiry",
+  );
+
+  drive.expireInitialToken();
+  const localAfterExpiry = "# Session\n\nwritten while Drive is expired";
+  await replaceEditorContent(page, editor, localAfterExpiry);
+
+  await expect(
+    page.getByText("Reconnect Google Drive", { exact: true }).first(),
+  ).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+  await expect(editor).toContainText("written while Drive is expired");
+  expect(drive.noteContentByName("Session.md")).toBe(
+    "# Session\n\nbefore expiry",
+  );
+
+  await page
+    .getByRole("button", { name: "Reconnect Drive", exact: true })
+    .click();
+
+  await expect(
+    page.getByText("Google Drive reconnected. Pending local changes will resume syncing."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Reconnect Google Drive", { exact: true }),
+  ).toHaveCount(0);
+
+  await expect
+    .poll(() => drive.noteContentByName("Session.md"), { timeout: 7000 })
+    .toBe(localAfterExpiry);
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+});
+
 test("keeps newer local edits while an earlier Drive sync is in flight", async ({
   page,
 }) => {
@@ -1040,8 +1086,11 @@ async function installGoogleIdentityMock(page: Page): Promise<void> {
               initTokenClient(config) {
                 return {
                   requestAccessToken() {
+                    window.__mindContextTokenCounter =
+                      (window.__mindContextTokenCounter || 0) + 1;
                     config.callback({
-                      access_token: "e2e-access-token",
+                      access_token:
+                        "e2e-access-token-" + window.__mindContextTokenCounter,
                       expires_in: "3600"
                     });
                   }
@@ -1076,6 +1125,7 @@ class FakeDrive {
   private workspaceCreated = false;
   private uploadDelayMs = 0;
   private listDelayMs = 0;
+  private rejectInitialToken = false;
 
   setUploadDelay(delayMs: number): void {
     this.uploadDelayMs = delayMs;
@@ -1083,6 +1133,10 @@ class FakeDrive {
 
   setListDelay(delayMs: number): void {
     this.listDelayMs = delayMs;
+  }
+
+  expireInitialToken(): void {
+    this.rejectInitialToken = true;
   }
 
   seedExistingWorkspace(): void {
@@ -1097,6 +1151,24 @@ class FakeDrive {
     const request = route.request();
     const url = new URL(request.url());
     const method = request.method();
+    const authorization = request.headers()["authorization"];
+
+    if (
+      this.rejectInitialToken &&
+      authorization === "Bearer e2e-access-token-1"
+    ) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: 401,
+            message: "Invalid Credentials",
+          },
+        }),
+      });
+      return;
+    }
 
     if (
       method === "GET" &&
