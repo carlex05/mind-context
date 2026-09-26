@@ -367,7 +367,10 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     id: string,
     condition?: WriteCondition,
   ): Promise<void> {
-    if (!condition?.expectedRevision) {
+    if (
+      !condition?.expectedRevision &&
+      !condition?.expectedContentRevision
+    ) {
       return;
     }
 
