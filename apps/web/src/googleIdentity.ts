@@ -43,6 +43,7 @@ let scriptPromise: Promise<void> | undefined;
 
 export async function requestGoogleDriveAccess(
   clientId: string,
+  options: { readonly prompt?: string } = {},
 ): Promise<GoogleDriveAuthSession> {
   await loadGoogleIdentityServices();
 
@@ -85,7 +86,11 @@ export async function requestGoogleDriveAccess(
       },
     });
 
-    client.requestAccessToken();
+    client.requestAccessToken(
+      options.prompt === undefined
+        ? undefined
+        : { prompt: options.prompt },
+    );
   });
 }
 
