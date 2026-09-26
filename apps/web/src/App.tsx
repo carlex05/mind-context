@@ -111,6 +111,7 @@ const pendingDraftStore = new IndexedDbPendingNoteDraftStore();
 const SEMANTIC_SEARCH_KEY = "mindcontext.semantic-search.enabled";
 const LOCAL_DRAFT_DEBOUNCE_MS = 120;
 const DRIVE_SYNC_DEBOUNCE_MS = 1200;
+const CONFLICT_RECOVERY_DEBOUNCE_MS = 2000;
 
 type AppStatus =
   | { readonly kind: "idle" }
@@ -189,6 +190,9 @@ export function App() {
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
   const driveSyncTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const conflictRecoveryTimersRef = useRef<
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
   const syncInFlightRef = useRef<Set<string>>(new Set());
@@ -987,6 +991,16 @@ export function App() {
 
     if (noteSyncStatesRef.current[activeTabId] !== "conflict") {
       setNoteSyncState(activeTabId, "local");
+    } else {
+      const conflict = noteConflicts[activeTabId];
+      if (conflict) {
+        scheduleConflictRecovery(
+          activeTabId,
+          value,
+          currentNote,
+          conflict,
+        );
+      }
     }
     scheduleLocalDraftPersist(activeTabId);
   }
@@ -1044,6 +1058,7 @@ export function App() {
 
     cancelLocalDraftTimer(noteId);
     cancelDriveSyncTimer(noteId);
+    cancelConflictRecoveryTimer(noteId);
     if (tabDirty) {
       await persistPendingDraft(noteId, false);
     }
@@ -1288,6 +1303,14 @@ export function App() {
     }
   }
 
+  function cancelConflictRecoveryTimer(noteId: string) {
+    const timer = conflictRecoveryTimersRef.current.get(noteId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      conflictRecoveryTimersRef.current.delete(noteId);
+    }
+  }
+
   function cancelAllScheduledSyncs() {
     for (const timer of localDraftTimersRef.current.values()) {
       clearTimeout(timer);
@@ -1295,8 +1318,43 @@ export function App() {
     for (const timer of driveSyncTimersRef.current.values()) {
       clearTimeout(timer);
     }
+    for (const timer of conflictRecoveryTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
     localDraftTimersRef.current.clear();
     driveSyncTimersRef.current.clear();
+    conflictRecoveryTimersRef.current.clear();
+  }
+
+  function scheduleConflictRecovery(
+    noteId: string,
+    content: string,
+    note: OpenNote,
+    conflict: NoteConflict,
+  ) {
+    if (!provider) return;
+    cancelConflictRecoveryTimer(noteId);
+    const timer = setTimeout(() => {
+      conflictRecoveryTimersRef.current.delete(noteId);
+      void createRecoveryCopy(provider, {
+        source: conflict.remoteMetadata,
+        content,
+        kind: "local-conflict",
+        ...(note.metadata.contentRevision
+          ? { baseRevision: note.metadata.contentRevision }
+          : note.metadata.revision
+            ? { baseRevision: note.metadata.revision }
+            : {}),
+        ...(conflict.remoteMetadata.contentRevision
+          ? { remoteRevision: conflict.remoteMetadata.contentRevision }
+          : conflict.remoteMetadata.revision
+            ? { remoteRevision: conflict.remoteMetadata.revision }
+            : {}),
+      }).catch(() => {
+        // IndexedDB remains the first recovery line if Drive is unavailable.
+      });
+    }, CONFLICT_RECOVERY_DEBOUNCE_MS);
+    conflictRecoveryTimersRef.current.set(noteId, timer);
   }
 
   function scheduleLocalDraftPersist(noteId: string) {
@@ -1422,6 +1480,7 @@ export function App() {
   }
 
   function clearNoteConflict(noteId: string) {
+    cancelConflictRecoveryTimer(noteId);
     setNoteConflicts((current) => {
       if (!current[noteId]) return current;
       const next = { ...current };
