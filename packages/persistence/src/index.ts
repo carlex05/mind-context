@@ -24,6 +24,7 @@ export interface PendingNoteDraft {
    */
   readonly baseContent: string;
   readonly baseRevision?: string;
+  readonly baseContentRevision?: string;
   readonly updatedAt: string;
 }
 
