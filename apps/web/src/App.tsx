@@ -257,6 +257,8 @@ export function App() {
   const activeSyncState: NoteSyncState = openNote
     ? noteSyncStates[openNote.metadata.id] ?? (dirty ? "local" : "synced")
     : "synced";
+  const activeConflict =
+    activeTabId === undefined ? undefined : noteConflicts[activeTabId];
 
   const dirtyNoteIds = useMemo(() => {
     const result = new Set<string>();
@@ -547,6 +549,7 @@ export function App() {
       replaceTabBuffers({});
       noteSyncStatesRef.current = {};
       setNoteSyncStates({});
+      setNoteConflicts({});
       activeTabIdRef.current = undefined;
       setActiveTabId(undefined);
       setNavigation({ entries: [], index: -1 });
@@ -1013,6 +1016,7 @@ export function App() {
     delete nextSyncStates[noteId];
     noteSyncStatesRef.current = nextSyncStates;
     setNoteSyncStates(nextSyncStates);
+    clearNoteConflict(noteId);
 
     if (!closingActive) return;
 
@@ -1742,6 +1746,7 @@ export function App() {
     replaceTabBuffers({});
     noteSyncStatesRef.current = {};
     setNoteSyncStates({});
+    setNoteConflicts({});
     activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
@@ -1774,6 +1779,7 @@ export function App() {
     replaceTabBuffers({});
     noteSyncStatesRef.current = {};
     setNoteSyncStates({});
+    setNoteConflicts({});
     activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
     setNavigation({ entries: [], index: -1 });
@@ -2113,6 +2119,41 @@ export function App() {
             onContext={() => setRightSidebarOpen((current) => !current)}
             onSave={() => void saveNote()}
           />
+
+          {openNote && activeConflict ? (
+            <section className="conflict-banner" role="alert">
+              <div>
+                <strong>{t("conflict.title")}</strong>
+                <p>
+                  {activeConflict.recoveryFileName
+                    ? t("conflict.recoveryCreated", {
+                        name: activeConflict.recoveryFileName,
+                      })
+                    : t("conflict.localOnly")}
+                </p>
+              </div>
+              <div className="conflict-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    void resolveConflictUseDrive(openNote.metadata.id)
+                  }
+                >
+                  {t("conflict.useDrive")}
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() =>
+                    void resolveConflictKeepLocal(openNote.metadata.id)
+                  }
+                >
+                  {t("conflict.keepMine")}
+                </button>
+              </div>
+            </section>
+          ) : null}
 
           <section className="editor-panel-v2" aria-label={t("editor.aria")}>
             {openNote ? (
