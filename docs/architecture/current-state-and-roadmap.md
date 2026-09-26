@@ -29,10 +29,12 @@ is plain Markdown/YAML with open/Obsidian-compatible linking conventions.
 - Markdown create/edit/delete;
 - folder create/delete;
 - safe rename/move with conservative resolved-link rewriting;
-- remote revision conflict check before save;
+- content-aware Drive conflict protection using blob content revisions when available;
 - persistent browser-local pending drafts in a separate IndexedDB recovery store;
 - debounced, single-flight Drive synchronization per note;
-- explicit local/syncing/synced/conflict/error note states.
+- BASE / LOCAL / REMOTE reconciliation before declaring a real conflict;
+- hidden Markdown recovery copies under `.mindcontext-recovery/` for real conflicts;
+- explicit local/syncing/synced/conflict/error note states and conflict resolution controls.
 
 Important limitation: arbitrary pre-existing Google Drive folders are not a
 general MVP workspace path under the current `drive.file` decision. Import/open
@@ -290,15 +292,21 @@ The original daily-use gate still has important work after RAG/capture:
 
 Implemented baseline:
 
-- local draft persistence with a short debounce;
+- local draft persistence with a short debounce and page-hide/visibility flush;
 - deferred Drive autosync with per-note single-flight serialization;
-- remote revision conflict protection;
+- Google Drive content-revision protection via `headRevisionId` when available;
+- BASE / LOCAL / REMOTE reconciliation that auto-resolves safe divergence cases;
+- byte-for-byte local Markdown recovery copies in a reserved hidden Drive folder before a real conflict is exposed;
+- preservation of the remote version before an explicit "keep mine" overwrite;
 - visible local/syncing/synced/conflict/error state;
-- edits made during an in-flight Drive write are queued as a newer local draft.
+- explicit "keep mine" and "use Drive" conflict actions;
+- edits made during an in-flight Drive write are queued as a newer local draft;
+- closing a tab does not delete a pending recovery draft.
 
 Remaining hardening:
 
-- richer conflict-resolution UI (reload/copy/compare/merge);
+- richer side-by-side compare and automatic three-way text merge;
+- recovery-management/retention UI for resolved temporary artifacts;
 - offline retry/backoff and explicit connectivity state;
 - future remote Drive change-feed detection for multi-device reconciliation.
 
