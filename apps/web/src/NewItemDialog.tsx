@@ -52,6 +52,9 @@ export function NewItemDialog({
     try {
       await onCreate(kind, name.trim(), parentId);
       onClose();
+    } catch {
+      // The parent owns error/session feedback. Keep the user's creation
+      // intent in the dialog so it can be retried after Drive reconnects.
     } finally {
       setSubmitting(false);
     }
