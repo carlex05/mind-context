@@ -5,7 +5,6 @@ import {
   type CompletionResult,
 } from "@codemirror/autocomplete";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
-import { Compartment } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 
@@ -36,7 +35,6 @@ export function MarkdownEditor({
   const onChangeRef = useRef(onChange);
   const linkTargetsRef = useRef(linkTargets);
   const tagsRef = useRef(tags);
-  const contentAttributesCompartmentRef = useRef(new Compartment());
   const completionSourceRef = useRef(
     (context: CompletionContext): CompletionResult | null =>
       createKnowledgeCompletionSource(
@@ -65,14 +63,12 @@ export function MarkdownEditor({
         }),
         keymap.of(markdownKeymap),
         EditorView.lineWrapping,
-        contentAttributesCompartmentRef.current.of(
-          EditorView.contentAttributes.of({
-            "aria-label": label,
-            "aria-multiline": "true",
-            role: "textbox",
-            spellcheck: "true",
-          }),
-        ),
+        EditorView.contentAttributes.of({
+          "aria-label": label,
+          "aria-multiline": "true",
+          role: "textbox",
+          spellcheck: "true",
+        }),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());
@@ -87,22 +83,6 @@ export function MarkdownEditor({
       editor.destroy();
       editorRef.current = null;
     };
-  }, []);
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    editor.dispatch({
-      effects: contentAttributesCompartmentRef.current.reconfigure(
-        EditorView.contentAttributes.of({
-          "aria-label": label,
-          "aria-multiline": "true",
-          role: "textbox",
-          spellcheck: "true",
-        }),
-      ),
-    });
   }, [label]);
 
   useEffect(() => {
