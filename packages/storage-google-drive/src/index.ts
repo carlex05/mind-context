@@ -10,7 +10,7 @@ const DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const MARKDOWN_MIME_TYPE = "text/markdown";
 const FILE_FIELDS =
-  "id,name,mimeType,modifiedTime,version,parents,size,appProperties";
+  "id,name,mimeType,modifiedTime,version,headRevisionId,parents,size,appProperties";
 
 export const GOOGLE_DRIVE_PROVIDER_ID = "google-drive";
 export const GOOGLE_DRIVE_FILE_SCOPE =
@@ -43,6 +43,7 @@ interface DriveFile {
   readonly mimeType: string;
   readonly modifiedTime?: string;
   readonly version?: string | number;
+  readonly headRevisionId?: string;
   readonly parents?: readonly string[];
   readonly size?: string | number;
   readonly appProperties?: Readonly<Record<string, string>>;
@@ -371,7 +372,20 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     }
 
     const current = await this.metadata(id);
-    if (current.revision !== condition.expectedRevision) {
+    if (
+      condition.expectedContentRevision &&
+      current.contentRevision !== condition.expectedContentRevision
+    ) {
+      throw new StorageConflictError(
+        "The file content changed in Google Drive after it was opened.",
+        id,
+      );
+    }
+    if (
+      !condition.expectedContentRevision &&
+      condition.expectedRevision &&
+      current.revision !== condition.expectedRevision
+    ) {
       throw new StorageConflictError(
         "The file changed in Google Drive after it was opened.",
         id,
@@ -422,6 +436,9 @@ function toStorageMetadata(file: DriveFile): StorageObjectMetadata {
     ...(file.modifiedTime ? { modifiedAt: file.modifiedTime } : {}),
     ...(file.version !== undefined
       ? { revision: String(file.version) }
+      : {}),
+    ...(file.headRevisionId
+      ? { contentRevision: file.headRevisionId }
       : {}),
     ...(file.mimeType ? { mediaType: file.mimeType } : {}),
     ...(numericSize !== undefined && Number.isFinite(numericSize)
