@@ -108,6 +108,30 @@ test("keeps newer local edits while an earlier Drive sync is in flight", async (
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
 });
 
+test("does not treat Drive metadata-only changes as content conflicts", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Metadata");
+
+  const editor = page.getByRole("textbox", { name: "Edit Metadata.md" });
+  await replaceEditorContent(page, editor, "# Metadata\n\ninitial");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced to Google Drive.")).toBeVisible();
+
+  drive.externalMetadataUpdate("Metadata.md");
+  await replaceEditorContent(page, editor, "# Metadata\n\nlocal after metadata");
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  await expect(page.locator(".note-sync-state.conflict")).toHaveCount(0);
+  expect(drive.noteContentByName("Metadata.md")).toBe(
+    "# Metadata\n\nlocal after metadata",
+  );
+});
+
 test("restores a locally persisted draft after a browser reload", async ({
   page,
 }) => {
@@ -175,6 +199,30 @@ test("preserves a local draft and surfaces conflict after a remote Drive change"
   // The local draft is never allowed to overwrite a newer remote revision.
   await page.waitForTimeout(1500);
   expect(drive.noteContentByName("Conflict.md")).toBe(
+    "# Conflict\n\nremote version",
+  );
+
+  const localRecoveryPath = drive.paths().find(
+    (path) =>
+      path.startsWith(".mindcontext-recovery/Conflict.local-conflict.") &&
+      path.endsWith(".md"),
+  );
+  expect(localRecoveryPath).toBeTruthy();
+  expect(drive.contentByPath(localRecoveryPath!)).toBe(localDraft);
+  await expect(page.getByText(".mindcontext-recovery", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Keep my version" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  expect(drive.noteContentByName("Conflict.md")).toBe(localDraft);
+
+  const remoteRecoveryPath = drive.paths().find(
+    (path) =>
+      path.startsWith(
+        ".mindcontext-recovery/Conflict.remote-before-overwrite.",
+      ) && path.endsWith(".md"),
+  );
+  expect(remoteRecoveryPath).toBeTruthy();
+  expect(drive.contentByPath(remoteRecoveryPath!)).toBe(
     "# Conflict\n\nremote version",
   );
 });
@@ -1104,6 +1152,14 @@ class FakeDrive {
     object.content = content;
     object.version += 1;
     object.contentRevision = (object.contentRevision ?? 0) + 1;
+  }
+
+  externalMetadataUpdate(name: string): void {
+    const object = Array.from(this.objects.values()).find(
+      (candidate) => candidate.name === name,
+    );
+    if (!object) throw new Error(`Missing fake Drive file ${name}`);
+    object.version += 1;
   }
 
   noteContentByName(name: string): string | undefined {
