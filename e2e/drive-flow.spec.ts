@@ -89,7 +89,7 @@ test("keeps editor focus and cursor position across autosync completion", async 
   page,
 }) => {
   const drive = new FakeDrive();
-  drive.setUploadDelay(350);
+  drive.setUploadDelay(900);
   await prepareDrive(page, drive);
   await openFreshWorkspace(page);
   await createNote(page, "Focus");
