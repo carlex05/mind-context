@@ -164,7 +164,7 @@ export function WorkspaceExplorer({
   return (
     <nav className="file-tree" aria-label={t("explorer.workspaceFiles")}>
       {loading ? (
-        <div className="drive-tree-loading" role="status" aria-live="polite">
+        <div className="drive-tree-loading">
           <div className="drive-tree-loading-title">
             <span className="drive-loading-spinner" aria-hidden="true" />
             <span>{t("workspaceLoading.files")}</span>
