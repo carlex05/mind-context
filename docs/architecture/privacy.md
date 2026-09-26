@@ -38,6 +38,10 @@ NOT be cleared together with disposable search/embedding indexes. Once a draft
 is confirmed in canonical storage and no newer local edit exists, its pending
 record should be removed.
 
+## Drive recovery copies
+
+When a real content conflict is detected, MindContext may create a byte-for-byte Markdown recovery copy under the reserved `.mindcontext-recovery/` folder in the user's workspace. These files stay in the user's Drive, are excluded from normal workspace projections, and are not sent to MindContext-controlled services. Unresolved recovery files are never automatically deleted.
+
 ## Browser-local derived copies
 
 For incremental full-text retrieval, IndexedDB MAY contain local copies of
