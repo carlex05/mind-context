@@ -211,9 +211,19 @@ test("preserves a local draft and surfaces conflict after a remote Drive change"
   expect(drive.contentByPath(localRecoveryPath!)).toBe(localDraft);
   await expect(page.getByText(".mindcontext-recovery", { exact: true })).toHaveCount(0);
 
+  const updatedLocalDraft = "# Conflict\n\nlocal version after conflict";
+  await replaceEditorContent(page, restoredEditor, updatedLocalDraft);
+  await page.waitForTimeout(2300);
+  const latestRecoveryPath = drive.paths().find(
+    (path) =>
+      path.startsWith(".mindcontext-recovery/Conflict.local-conflict.") &&
+      drive.contentByPath(path) === updatedLocalDraft,
+  );
+  expect(latestRecoveryPath).toBeTruthy();
+
   await page.getByRole("button", { name: "Keep my version" }).click();
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
-  expect(drive.noteContentByName("Conflict.md")).toBe(localDraft);
+  expect(drive.noteContentByName("Conflict.md")).toBe(updatedLocalDraft);
 
   const remoteRecoveryPath = drive.paths().find(
     (path) =>
@@ -225,6 +235,35 @@ test("preserves a local draft and surfaces conflict after a remote Drive change"
   expect(drive.contentByPath(remoteRecoveryPath!)).toBe(
     "# Conflict\n\nremote version",
   );
+});
+
+test("closing a dirty tab preserves its local recovery draft", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "CloseRecovery");
+
+  const editor = page.getByRole("textbox", {
+    name: "Edit CloseRecovery.md",
+  });
+  const draft = "# CloseRecovery\n\nkeep this draft";
+  await replaceEditorContent(page, editor, draft);
+  await page.waitForTimeout(250);
+
+  const tabs = page.getByLabel("Open tabs");
+  await tabs.getByRole("button", { name: "Close CloseRecovery" }).click();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "CloseRecovery.md", exact: true }).click();
+
+  const restored = page.getByRole("textbox", {
+    name: "Edit CloseRecovery.md",
+  });
+  await expect(restored).toContainText("keep this draft");
 });
 
 test("derives wikilinks, backlinks and broken links locally", async ({
