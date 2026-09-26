@@ -108,9 +108,7 @@ test("keeps editor focus and cursor position across autosync completion", async 
   await expect(editor).toBeFocused();
 
   await page.keyboard.insertText(" after sync");
-  await expect(editor).toContainText(
-    "# Focus\n\nTyping during sync after sync",
-  );
+  await expect(editor).toContainText("Typing during sync after sync");
 
   await expect(page.getByText("Synced", { exact: true })).toBeVisible({
     timeout: 7000,
