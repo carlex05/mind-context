@@ -62,6 +62,7 @@ The repository already contains:
 - serialized per-note Drive synchronization with explicit local/syncing/conflict states;
 - content-aware BASE / LOCAL / REMOTE conflict reconciliation;
 - hidden `.mindcontext-recovery/` Markdown safety copies for real conflicts;
+- Settings Recovery Center with restore/delete and resolved-copy retention controls;
 - local lexical full-text search;
 - revision-aware persisted search snapshots and heading-aware retrieval chunks;
 - opt-in multilingual semantic search using Transformers.js in a Web Worker,
