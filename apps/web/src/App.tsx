@@ -565,7 +565,9 @@ export function App() {
     updateDriveSessionState("reconnecting");
     setStatus({ kind: "busy", message: t("status.reconnectingDrive") });
     try {
-      const session = await requestGoogleDriveAccess(GOOGLE_CLIENT_ID);
+      const session = await requestGoogleDriveAccess(GOOGLE_CLIENT_ID, {
+        prompt: "",
+      });
       driveTokenProvider.setSession(session);
       setAuthSession(session);
       updateDriveSessionState("connected");
