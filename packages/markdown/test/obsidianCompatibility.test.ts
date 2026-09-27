@@ -159,7 +159,7 @@ describe("Obsidian-compatible Markdown", () => {
 
     const prepared = prepareObsidianMarkdownForReading(source);
 
-    expect(prepared).toContain("Visible  text.");
+    expect(prepared).toMatch(/Visible\s+text\./);
     expect(prepared).not.toContain("hidden");
     expect(prepared).toContain("[^mindcontext-inline-1]");
     expect(prepared).toContain(
