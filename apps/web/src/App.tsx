@@ -77,6 +77,7 @@ import {
   type ThemePreference,
 } from "./theme";
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
+import { WorkspaceHome } from "./WorkspaceHome";
 import {
   WorkspaceOnboardingDialog,
   type WorkspaceOnboardingMode,
@@ -93,6 +94,7 @@ import {
   TabBar,
   WorkspaceHeader,
   WorkspaceRail,
+  type DriveStatusState,
   type NoteSyncState,
 } from "./WorkspaceShell";
 import {
@@ -292,6 +294,26 @@ export function App() {
   const activeConflict =
     activeTabId === undefined ? undefined : noteConflicts[activeTabId];
 
+  const pendingDriveCount = Object.values(noteSyncStates).filter(
+    (state) =>
+      state === "local" ||
+      state === "syncing" ||
+      state === "error" ||
+      state === "conflict",
+  ).length;
+  const globalDriveStatus: DriveStatusState =
+    driveSessionState === "reconnect-required"
+      ? "reconnect-required"
+      : driveSessionState === "reconnecting"
+        ? "reconnecting"
+        : driveSessionState === "expiring"
+          ? "expiring"
+          : Object.values(noteSyncStates).some((state) => state === "syncing")
+            ? "syncing"
+            : pendingDriveCount > 0
+              ? "pending"
+              : "synced";
+
   const dirtyNoteIds = useMemo(() => {
     const result = new Set<string>();
     for (const [noteId, buffer] of Object.entries(tabBuffers)) {
@@ -487,6 +509,7 @@ export function App() {
         viewMode: tab.viewMode,
       })),
       ...(activeTabId ? { activeNoteId: activeTabId } : {}),
+      homeActive: activeTabId === undefined,
       leftPanel: activeLeftPanel,
       leftSidebarOpen,
       rightSidebarOpen,
@@ -506,7 +529,7 @@ export function App() {
       const key = event.key.toLocaleLowerCase();
       const command = event.metaKey || event.ctrlKey;
 
-      if (command && key === "o") {
+      if (command && (key === "o" || key === "k")) {
         event.preventDefault();
         if (activeWorkspace) setQuickSwitcherOpen(true);
       }
@@ -739,8 +762,9 @@ export function App() {
             }]
           : [];
       });
-      const restoredActiveId =
-        restoredTabs.some((tab) => tab.noteId === persistedUi.activeNoteId)
+      const restoredActiveId = persistedUi.homeActive
+        ? undefined
+        : restoredTabs.some((tab) => tab.noteId === persistedUi.activeNoteId)
           ? persistedUi.activeNoteId
           : restoredTabs[0]?.noteId;
 
@@ -1079,6 +1103,22 @@ export function App() {
       setStatus({ kind: "error", message: errorMessage(error, t) });
       return false;
     }
+  }
+
+  function openHome() {
+    if (activeTabId && openNote) {
+      putTabBuffer(activeTabId, {
+        note: openNote,
+        draft,
+      });
+    }
+    activeTabIdRef.current = undefined;
+    setActiveTabId(undefined);
+    setOpenNote(undefined);
+    setDraft("");
+    setRightSidebarOpen(false);
+    setMobileSidebarOpen(false);
+    setStatus({ kind: "idle" });
   }
 
   async function navigateHistory(direction: "back" | "forward") {
@@ -2436,6 +2476,7 @@ export function App() {
             onNew={() =>
               requestNewItem("note", selectedFolderId || provider.rootId)
             }
+            onHome={openHome}
           />
 
           <WorkspaceHeader
@@ -2450,6 +2491,8 @@ export function App() {
             hasNote={openNote !== undefined}
             dirty={dirty}
             syncState={activeSyncState}
+            driveStatus={globalDriveStatus}
+            pendingDriveCount={pendingDriveCount}
             rightSidebarOpen={rightSidebarOpen}
             onBack={() => void navigateHistory("back")}
             onForward={() => void navigateHistory("forward")}
@@ -2526,20 +2569,16 @@ export function App() {
                 <p>{t("workspaceLoading.body")}</p>
               </div>
             ) : (
-              <div className="workspace-empty-v2">
-                <span className="section-label">MindContext</span>
-                <h2>{t("editor.emptyTitle")}</h2>
-                <p>
-                  {t("editor.emptyBody")}
-                </p>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setQuickSwitcherOpen(true)}
-                >
-                  {t("actions.openNote")}
-                </button>
-              </div>
+              <WorkspaceHome
+                workspaceName={activeWorkspace.name}
+                notes={knowledgeIndex?.notes ?? []}
+                recentNoteIds={recentNoteIds}
+                onOpenNote={(noteId) => void openNoteById(noteId)}
+                onOpenLauncher={() => setQuickSwitcherOpen(true)}
+                onCreateNote={() =>
+                  requestNewItem("note", selectedFolderId || provider.rootId)
+                }
+              />
             )}
           </section>
         </section>
@@ -2573,9 +2612,14 @@ export function App() {
           requestNewItem(
             "note",
             selectedFolderId || provider.rootId,
-            name,
+            name || undefined,
           )
         }
+        onCreateFolder={() =>
+          requestNewItem("folder", selectedFolderId || provider.rootId)
+        }
+        onOpenPanel={selectLeftPanel}
+        onHome={openHome}
       />
       <NewItemDialog
         open={newItem !== undefined}
