@@ -14,6 +14,7 @@ export interface PersistedWorkspaceUi {
     readonly viewMode: NoteViewMode;
   }[];
   readonly activeNoteId?: string;
+  readonly homeActive?: boolean;
   readonly leftPanel: WorkspacePanel;
   readonly leftSidebarOpen: boolean;
   readonly rightSidebarOpen: boolean;
@@ -47,6 +48,7 @@ export function readWorkspaceUi(workspaceId: string): PersistedWorkspaceUi {
       ...(typeof value.activeNoteId === "string"
         ? { activeNoteId: value.activeNoteId }
         : {}),
+      homeActive: value.homeActive === true,
       leftPanel: isPanel(value.leftPanel) ? value.leftPanel : "files",
       leftSidebarOpen:
         typeof value.leftSidebarOpen === "boolean"
@@ -75,6 +77,7 @@ export function writeWorkspaceUi(
 function defaultWorkspaceUi(): PersistedWorkspaceUi {
   return {
     tabs: [],
+    homeActive: true,
     leftPanel: "files",
     leftSidebarOpen: true,
     rightSidebarOpen: false,
