@@ -1428,6 +1428,62 @@ h2 {
   border: 1px solid var(--border);
 }
 
+.markdown-preview .obsidian-highlight {
+  padding: 0.04em 0.14em;
+  color: inherit;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  border-radius: 3px;
+}
+
+.markdown-preview blockquote.obsidian-callout {
+  margin: 1.15em 0;
+  padding: 12px 14px;
+  color: var(--ink);
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 9px;
+}
+
+.markdown-preview .obsidian-callout-title {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.markdown-preview .obsidian-callout > p {
+  margin: 0.45em 0 0;
+}
+
+.markdown-preview .obsidian-callout > p:first-of-type {
+  margin-top: 0;
+}
+
+.markdown-preview [data-footnotes] {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--border-soft);
+  font-size: 0.82rem;
+}
+
+.markdown-preview [data-footnote-ref] {
+  scroll-margin-top: 84px;
+}
+
+.markdown-preview [data-heading-key],
+.markdown-preview [data-block-id] {
+  scroll-margin-block: 96px;
+}
+
+.markdown-preview .markdown-navigation-target {
+  border-radius: 5px;
+  outline: 2px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  outline-offset: 5px;
+  transition: outline-color 220ms ease;
+}
+
 .properties-summary {
   margin-bottom: 26px;
 }
