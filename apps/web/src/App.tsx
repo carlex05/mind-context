@@ -824,8 +824,11 @@ export function App() {
             "edit",
         );
         setNavigation({ entries: [restoredActiveId], index: 0 });
-        setMobileSidebarOpen(false);
       }
+
+      // Home and restored notes are the primary mobile surfaces after the
+      // workspace finishes loading. Files remains one tap away in bottom nav.
+      setMobileSidebarOpen(false);
 
       setWorkspaceUiReady(true);
       setWorkspaceLoading(false);
