@@ -6,6 +6,9 @@ tags:
   - architecture
   - local-first
 status: active
+related: "[[Knowledge Graph]]"
+references:
+  - "[[Architecture#Boundaries]]"
 ---
 
 # Artificial Intelligence
@@ -31,3 +34,23 @@ Inline code `[[Ignored]]`.
 [[Also ignored]]
 #not-a-tag
 ```
+
+
+==Highlighted knowledge==
+
+Inline comment %%this stays in editing only [[Comment Target]] #comment-tag%% remains visible.
+
+%%
+Block comment
+[[Also Commented]]
+#block-comment-tag
+%%
+
+> [!warning]+ Deployment warning
+> Check the release plan before deploying.
+
+A standard footnote.[^source]
+
+[^source]: Source material.
+
+An inline footnote ^[Inline source material].
