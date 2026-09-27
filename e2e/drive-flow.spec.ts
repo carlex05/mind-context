@@ -79,7 +79,12 @@ test("uses Home as the workspace start surface and persists it", async ({
 
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /HomeNote/ })).toBeVisible();
+  await expect(
+    page
+      .locator(".workspace-home")
+      .getByRole("button", { name: /HomeNote/ })
+      .first(),
+  ).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "Connect Google Drive" }).click();
