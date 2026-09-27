@@ -50,13 +50,19 @@ supported open-vault dialect, including:
 - aliases;
 - headings/sections;
 - standard Markdown internal links/images;
-- Obsidian wikilinks;
-- heading links;
-- block references;
-- embeds.
+- Obsidian wikilinks, including links stored in text properties;
+- heading links with deep navigation;
+- block references with deep navigation;
+- highlights;
+- comments with offset-preserving Reading View hiding;
+- standard and inline footnotes;
+- callouts, including foldable callouts;
+- embeds at parser level (full transclusion/attachment rendering remains a later slice).
 
 Graph/search/RAG work should consume this shared interpretation rather than
-inventing another parser.
+inventing another parser. See
+[Markdown and Obsidian compatibility](markdown-obsidian-compatibility.md) for
+the Preserve / Parse / Render / Interact contract and future plugin seam.
 
 ### Workspace UX
 
