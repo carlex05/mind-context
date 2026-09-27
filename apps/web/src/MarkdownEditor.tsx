@@ -7,6 +7,10 @@ import {
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
+import {
+  findMarkdownNavigationOffset,
+  type MarkdownNavigationTarget,
+} from "@mind-context/markdown";
 
 export interface EditorLinkTarget {
   readonly path: string;
@@ -20,6 +24,8 @@ export interface MarkdownEditorProps {
   readonly label: string;
   readonly linkTargets?: readonly EditorLinkTarget[];
   readonly tags?: readonly string[];
+  readonly navigationTarget?: MarkdownNavigationTarget;
+  readonly navigationKey?: number;
   readonly onChange: (value: string) => void;
 }
 
@@ -28,6 +34,8 @@ export function MarkdownEditor({
   label,
   linkTargets = [],
   tags = [],
+  navigationTarget,
+  navigationKey = 0,
   onChange,
 }: MarkdownEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -106,6 +114,26 @@ export function MarkdownEditor({
       },
     });
   }, [value]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !navigationTarget) return;
+
+    const content = editor.state.doc.toString();
+    const offset = findMarkdownNavigationOffset(content, navigationTarget);
+    if (offset === undefined) return;
+
+    const position = Math.min(offset, editor.state.doc.length);
+    editor.dispatch({
+      selection: { anchor: position },
+      effects: EditorView.scrollIntoView(position, { y: "center" }),
+    });
+    editor.focus();
+  }, [
+    navigationKey,
+    navigationTarget?.heading,
+    navigationTarget?.blockId,
+  ]);
 
   return <div className="markdown-editor" ref={hostRef} />;
 }
