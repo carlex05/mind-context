@@ -1136,12 +1136,16 @@ async function openFreshWorkspace(page: Page): Promise<void> {
     .click();
 
   await expect(
-    page.getByRole("complementary", { name: "Files" }),
+    page.getByRole("heading", { name: "Welcome back" }),
   ).toBeVisible();
 }
 
 async function createNote(page: Page, name: string): Promise<void> {
   const files = page.getByRole("complementary", { name: "Files" });
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
   await files.getByRole("button", { name: "New note", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "New note" });
   await dialog.getByLabel("Name").fill(name);
@@ -1153,6 +1157,10 @@ async function createNote(page: Page, name: string): Promise<void> {
 
 async function createFolder(page: Page, name: string): Promise<void> {
   const files = page.getByRole("complementary", { name: "Files" });
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
   await files.getByRole("button", { name: "New folder", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Name").fill(name);
