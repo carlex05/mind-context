@@ -585,12 +585,16 @@ function stripObsidianComments(content: string): CommentStripResult {
       if (inComment) {
         const close = lineWithoutNewline.indexOf("%%", cursor);
         if (close < 0) {
-          commentBuffer += lineWithoutNewline.slice(cursor) + newline;
+          const hidden = lineWithoutNewline.slice(cursor);
+          commentBuffer += hidden;
+          next += " ".repeat(hidden.length);
           cursor = lineWithoutNewline.length;
           break;
         }
 
-        commentBuffer += lineWithoutNewline.slice(cursor, close);
+        const hidden = lineWithoutNewline.slice(cursor, close);
+        commentBuffer += hidden;
+        next += " ".repeat(hidden.length + 2);
         comments.push(commentBuffer.trim());
         commentBuffer = "";
         inComment = false;
@@ -600,6 +604,7 @@ function stripObsidianComments(content: string): CommentStripResult {
 
       if (lineWithoutNewline.startsWith("%%", cursor)) {
         inComment = true;
+        next += "  ";
         cursor += 2;
         continue;
       }
@@ -624,7 +629,7 @@ function stripObsidianComments(content: string): CommentStripResult {
     }
 
     output.push(next + newline);
-    if (inComment) commentBuffer += newline;
+    if (inComment && newline) commentBuffer += newline;
   }
 
   if (commentBuffer.trim()) comments.push(commentBuffer.trim());
