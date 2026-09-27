@@ -208,6 +208,36 @@ describe("Obsidian-compatible Markdown", () => {
     ).toBeGreaterThan(source.indexOf("Decision text."));
   });
 
+  it("parses Rich Markdown math and fenced code semantics", () => {
+    expect(parsed.math).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          value: "E = mc^2",
+          display: false,
+        }),
+        expect.objectContaining({
+          value: expect.stringContaining("\\int_0^1"),
+          display: true,
+        }),
+      ]),
+    );
+
+    expect(parsed.codeBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          language: "javascript",
+          value: expect.stringContaining("const answer = 42"),
+          mermaid: false,
+        }),
+        expect.objectContaining({
+          language: "mermaid",
+          value: expect.stringContaining("flowchart LR"),
+          mermaid: true,
+        }),
+      ]),
+    );
+  });
+
   it("updates tags and aliases through standard YAML frontmatter", () => {
     const withTags = updateFrontmatterStringList(
       "# Portable\n",
