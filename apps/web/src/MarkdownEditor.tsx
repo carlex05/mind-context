@@ -24,8 +24,8 @@ export interface MarkdownEditorProps {
   readonly label: string;
   readonly linkTargets?: readonly EditorLinkTarget[];
   readonly tags?: readonly string[];
-  readonly navigationTarget?: MarkdownNavigationTarget;
-  readonly navigationKey?: number;
+  readonly navigationTarget?: MarkdownNavigationTarget | undefined;
+  readonly navigationKey?: number | undefined;
   readonly onChange: (value: string) => void;
 }
 
