@@ -3534,17 +3534,22 @@ h2 {
   }
 
   .global-drive-label {
-    display: none;
+    display: inline;
   }
 
   .global-drive-detail {
-    max-width: 92px;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
+  }
+
+  .global-drive-status {
+    padding-inline: 7px;
   }
 
   .workspace-note-actions .note-sync-state {
-    display: none;
+    display: inline;
+    max-width: 88px;
+    margin-right: 2px;
+    font-size: 0.64rem;
   }
 
   .workspace-home {
