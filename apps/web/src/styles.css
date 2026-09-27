@@ -3525,6 +3525,14 @@ h2 {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
+  .workspace-breadcrumb {
+    display: none;
+  }
+
+  .global-drive-status {
+    justify-self: center;
+  }
+
   .global-drive-label {
     display: none;
   }
