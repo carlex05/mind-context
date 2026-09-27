@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
     "yaml": "^2.8.1"
