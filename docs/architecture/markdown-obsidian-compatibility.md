@@ -68,9 +68,9 @@ Comment hiding preserves source offsets by replacing hidden content with whitesp
 
 ;
 - display math with `$...$`;
-- KaTeX rendering in Reading View;
+- MathJax rendering in Reading View, matching Obsidian's documented math engine;
 - fenced `mermaid` diagrams rendered locally in the browser;
-- syntax highlighting for fenced code blocks with explicit languages.
+- Prism-compatible syntax highlighting for fenced code blocks with explicit languages, matching Obsidian's documented highlighter.
 
 Math and fenced-code semantics are parsed by `@mind-context/markdown`. Mermaid
 is loaded lazily only when Reading View encounters a Mermaid fence, and its
