@@ -24,8 +24,8 @@ export function MarkdownPreview({
 }: {
   readonly content: string;
   readonly outgoingLinks: readonly KnowledgeEdge[];
-  readonly navigationTarget?: MarkdownNavigationTarget;
-  readonly navigationKey?: number;
+  readonly navigationTarget?: MarkdownNavigationTarget | undefined;
+  readonly navigationKey?: number | undefined;
   readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
