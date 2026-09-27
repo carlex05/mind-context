@@ -1,6 +1,10 @@
-import { useEffect, useRef } from "react";
+import { isValidElement, useEffect, useRef } from "react";
 import Markdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import "katex/dist/katex.min.css";
 import type { KnowledgeEdge } from "@mind-context/knowledge";
 import {
   normalizeMarkdownHeading,
@@ -9,6 +13,7 @@ import {
   type MarkdownNavigationTarget,
 } from "@mind-context/markdown";
 import { useTranslation } from "react-i18next";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 export interface InternalMarkdownNavigationTarget
   extends MarkdownNavigationTarget {
@@ -80,10 +85,35 @@ export function MarkdownPreview({
       <Markdown
         remarkPlugins={[
           remarkGfm,
+          remarkMath,
           remarkObsidianBase,
           [remarkWikilinks, { resolveWiki }],
         ]}
+        rehypePlugins={[
+          rehypeKatex,
+          [
+            rehypeHighlight,
+            {
+              detect: false,
+              plainText: ["math", "mermaid"],
+            },
+          ],
+        ]}
         components={{
+          pre({ node: _node, children, ...props }) {
+            if (isValidElement(children)) {
+              const childProps = children.props as {
+                readonly className?: string;
+                readonly children?: unknown;
+              };
+              if (childProps.className?.split(/\s+/).includes("language-mermaid")) {
+                const source = String(childProps.children ?? "").replace(/\n$/, "");
+                return <MermaidDiagram source={source} />;
+              }
+            }
+
+            return <pre {...props}>{children}</pre>;
+          },
           a({ href, children }) {
             const target = resolveHref(href, outgoingLinks);
             if (target) {
