@@ -10,6 +10,14 @@ export type NoteSyncState =
   | "conflict"
   | "error";
 
+export type DriveStatusState =
+  | "synced"
+  | "pending"
+  | "syncing"
+  | "expiring"
+  | "reconnect-required"
+  | "reconnecting";
+
 export function WorkspaceRail({
   activePanel,
   sidebarOpen,
@@ -79,6 +87,7 @@ export function TabBar({
   onActivate,
   onClose,
   onNew,
+  onHome,
 }: {
   readonly tabs: readonly WorkspaceTab[];
   readonly activeNoteId: string | undefined;
@@ -86,12 +95,22 @@ export function TabBar({
   readonly onActivate: (noteId: string) => void;
   readonly onClose: (noteId: string) => void;
   readonly onNew: () => void;
+  readonly onHome: () => void;
 }) {
   const { t } = useTranslation();
 
   return (
     <div className="workspace-tabbar" aria-label={t("nav.openTabs")}>
       <div className="workspace-tabs">
+        <button
+          className={`workspace-home-tab ${activeNoteId ? "" : "active"}`}
+          type="button"
+          aria-label={t("home.open")}
+          title={t("home.open")}
+          onClick={onHome}
+        >
+          <Icon name="home" />
+        </button>
         {tabs.map((tab) => (
           <div
             className={`workspace-tab ${
@@ -142,6 +161,8 @@ export function WorkspaceHeader({
   hasNote,
   dirty,
   syncState,
+  driveStatus,
+  pendingDriveCount,
   rightSidebarOpen,
   onBack,
   onForward,
@@ -156,6 +177,8 @@ export function WorkspaceHeader({
   readonly hasNote: boolean;
   readonly dirty: boolean;
   readonly syncState: NoteSyncState;
+  readonly driveStatus: DriveStatusState;
+  readonly pendingDriveCount: number;
   readonly rightSidebarOpen: boolean;
   readonly onBack: () => void;
   readonly onForward: () => void;
@@ -192,6 +215,7 @@ export function WorkspaceHeader({
       <div className="workspace-breadcrumb" title={breadcrumb}>
         {breadcrumb ?? ""}
       </div>
+      <DriveStatus state={driveStatus} pendingCount={pendingDriveCount} />
       {hasNote ? (
         <div className="workspace-note-actions">
           <span
@@ -246,6 +270,40 @@ export function WorkspaceHeader({
   );
 }
 
+function DriveStatus({
+  state,
+  pendingCount,
+}: {
+  readonly state: DriveStatusState;
+  readonly pendingCount: number;
+}) {
+  const { t } = useTranslation();
+  const label =
+    state === "reconnect-required"
+      ? t("driveStatus.reconnect")
+      : state === "reconnecting"
+        ? t("driveStatus.reconnecting")
+        : state === "expiring"
+          ? t("driveStatus.expiring")
+          : state === "syncing"
+            ? t("driveStatus.syncing")
+            : state === "pending"
+              ? t("driveStatus.pending", { count: pendingCount })
+              : t("driveStatus.synced");
+
+  return (
+    <span
+      className={`global-drive-status ${state}`}
+      title={t("driveStatus.title")}
+      aria-label={`${t("driveStatus.title")}: ${label}`}
+    >
+      <span className="global-drive-dot" aria-hidden="true" />
+      <span className="global-drive-label">Drive</span>
+      <span className="global-drive-detail">· {label}</span>
+    </span>
+  );
+}
+
 export function PlaceholderPanel({
   icon,
   title,
@@ -285,6 +343,8 @@ export function Icon({
   };
 
   switch (name) {
+    case "home":
+      return <svg {...common}><path d="m3 11 9-8 9 8" /><path d="M5 10v10h14V10M9 20v-6h6v6" /></svg>;
     case "folder":
       return <svg {...common}><path d="M3 6.5h6l2 2H21v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M3 9h18" /></svg>;
     case "search":
@@ -317,6 +377,7 @@ export function Icon({
 }
 
 export type IconName =
+  | "home"
   | "folder"
   | "search"
   | "graph"
