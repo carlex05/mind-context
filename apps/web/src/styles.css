@@ -2968,7 +2968,7 @@ h2 {
   }
 
   .workspace-view-header {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
   }
 }
 
