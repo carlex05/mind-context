@@ -328,6 +328,10 @@ const en = {
     emptyBody: "Pick a note from Files or use the Quick Switcher. Your workspace is plain Markdown in Google Drive.",
     readingAria: "Reading view",
   },
+  markdown: {
+    mermaidDiagram: "Mermaid diagram",
+    mermaidError: "This Mermaid diagram could not be rendered. Showing its source instead.",
+  },
   landing: {
     eyebrow: "MindContext / knowledge slice",
     title: "Your files. Your knowledge. Private by default.",
@@ -720,6 +724,10 @@ const es = {
     emptyTitle: "Abre una nota",
     emptyBody: "Elige una nota en Archivos o usa el selector rápido. Tu Second Brain es Markdown plano en Google Drive.",
     readingAria: "Vista de lectura",
+  },
+  markdown: {
+    mermaidDiagram: "Diagrama Mermaid",
+    mermaidError: "No se pudo renderizar este diagrama Mermaid. Se muestra el código fuente.",
   },
   landing: {
     eyebrow: "MindContext / conocimiento",
