@@ -54,3 +54,21 @@ A standard footnote.[^source]
 [^source]: Source material.
 
 An inline footnote ^[Inline source material].
+
+
+Inline math $E = mc^2$.
+
+$$
+\int_0^1 x^2 \, dx = \frac{1}{3}
+$$
+
+```javascript
+const answer = 42;
+console.log(answer);
+```
+
+```mermaid
+flowchart LR
+  Markdown --> Parser
+  Parser --> ReadingView
+```
