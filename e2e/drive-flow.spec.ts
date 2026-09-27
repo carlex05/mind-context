@@ -839,14 +839,18 @@ test("renders Obsidian P1 math Mermaid and highlighted code locally", async ({
   await page.getByRole("button", { name: "Reading view", exact: true }).click();
   const reading = page.getByLabel("Reading view");
 
-  await expect(reading.locator(".katex").first()).toBeVisible();
-  await expect(reading.locator(".katex-display")).toBeVisible();
+  await expect(
+    reading.locator('mjx-container.MathJax[jax="SVG"]').first(),
+  ).toBeVisible();
+  await expect(
+    reading.locator('mjx-container.MathJax[display="true"]'),
+  ).toBeVisible();
 
   const highlightedCode = reading.locator(
-    "pre code.hljs.language-javascript",
+    "pre code.language-javascript",
   );
   await expect(highlightedCode).toBeVisible();
-  await expect(highlightedCode.locator(".hljs-keyword")).toContainText("const");
+  await expect(highlightedCode.locator(".token.keyword")).toContainText("const");
 
   const diagram = reading.locator(
     '.mermaid-diagram[data-mermaid-state="ready"]',
