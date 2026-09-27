@@ -767,7 +767,7 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
     "Highlighted knowledge",
   );
   await expect(reading.getByText("editing-only comment")).toHaveCount(0);
-  const callout = reading.locator("blockquote.obsidian-callout");
+  const callout = reading.locator(".obsidian-callout");
   await expect(callout).toBeVisible();
   await expect(callout.locator(".obsidian-callout-title")).toHaveText(
     "Deployment warning",
