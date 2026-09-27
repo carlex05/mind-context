@@ -59,6 +59,64 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   }
 });
 
+test("uses Home as the workspace start surface and persists it", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(
+    page.getByLabel("Google Drive status: Synced"),
+  ).toBeVisible();
+
+  await createNote(page, "HomeNote");
+  const editor = page.getByRole("textbox", { name: "Edit HomeNote.md" });
+  await replaceEditorContent(page, editor, "# HomeNote\n\nHome content");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /HomeNote/ })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: "Connect Google Drive" }).click();
+  await expect(page.getByText("Choose your brain.")).toBeVisible();
+  await page.getByRole("button", { name: /My Second Brain/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Edit HomeNote.md" })).toHaveCount(0);
+});
+
+test("opens and executes commands from the universal launcher", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await page.keyboard.press("Control+K");
+  const launcher = page.getByRole("dialog", { name: "Command palette" });
+  await expect(launcher).toBeVisible();
+
+  const input = launcher.getByLabel("Search notes or run a command");
+  await input.fill("settings");
+  await page.keyboard.press("Enter");
+
+  await expect(
+    page.getByRole("complementary", { name: "Settings" }),
+  ).toBeVisible();
+
+  await page.keyboard.press("Control+K");
+  await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
+  await page.getByLabel("Search notes or run a command").fill("new note");
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByRole("dialog", { name: "New note" })).toBeVisible();
+});
+
 test("syncs repeated edits to the same note with the latest Drive revision", async ({
   page,
 }) => {
@@ -142,6 +200,9 @@ test("keeps edits local after Drive authorization expires and resumes after reco
     page.getByText("Reconnect Google Drive", { exact: true }).first(),
   ).toBeVisible({ timeout: 5000 });
   await expect(page.getByText("Saved locally", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("Google Drive status: Reconnect"),
+  ).toBeVisible();
   await expect(editor).toContainText("written while Drive is expired");
   expect(drive.noteContentByName("Session.md")).toBe(
     "# Session\n\nbefore expiry",
@@ -157,6 +218,9 @@ test("keeps edits local after Drive authorization expires and resumes after reco
     .poll(() => drive.noteContentByName("Session.md"), { timeout: 7000 })
     .toBe(localAfterExpiry);
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("Google Drive status: Synced"),
+  ).toBeVisible();
 });
 
 test("keeps a create-note intent open across Drive reconnect", async ({
@@ -694,9 +758,9 @@ test("persists theme, offers quick switching, reading view and wikilink suggesti
   expect(drive.noteContentByName("Beta.md")).toContain("Second Beta");
 
   await page.keyboard.press("Control+O");
-  const switcher = page.getByRole("dialog", { name: "Quick switcher" });
+  const switcher = page.getByRole("dialog", { name: "Command palette" });
   await expect(switcher).toBeVisible();
-  await switcher.getByLabel("Open or create note").fill("Alpha");
+  await switcher.getByLabel("Search notes or run a command").fill("Alpha");
   await switcher.getByRole("button", { name: /Alpha/ }).first().click();
   await expect(page.getByLabel("Reading view")).toBeVisible();
 
