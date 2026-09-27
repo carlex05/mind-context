@@ -57,9 +57,9 @@ supported open-vault dialect, including:
 - comments with offset-preserving Reading View hiding;
 - standard and inline footnotes;
 - callouts, including foldable callouts;
-- inline/display LaTeX math with KaTeX Reading View rendering;
+- inline/display LaTeX math with MathJax Reading View rendering;
 - Mermaid fenced diagrams rendered locally and lazily;
-- language-aware fenced-code highlighting;
+- Prism-compatible language-aware fenced-code highlighting;
 - embeds at parser level (full transclusion/attachment rendering remains a later slice).
 
 Graph/search/RAG work should consume this shared interpretation rather than
