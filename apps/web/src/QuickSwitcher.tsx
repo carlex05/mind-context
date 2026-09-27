@@ -214,11 +214,13 @@ export function QuickSwitcher({
                 onClose();
                 return;
               }
-              if (event.key === "ArrowDown") {
+                      if (event.key === "ArrowDown") {
                 event.preventDefault();
-                setSelectedIndex((current) =>
-                  Math.min(entries.length - 1, current + 1),
-                );
+                if (entries.length > 0) {
+                  setSelectedIndex((current) =>
+                    Math.min(entries.length - 1, current + 1),
+                  );
+                }
                 return;
               }
               if (event.key === "ArrowUp") {
@@ -236,7 +238,7 @@ export function QuickSwitcher({
           <kbd>Esc</kbd>
         </div>
 
-        <div className="switcher-results launcher-results" role="listbox">
+        <div className="switcher-results launcher-results">
           {noteResults.length > 0 ? (
             <>
               <span className="switcher-section">
@@ -348,8 +350,7 @@ function LauncherButton({
       ref={buttonRef}
       type="button"
       className={`switcher-result launcher-result ${selected ? "selected" : ""}`}
-      role="option"
-      aria-selected={selected}
+      aria-current={selected ? "true" : undefined}
       onClick={onClick}
     >
       {children}
