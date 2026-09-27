@@ -797,6 +797,71 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
   );
 });
 
+test("renders Obsidian P1 math Mermaid and highlighted code locally", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "RichMarkdown");
+  const editor = page.getByRole("textbox", {
+    name: "Edit RichMarkdown.md",
+  });
+  await replaceEditorContent(
+    page,
+    editor,
+    [
+      "# Rich Markdown",
+      "",
+      "Inline math $E = mc^2$.",
+      "",
+      "$",
+      "\\int_0^1 x^2 \\, dx = \\frac{1}{3}",
+      "$",
+      "",
+      "```javascript",
+      "const answer = 42;",
+      "console.log(answer);",
+      "```",
+      "",
+      "```mermaid",
+      "flowchart LR",
+      "  Markdown --> Parser",
+      "  Parser --> ReadingView",
+      "```",
+      "",
+    ].join("\n"),
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Reading view", exact: true }).click();
+  const reading = page.getByLabel("Reading view");
+
+  await expect(reading.locator(".katex").first()).toBeVisible();
+  await expect(reading.locator(".katex-display")).toBeVisible();
+
+  const highlightedCode = reading.locator(
+    "pre code.hljs.language-javascript",
+  );
+  await expect(highlightedCode).toBeVisible();
+  await expect(highlightedCode.locator(".hljs-keyword")).toContainText("const");
+
+  const diagram = reading.locator(
+    '.mermaid-diagram[data-mermaid-state="ready"]',
+  );
+  await expect(diagram).toBeVisible({ timeout: 15000 });
+  await expect(diagram.locator("svg")).toBeVisible();
+
+  expect(drive.noteContentByName("RichMarkdown.md")).toContain(
+    "```mermaid",
+  );
+  expect(drive.noteContentByName("RichMarkdown.md")).toContain(
+    "$E = mc^2$",
+  );
+});
+
 test("persists theme, offers quick switching, reading view and wikilink suggestions", async ({
   page,
 }, testInfo) => {
