@@ -769,19 +769,25 @@ function decorateCallout(node: MarkdownNode): void {
 
   firstText.value = firstText.value.slice(markerLength).replace(/^\r?\n/, "");
 
-  node.data = mergeNodeData(node.data, {
-    className: [
-      "obsidian-callout",
-      `obsidian-callout-${safeCssToken(type)}`,
-      ...(fold ? [`obsidian-callout-${fold}`] : []),
-    ],
-    "data-callout": type,
-  });
+  node.data = {
+    ...(node.data ?? {}),
+    ...(fold ? { hName: "details" } : {}),
+    hProperties: {
+      ...(node.data?.hProperties ?? {}),
+      className: [
+        "obsidian-callout",
+        `obsidian-callout-${safeCssToken(type)}`,
+        ...(fold ? [`obsidian-callout-${fold}`] : []),
+      ],
+      "data-callout": type,
+      ...(fold === "open" ? { open: true } : {}),
+    },
+  };
 
   const titleNode: MarkdownNode = {
     type: "paragraph",
     data: {
-      hName: "div",
+      hName: fold ? "summary" : "div",
       hProperties: {
         className: ["obsidian-callout-title"],
       },
