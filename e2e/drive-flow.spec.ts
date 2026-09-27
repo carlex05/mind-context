@@ -959,6 +959,10 @@ test("reuses persisted search snapshots and only downloads changed notes", async
   const beforeRefresh = drive.mediaReadCount();
 
   const files = page.getByRole("complementary", { name: "Files" });
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
   await files
     .getByRole("button", { name: "Refresh vault and local index" })
     .click();
