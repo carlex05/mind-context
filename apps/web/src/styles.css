@@ -1417,6 +1417,107 @@ h2 {
   background: transparent;
 }
 
+.markdown-preview .katex-display {
+  max-width: 100%;
+  margin: 1.35em 0;
+  padding: 0.25em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.markdown-preview .katex {
+  font-size: 1.04em;
+}
+
+.markdown-preview pre code.hljs {
+  display: block;
+  color: var(--ink);
+  background: transparent;
+}
+
+.markdown-preview .hljs-comment,
+.markdown-preview .hljs-quote {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.markdown-preview .hljs-keyword,
+.markdown-preview .hljs-selector-tag,
+.markdown-preview .hljs-literal,
+.markdown-preview .hljs-section,
+.markdown-preview .hljs-link {
+  color: var(--editor-caret);
+}
+
+.markdown-preview .hljs-string,
+.markdown-preview .hljs-title,
+.markdown-preview .hljs-name,
+.markdown-preview .hljs-attribute,
+.markdown-preview .hljs-template-variable {
+  color: color-mix(in srgb, var(--editor-caret) 68%, var(--ink));
+}
+
+.markdown-preview .hljs-number,
+.markdown-preview .hljs-symbol,
+.markdown-preview .hljs-bullet,
+.markdown-preview .hljs-variable,
+.markdown-preview .hljs-regexp {
+  color: var(--danger);
+}
+
+.markdown-preview .hljs-built_in,
+.markdown-preview .hljs-type,
+.markdown-preview .hljs-class .hljs-title,
+.markdown-preview .hljs-function .hljs-title {
+  color: color-mix(in srgb, var(--danger) 62%, var(--ink));
+}
+
+.markdown-preview .hljs-meta,
+.markdown-preview .hljs-doctag {
+  color: var(--ink-muted);
+}
+
+.mermaid-diagram {
+  width: 100%;
+  margin: 1.35em 0;
+  padding: 16px;
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.mermaid-diagram-svg {
+  display: grid;
+  min-width: min-content;
+  place-items: center;
+}
+
+.mermaid-diagram-svg svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.mermaid-loading {
+  display: grid;
+  min-height: 120px;
+  place-items: center;
+}
+
+.mermaid-diagram figcaption {
+  margin-bottom: 10px;
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.markdown-preview .mermaid-source-fallback {
+  margin: 0;
+}
+
 .markdown-preview table {
   width: 100%;
   border-collapse: collapse;
