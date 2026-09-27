@@ -61,7 +61,10 @@ import {
 } from "./recovery";
 import { RecoverySettings } from "./RecoverySettings";
 import { MarkdownEditor } from "./MarkdownEditor";
-import { MarkdownPreview } from "./MarkdownPreview";
+import {
+  MarkdownPreview,
+  type InternalMarkdownNavigationTarget,
+} from "./MarkdownPreview";
 import { LocalGraphPanel } from "./LocalGraphPanel";
 import { LanguageSelector } from "./LanguageSelector";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
@@ -231,6 +234,10 @@ export function App() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string>();
   const [viewMode, setViewMode] = useState<NoteViewMode>("edit");
+  const [markdownNavigation, setMarkdownNavigation] = useState<
+    (InternalMarkdownNavigationTarget & { readonly key: number }) | undefined
+  >();
+  const markdownNavigationSequenceRef = useRef(0);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [newItem, setNewItem] = useState<
     | {
@@ -328,6 +335,10 @@ export function App() {
   const currentIndexedNote = openNote
     ? getNote(knowledgeIndex, openNote.metadata.id)
     : undefined;
+  const activeMarkdownNavigation =
+    openNote && markdownNavigation?.noteId === openNote.metadata.id
+      ? markdownNavigation
+      : undefined;
   const outgoingLinks = openNote
     ? getOutgoingLinks(knowledgeIndex, openNote.metadata.id)
     : [];
@@ -1108,6 +1119,20 @@ export function App() {
     }
   }
 
+  async function openMarkdownTarget(
+    target: InternalMarkdownNavigationTarget,
+  ) {
+    const opened = await openNoteById(target.noteId);
+    if (!opened) return;
+
+    markdownNavigationSequenceRef.current += 1;
+    setMarkdownNavigation({
+      ...target,
+      key: markdownNavigationSequenceRef.current,
+    });
+    setMobileSidebarOpen(false);
+  }
+
   function openHome() {
     if (activeTabId && openNote) {
       putTabBuffer(activeTabId, {
@@ -1121,6 +1146,7 @@ export function App() {
     setDraft("");
     setRightSidebarOpen(false);
     setMobileSidebarOpen(false);
+    setMarkdownNavigation(undefined);
     setStatus({ kind: "idle" });
   }
 
@@ -2555,13 +2581,17 @@ export function App() {
                     label={t("editor.editFile", { name: openNote.metadata.name })}
                     linkTargets={editorLinkTargets}
                     tags={knownTags}
+                    navigationTarget={activeMarkdownNavigation}
+                    navigationKey={activeMarkdownNavigation?.key}
                     onChange={updateActiveDraft}
                   />
                 ) : (
                   <MarkdownPreview
                     content={draft}
                     outgoingLinks={outgoingLinks}
-                    onOpenNote={(noteId) => void openNoteById(noteId)}
+                    navigationTarget={activeMarkdownNavigation}
+                    navigationKey={activeMarkdownNavigation?.key}
+                    onOpenNote={(target) => void openMarkdownTarget(target)}
                   />
                 )}
               </>
@@ -2599,7 +2629,7 @@ export function App() {
             knownTags={knownTags}
             onTagsChange={updateTags}
             onAliasesChange={updateAliases}
-            onOpenNote={(noteId) => void openNoteById(noteId)}
+            onOpenNote={(target) => void openMarkdownTarget(target)}
             onBackToNote={() => setRightSidebarOpen(false)}
           />
         ) : null}
@@ -2743,7 +2773,7 @@ function KnowledgePanel({
   readonly knownTags: readonly string[];
   readonly onTagsChange: (tags: readonly string[]) => void;
   readonly onAliasesChange: (aliases: readonly string[]) => void;
-  readonly onOpenNote: (noteId: string) => void;
+  readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
   readonly onBackToNote: () => void;
 }) {
   const { t } = useTranslation();
@@ -2808,7 +2838,7 @@ function KnowledgePanel({
               className="context-link"
               type="button"
               key={`${edge.sourceNoteId}-${indexNumber}`}
-              onClick={() => onOpenNote(edge.sourceNoteId)}
+              onClick={() => onOpenNote({ noteId: edge.sourceNoteId })}
             >
               <span>{source?.title ?? source?.name ?? edge.sourcePath}</span>
               <small>{edge.sourcePath}</small>
@@ -2863,7 +2893,7 @@ function EdgeRow({
 }: {
   readonly edge: KnowledgeEdge;
   readonly label: string;
-  readonly onOpenNote: (noteId: string) => void;
+  readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
   if (edge.resolution !== "resolved" || !edge.targetNoteId) {
@@ -2879,7 +2909,13 @@ function EdgeRow({
     <button
       className="context-link"
       type="button"
-      onClick={() => onOpenNote(edge.targetNoteId!)}
+      onClick={() =>
+        onOpenNote({
+          noteId: edge.targetNoteId!,
+          ...(edge.heading ? { heading: edge.heading } : {}),
+          ...(edge.blockId ? { blockId: edge.blockId } : {}),
+        })
+      }
     >
       <span>{label}</span>
       <small>{edge.targetPath}</small>
