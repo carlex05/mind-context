@@ -170,6 +170,28 @@ describe("Obsidian-compatible Markdown", () => {
     expect(source).toContain("%%hidden%%");
   });
 
+  it("keeps section offsets stable when comments appear before headings", () => {
+    const source = [
+      "# Before",
+      "",
+      "%% a hidden block",
+      "with multiple lines %%",
+      "",
+      "## After",
+      "",
+      "Visible after comment.",
+      "",
+    ].join("\n");
+
+    const reparsed = new RemarkMarkdownParser().parse(source);
+    const after = reparsed.sections.find(
+      (section) => section.heading === "After",
+    );
+
+    expect(after?.content).toContain("Visible after comment.");
+    expect(after?.content).not.toContain("with multiple lines");
+  });
+
   it("locates headings and Obsidian block identifiers for deep navigation", () => {
     const source =
       "# Overview\n\n## Deployment Plan\n\nDecision text. ^decision-42\n";
