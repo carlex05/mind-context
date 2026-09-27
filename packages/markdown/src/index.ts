@@ -1,4 +1,5 @@
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { parse as parseYaml, parseDocument, stringify as stringifyYaml } from "yaml";
@@ -40,6 +41,17 @@ export interface MarkdownFootnote {
   readonly inline: boolean;
 }
 
+export interface MarkdownMathExpression {
+  readonly value: string;
+  readonly display: boolean;
+}
+
+export interface MarkdownCodeBlock {
+  readonly language?: string;
+  readonly value: string;
+  readonly mermaid: boolean;
+}
+
 export interface MarkdownNavigationTarget {
   readonly heading?: string;
   readonly blockId?: string;
@@ -57,6 +69,8 @@ export interface ParsedMarkdown {
   readonly highlights: readonly string[];
   readonly callouts: readonly MarkdownCallout[];
   readonly footnotes: readonly MarkdownFootnote[];
+  readonly math: readonly MarkdownMathExpression[];
+  readonly codeBlocks: readonly MarkdownCodeBlock[];
 }
 
 export interface MarkdownParser {
@@ -76,6 +90,7 @@ interface MarkdownNode {
   alt?: string;
   identifier?: string;
   label?: string;
+  lang?: string;
   children?: MarkdownNode[];
   data?: MarkdownNodeData;
   position?: {
@@ -111,7 +126,10 @@ const CALLOUT_PATTERN =
   /^\[!([A-Za-z0-9_-]+)\]([+-])?(?:[ \t]+([^\n]*))?/;
 
 export class RemarkMarkdownParser implements MarkdownParser {
-  private readonly processor = unified().use(remarkParse).use(remarkGfm);
+  private readonly processor = unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath);
 
   parse(content: string): ParsedMarkdown {
     const { properties, body } = extractFrontmatter(content);
@@ -125,6 +143,8 @@ export class RemarkMarkdownParser implements MarkdownParser {
     const highlights: string[] = [];
     const callouts: MarkdownCallout[] = [];
     const footnotes: MarkdownFootnote[] = [];
+    const math: MarkdownMathExpression[] = [];
+    const codeBlocks: MarkdownCodeBlock[] = [];
 
     for (const tag of propertyStringList(properties.tags)) {
       const normalized = tag.replace(/^#/, "").trim();
@@ -176,6 +196,25 @@ export class RemarkMarkdownParser implements MarkdownParser {
         });
       }
 
+      if (
+        (node.type === "math" || node.type === "inlineMath") &&
+        node.value !== undefined
+      ) {
+        math.push({
+          value: node.value,
+          display: node.type === "math",
+        });
+      }
+
+      if (node.type === "code" && node.value !== undefined) {
+        const language = node.lang?.trim().toLocaleLowerCase();
+        codeBlocks.push({
+          ...(language ? { language } : {}),
+          value: node.value,
+          mermaid: language === "mermaid",
+        });
+      }
+
       if (node.type !== "text" || node.value === undefined) {
         return;
       }
@@ -223,6 +262,8 @@ export class RemarkMarkdownParser implements MarkdownParser {
       highlights,
       callouts,
       footnotes,
+      math,
+      codeBlocks,
     };
   }
 }
@@ -495,7 +536,12 @@ function walk(
 
 function plainText(node: MarkdownNode): string {
   if (
-    (node.type === "text" || node.type === "inlineCode") &&
+    (
+      node.type === "text" ||
+      node.type === "inlineCode" ||
+      node.type === "inlineMath" ||
+      node.type === "math"
+    ) &&
     node.value !== undefined
   ) {
     return node.value;
