@@ -30,15 +30,62 @@ Support is tested at four independent levels:
 
 Comment hiding preserves source offsets by replacing hidden content with whitespace. This keeps heading/section positions stable for search, chunks and future RAG projections.
 
-## Outside P0
+## P1 Rich Markdown
 
-The overall compatibility goal still has separate slices for:
+The built-in dialect now also includes:
 
-- LaTeX/math rendering;
-- Mermaid;
-- richer fenced-code highlighting;
+- inline math with `$...# Markdown and Obsidian compatibility
+
+MindContext treats plain Markdown as canonical user-owned data.
+
+The compatibility target is CommonMark + GitHub Flavored Markdown + the documented Obsidian base syntax that MindContext explicitly tracks.
+
+## Compatibility levels
+
+Support is tested at four independent levels:
+
+1. Preserve — opening/saving never destroys the syntax.
+2. Parse — local knowledge projections understand its semantics.
+3. Render — Reading View presents it correctly.
+4. Interact — navigation or interactive behavior works where applicable.
+
+## Built-in Obsidian dialect
+
+`@mind-context/markdown` owns the built-in Obsidian dialect boundary. P0 includes:
+
+- YAML properties and wikilinks contained in text properties;
+- tags and aliases;
+- wikilinks plus Markdown internal links;
+- same-note and cross-note heading links;
+- Obsidian block references;
+- highlights (`==text==`);
+- comments (`%%text%%`), visible in editing and hidden in Reading View;
+- standard and inline footnotes;
+- callouts and foldable callouts;
+- exact heading/block navigation in Edit and Reading views.
+
+Comment hiding preserves source offsets by replacing hidden content with whitespace. This keeps heading/section positions stable for search, chunks and future RAG projections.
+
+;
+- display math with `$...$`;
+- KaTeX rendering in Reading View;
+- fenced `mermaid` diagrams rendered locally in the browser;
+- syntax highlighting for fenced code blocks with explicit languages.
+
+Math and fenced-code semantics are parsed by `@mind-context/markdown`. Mermaid
+is loaded lazily only when Reading View encounters a Mermaid fence, and its
+rendered SVG is a disposable projection. Mermaid uses its strict security level
+so note content cannot enable diagram click handlers or raw HTML behavior.
+
+## Remaining compatibility slices
+
+The overall compatibility goal still has separate work for:
+
 - note transclusion and embeds;
-- images, PDFs, audio/video and other attachments.
+- images, PDFs, audio/video and other attachments;
+- remaining documented Obsidian base edge cases that surface from the full
+  compatibility matrix (for example HTML behavior and attachment-specific
+  syntax).
 
 Parser recognition alone does not mean Render/Interact compatibility is complete.
 
