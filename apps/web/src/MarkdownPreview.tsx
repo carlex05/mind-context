@@ -1,10 +1,9 @@
-import { isValidElement, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import Markdown from "react-markdown";
-import rehypeHighlight from "rehype-highlight";
-import rehypeKatex from "rehype-katex";
+import rehypeMathjax from "rehype-mathjax";
+import rehypePrism from "rehype-prism-plus";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import "katex/dist/katex.min.css";
 import type { KnowledgeEdge } from "@mind-context/knowledge";
 import {
   normalizeMarkdownHeading,
@@ -90,29 +89,27 @@ export function MarkdownPreview({
           [remarkWikilinks, { resolveWiki }],
         ]}
         rehypePlugins={[
-          rehypeKatex,
-          [
-            rehypeHighlight,
-            {
-              detect: false,
-              plainText: ["math", "mermaid"],
-            },
-          ],
+          rehypeMathjax,
+          rehypeMermaidBlocks,
+          [rehypePrism, { ignoreMissing: true }],
         ]}
         components={{
-          pre({ node: _node, children, ...props }) {
-            if (isValidElement(children)) {
-              const childProps = children.props as {
-                readonly className?: string;
-                readonly children?: unknown;
-              };
-              if (childProps.className?.split(/\s+/).includes("language-mermaid")) {
-                const source = String(childProps.children ?? "").replace(/\n$/, "");
-                return <MermaidDiagram source={source} />;
-              }
+          div({ node: _node, className, children, ...props }) {
+            const source = (
+              props as Readonly<Record<string, unknown>>
+            )["data-mermaid-source"];
+            if (
+              className?.split(/\s+/).includes("mindcontext-mermaid-source") &&
+              typeof source === "string"
+            ) {
+              return <MermaidDiagram source={source} />;
             }
 
-            return <pre {...props}>{children}</pre>;
+            return (
+              <div className={className} {...props}>
+                {children}
+              </div>
+            );
           },
           a({ href, children }) {
             const target = resolveHref(href, outgoingLinks);
@@ -218,6 +215,60 @@ function parseNavigationHref(
     ...(heading ? { heading } : {}),
     ...(blockId ? { blockId } : {}),
   };
+}
+
+interface HastNode {
+  type: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: HastNode[];
+}
+
+function rehypeMermaidBlocks() {
+  return (tree: HastNode) => {
+    transformMermaidBlocks(tree);
+  };
+}
+
+function transformMermaidBlocks(parent: HastNode): void {
+  if (!parent.children) return;
+
+  parent.children = parent.children.map((child) => {
+    if (child.type === "element" && child.tagName === "pre") {
+      const code = child.children?.find(
+        (candidate) =>
+          candidate.type === "element" && candidate.tagName === "code",
+      );
+      const classNames = Array.isArray(code?.properties?.className)
+        ? code.properties.className.filter(
+            (value): value is string => typeof value === "string",
+          )
+        : typeof code?.properties?.className === "string"
+          ? code.properties.className.split(/\s+/)
+          : [];
+
+      if (code && classNames.includes("language-mermaid")) {
+        return {
+          type: "element",
+          tagName: "div",
+          properties: {
+            className: ["mindcontext-mermaid-source"],
+            "data-mermaid-source": hastText(code).replace(/\n$/, ""),
+          },
+          children: [],
+        };
+      }
+    }
+
+    transformMermaidBlocks(child);
+    return child;
+  });
+}
+
+function hastText(node: HastNode): string {
+  if (node.type === "text") return node.value ?? "";
+  return (node.children ?? []).map(hastText).join("");
 }
 
 interface RemarkNode {
