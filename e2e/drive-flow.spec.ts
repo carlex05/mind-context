@@ -697,6 +697,106 @@ test("suggests onboarding for an existing completely empty Second Brain and reme
   ).toBeVisible();
 });
 
+test("renders Obsidian P0 syntax and navigates headings and block refs", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Target");
+  const targetEditor = page.getByRole("textbox", { name: "Edit Target.md" });
+  await replaceEditorContent(
+    page,
+    targetEditor,
+    [
+      "# Target",
+      "",
+      "Intro.",
+      "",
+      "## Deep Section",
+      "",
+      "Deep section content.",
+      "",
+      "Decision paragraph. ^decision-42",
+      "",
+    ].join("\n"),
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Source");
+  const sourceEditor = page.getByRole("textbox", { name: "Edit Source.md" });
+  await replaceEditorContent(
+    page,
+    sourceEditor,
+    [
+      "---",
+      'related: "[[Target#Deep Section]]"',
+      "---",
+      "",
+      "# Source",
+      "",
+      "==Highlighted knowledge==",
+      "",
+      "Visible %%editing-only comment%% text.",
+      "",
+      "> [!warning]+ Deployment warning",
+      "> Check the release plan.",
+      "",
+      "A standard footnote.[^source]",
+      "",
+      "[^source]: Standard footnote detail.",
+      "",
+      "An inline footnote ^[Inline footnote detail].",
+      "",
+      "[[Target#Deep Section|Open section]]",
+      "",
+      "[[Target#^decision-42|Open decision]]",
+      "",
+    ].join("\n"),
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Reading view", exact: true }).click();
+  const reading = page.getByLabel("Reading view");
+
+  await expect(reading.locator("mark.obsidian-highlight")).toHaveText(
+    "Highlighted knowledge",
+  );
+  await expect(reading.getByText("editing-only comment")).toHaveCount(0);
+  const callout = reading.locator("blockquote.obsidian-callout");
+  await expect(callout).toBeVisible();
+  await expect(callout.locator(".obsidian-callout-title")).toHaveText(
+    "Deployment warning",
+  );
+  await expect(reading.getByText("Standard footnote detail.")).toBeVisible();
+  await expect(reading.getByText("Inline footnote detail.")).toBeVisible();
+
+  await reading.getByRole("button", { name: "Open section" }).click();
+  const targetAfterHeading = page.getByRole("textbox", {
+    name: "Edit Target.md",
+  });
+  await expect(targetAfterHeading).toBeVisible();
+  await expect(page.locator(".cm-activeLine")).toContainText("## Deep Section");
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.getByLabel("Reading view")).toBeVisible();
+  await page
+    .getByLabel("Reading view")
+    .getByRole("button", { name: "Open decision" })
+    .click();
+
+  await expect(
+    page.getByRole("textbox", { name: "Edit Target.md" }),
+  ).toBeVisible();
+  await expect(page.locator(".cm-activeLine")).toContainText(
+    "Decision paragraph.",
+  );
+});
+
 test("persists theme, offers quick switching, reading view and wikilink suggestions", async ({
   page,
 }, testInfo) => {
