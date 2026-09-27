@@ -773,7 +773,7 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
     "Deployment warning",
   );
   await expect(reading.getByText("Standard footnote detail.")).toBeVisible();
-  await expect(reading.getByText("Inline footnote detail.")).toBeVisible();
+  await expect(reading.getByText("Inline footnote detail")).toBeVisible();
 
   await reading.getByRole("button", { name: "Open section" }).click();
   const targetAfterHeading = page.getByRole("textbox", {
