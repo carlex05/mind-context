@@ -54,7 +54,8 @@ The repository already contains:
 
 - responsive Obsidian-inspired workspace shell with icon rail/bottom navigation;
 - Markdown tabs with persistent browser-local recovery drafts and deferred Drive synchronization;
-- CodeMirror 6 editing and Markdown reading view;
+- CodeMirror 6 editing with a shared Markdown command registry, formatting
+  toolbar, keyboard shortcuts and `/` commands, plus Markdown reading view;
 - nested Drive-backed file explorer and safe create/rename/move/delete;
 - unified Markdown parser for headings, YAML properties, tags, aliases,
   standard internal links, wikilinks, embeds and block references;

@@ -76,6 +76,12 @@ the Preserve / Parse / Render / Interact contract and future plugin seam.
 - per-tab Edit/Read mode;
 - Back/Forward navigation;
 - Quick Switcher;
+- shared Markdown authoring command registry powering a formatting toolbar,
+  keyboard shortcuts and searchable `/` commands;
+- toolbar helpers for headings, inline formatting, links, lists/tasks, quotes,
+  fenced code and GFM tables;
+- slash-only helpers for portable/Obsidian-compatible blocks such as dividers,
+  wikilinks, callouts, display math and Mermaid;
 - `[[` note autocomplete;
 - Properties UI over canonical YAML;
 - right-side Context panel for links/backlinks/properties;

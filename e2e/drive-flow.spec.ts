@@ -797,6 +797,49 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
   );
 });
 
+test("authors portable Markdown with toolbar and slash commands", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Authoring");
+  const editor = page.getByRole("textbox", {
+    name: "Edit Authoring.md",
+  });
+
+  await replaceEditorContent(page, editor, "");
+  await page.getByRole("button", { name: "Bullet list", exact: true }).click();
+  await page.keyboard.insertText("First item");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  expect(drive.noteContentByName("Authoring.md")).toBe("- First item");
+
+  await replaceEditorContent(page, editor, "");
+  await page.getByRole("button", { name: "Code block", exact: true }).click();
+  await page.keyboard.insertText("const answer = 42;");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+  expect(drive.noteContentByName("Authoring.md")).toBe(
+    "```\nconst answer = 42;\n```",
+  );
+
+  await replaceEditorContent(page, editor, "/tab");
+  await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("Table");
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("Topic");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+
+  expect(drive.noteContentByName("Authoring.md")).toContain(
+    "| Topic | Column 2 | Column 3 |",
+  );
+  expect(drive.noteContentByName("Authoring.md")).toContain(
+    "| --- | --- | --- |",
+  );
+});
+
 test("renders Obsidian P1 math Mermaid and highlighted code locally", async ({
   page,
 }) => {

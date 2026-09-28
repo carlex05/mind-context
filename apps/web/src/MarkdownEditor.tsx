@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   autocompletion,
+  type Completion,
   type CompletionContext,
   type CompletionResult,
 } from "@codemirror/autocomplete";
@@ -11,6 +13,14 @@ import {
   findMarkdownNavigationOffset,
   type MarkdownNavigationTarget,
 } from "@mind-context/markdown";
+import {
+  executeMarkdownCommand,
+  markdownCommandKeymap,
+  markdownCommands,
+  slashMarkdownCommands,
+  toolbarMarkdownCommands,
+  type MarkdownCommandId,
+} from "./editorCommands";
 
 export interface EditorLinkTarget {
   readonly path: string;
@@ -29,6 +39,8 @@ export interface MarkdownEditorProps {
   readonly onChange: (value: string) => void;
 }
 
+type CommandLabels = Partial<Record<MarkdownCommandId, string>>;
+
 export function MarkdownEditor({
   value,
   label,
@@ -38,22 +50,31 @@ export function MarkdownEditor({
   navigationKey = 0,
   onChange,
 }: MarkdownEditorProps) {
+  const { t } = useTranslation();
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const linkTargetsRef = useRef(linkTargets);
   const tagsRef = useRef(tags);
+  const commandLabelsRef = useRef<CommandLabels>({});
   const completionSourceRef = useRef(
     (context: CompletionContext): CompletionResult | null =>
       createKnowledgeCompletionSource(
         linkTargetsRef.current,
         tagsRef.current,
+        commandLabelsRef.current,
       )(context),
   );
 
   onChangeRef.current = onChange;
   linkTargetsRef.current = linkTargets;
   tagsRef.current = tags;
+  commandLabelsRef.current = Object.fromEntries(
+    markdownCommands.map((command) => [
+      command.id,
+      String(t(command.labelKey)),
+    ]),
+  ) as CommandLabels;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -69,6 +90,7 @@ export function MarkdownEditor({
           override: [completionSourceRef.current],
           activateOnTyping: true,
         }),
+        keymap.of(markdownCommandKeymap),
         keymap.of(markdownKeymap),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({
@@ -135,18 +157,102 @@ export function MarkdownEditor({
     navigationTarget?.blockId,
   ]);
 
-  return <div className="markdown-editor" ref={hostRef} />;
+  const runCommand = (id: MarkdownCommandId) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    executeMarkdownCommand(editor, id);
+  };
+
+  return (
+    <div className="markdown-editor-shell">
+      <div
+        className="markdown-editor-toolbar"
+        role="toolbar"
+        aria-label={t("editor.toolbarAria")}
+      >
+        {toolbarMarkdownCommands.map((command) => {
+          const commandLabel =
+            commandLabelsRef.current[command.id] ?? command.id;
+          const title = command.shortcut
+            ? `${commandLabel} (${command.shortcut})`
+            : commandLabel;
+
+          return (
+            <button
+              key={command.id}
+              type="button"
+              className="markdown-command-button"
+              data-command={command.id}
+              data-group={command.group}
+              aria-label={commandLabel}
+              title={title}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => runCommand(command.id)}
+            >
+              <span aria-hidden="true">{command.icon}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="markdown-editor" ref={hostRef} />
+    </div>
+  );
 }
 
 function createKnowledgeCompletionSource(
   linkTargets: readonly EditorLinkTarget[],
   tags: readonly string[],
+  commandLabels: CommandLabels,
 ) {
   return (context: CompletionContext): CompletionResult | null => {
     const before = context.state.sliceDoc(
       context.state.doc.lineAt(context.pos).from,
       context.pos,
     );
+
+    const slashMatch = /^(\s*)\/([^\s/]*)$/u.exec(before);
+    if (slashMatch) {
+      const typed = slashMatch[2] ?? "";
+      const slashFrom = context.pos - typed.length - 1;
+      const normalized = typed.toLocaleLowerCase();
+      const options: Completion[] = slashMarkdownCommands
+        .filter((command) => {
+          const label = commandLabels[command.id] ?? command.id;
+          return [label, command.id, ...command.keywords].some((candidate) =>
+            candidate.toLocaleLowerCase().includes(normalized),
+          );
+        })
+        .map((command) => {
+          const label = commandLabels[command.id] ?? command.id;
+          return {
+            label,
+            type: "keyword",
+            ...(command.shortcut ? { detail: command.shortcut } : {}),
+            apply: (
+              view: EditorView,
+              _completion: Completion,
+              _from: number,
+              to: number,
+            ) => {
+              view.dispatch({
+                changes: {
+                  from: slashFrom,
+                  to,
+                  insert: "",
+                },
+                selection: { anchor: slashFrom },
+              });
+              executeMarkdownCommand(view, command.id);
+            },
+          };
+        });
+
+      return {
+        from: context.pos - typed.length,
+        options,
+        filter: false,
+      };
+    }
 
     const linkMatch = /\[\[([^\]\n]*)$/.exec(before);
     if (linkMatch) {
