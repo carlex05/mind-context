@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  acceptCompletion,
   autocompletion,
   type Completion,
   type CompletionContext,
@@ -84,14 +85,18 @@ export function MarkdownEditor({
       doc: value,
       parent: host,
       extensions: [
+        keymap.of([
+          { key: "Enter", run: acceptCompletion },
+          { key: "Tab", run: acceptCompletion },
+          ...markdownCommandKeymap,
+          ...markdownKeymap,
+        ]),
         basicSetup,
         markdown(),
         autocompletion({
           override: [completionSourceRef.current],
           activateOnTyping: true,
         }),
-        keymap.of(markdownCommandKeymap),
-        keymap.of(markdownKeymap),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({
           "aria-label": label,
