@@ -1438,6 +1438,37 @@ h2 {
   line-height: 1.72;
 }
 
+.markdown-preview .contains-task-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.markdown-preview .task-list-item {
+  list-style: none;
+}
+
+.markdown-preview .task-list-item + .task-list-item {
+  margin-top: 0.32em;
+}
+
+.markdown-preview .task-list-item > input[type="checkbox"],
+.markdown-preview .task-list-item > p > input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  min-height: 0;
+  margin: 0 0.55rem 0 0;
+  padding: 0;
+  vertical-align: -0.12rem;
+  border-radius: 3px;
+  cursor: default;
+  opacity: 1;
+}
+
+.markdown-preview .task-list-item .contains-task-list {
+  margin-top: 0.35em;
+  padding-left: 1.6rem;
+}
+
 .markdown-preview h1,
 .markdown-preview h2,
 .markdown-preview h3 {
