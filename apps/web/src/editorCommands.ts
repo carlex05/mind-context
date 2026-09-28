@@ -428,7 +428,7 @@ function fencedCodeBlock(
 ): MarkdownTransform {
   const selected = doc.slice(from, to);
   const code = selected.length > 0 ? selected : "";
-  const suffix = code.length > 0 && !code.endsWith("\n") ? "\n" : "";
+  const suffix = code.length === 0 || !code.endsWith("\n") ? "\n" : "";
   const block = "```\\n" + code + suffix + "```";
   const bodyStart = 4;
   const bodyEnd = bodyStart + code.length;
