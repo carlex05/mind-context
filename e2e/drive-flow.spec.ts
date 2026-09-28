@@ -797,6 +797,54 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
   );
 });
 
+test("renders Markdown task lists as compact checkboxes", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Tasks");
+  const editor = page.getByRole("textbox", { name: "Edit Tasks.md" });
+  await replaceEditorContent(
+    page,
+    editor,
+    [
+      "# Tasks",
+      "",
+      "- [ ] Open task",
+      "- [x] Finished task",
+      "  - [ ] Nested task",
+    ].join("\n"),
+  );
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Synced", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Reading view", exact: true }).click();
+  const reading = page.getByLabel("Reading view");
+  const checkboxes = reading.locator('input[type="checkbox"]');
+
+  await expect(checkboxes).toHaveCount(3);
+  await expect(checkboxes.nth(0)).not.toBeChecked();
+  await expect(checkboxes.nth(1)).toBeChecked();
+  await expect(checkboxes.nth(2)).not.toBeChecked();
+
+  const box = await checkboxes.nth(0).evaluate((element) => {
+    const styles = window.getComputedStyle(element);
+    return {
+      width: element.getBoundingClientRect().width,
+      height: element.getBoundingClientRect().height,
+      minHeight: styles.minHeight,
+    };
+  });
+
+  expect(box.width).toBeLessThan(24);
+  expect(box.height).toBeLessThan(24);
+  expect(box.minHeight).not.toBe("44px");
+  await expect(reading.locator(".contains-task-list").first()).toBeVisible();
+  await expect(reading.getByText("Nested task")).toBeVisible();
+});
+
 test("authors portable Markdown with toolbar and slash commands", async ({
   page,
 }) => {
