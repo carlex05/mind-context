@@ -96,6 +96,8 @@ export function MarkdownEditor({
         autocompletion({
           override: [completionSourceRef.current],
           activateOnTyping: true,
+          // Slash commands should be executable as soon as their menu is visible.
+          interactionDelay: 0,
         }),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({
