@@ -14,9 +14,14 @@ type DirectoryPickerWindow = Window & {
   }) => Promise<FileSystemDirectoryHandle>;
 };
 
+export type BrowserLocalVaultPermission =
+  | PermissionState
+  | "unsupported";
+
 export interface BrowserLocalVault {
   readonly workspaceId: string;
   readonly name: string;
+  readonly handle: FileSystemDirectoryHandle;
   readonly provider: BrowserLocalStorageProvider;
 }
 
@@ -26,7 +31,6 @@ export class BrowserLocalStorageProvider implements StorageProvider {
 
   private readonly idByPath = new Map<string, string>();
   private readonly pathById = new Map<string, string>();
-  private nextEntryId = 1;
 
   constructor(
     private readonly rootHandle: FileSystemDirectoryHandle,
@@ -237,7 +241,10 @@ export class BrowserLocalStorageProvider implements StorageProvider {
   private ensureId(path: string): string {
     const existing = this.idByPath.get(path);
     if (existing) return existing;
-    const id = `${this.id}:entry:${this.nextEntryId++}`;
+    const id =
+      path === ROOT_PATH
+        ? this.rootId
+        : `${this.id}:path:${encodeURIComponent(path)}`;
     this.idByPath.set(path, id);
     this.pathById.set(id, path);
     return id;
@@ -378,12 +385,59 @@ export async function pickBrowserLocalVault(): Promise<BrowserLocalVault> {
     id: "mindcontext-local-vault",
     mode: "readwrite",
   });
-  const workspaceId = createWorkspaceId();
+  return createBrowserLocalVault(rootHandle);
+}
+
+export function createBrowserLocalVault(
+  handle: FileSystemDirectoryHandle,
+  workspaceId = createWorkspaceId(),
+): BrowserLocalVault {
   return {
     workspaceId,
-    name: rootHandle.name,
-    provider: new BrowserLocalStorageProvider(rootHandle, workspaceId),
+    name: handle.name,
+    handle,
+    provider: new BrowserLocalStorageProvider(handle, workspaceId),
   };
+}
+
+export async function browserLocalVaultPermission(
+  handle: FileSystemDirectoryHandle,
+): Promise<BrowserLocalVaultPermission> {
+  const queryPermission = permissionMethod(handle, "queryPermission");
+  if (!queryPermission) return "unsupported";
+
+  try {
+    return await queryPermission({ mode: "readwrite" });
+  } catch {
+    return "unsupported";
+  }
+}
+
+export async function requestBrowserLocalVaultPermission(
+  handle: FileSystemDirectoryHandle,
+): Promise<BrowserLocalVaultPermission> {
+  const requestPermission = permissionMethod(handle, "requestPermission");
+  if (!requestPermission) return "unsupported";
+
+  try {
+    return await requestPermission({ mode: "readwrite" });
+  } catch {
+    return "denied";
+  }
+}
+
+export async function isSameBrowserLocalVault(
+  left: FileSystemDirectoryHandle,
+  right: FileSystemDirectoryHandle,
+): Promise<boolean> {
+  const candidate = left as PermissionAwareDirectoryHandle;
+  if (typeof candidate.isSameEntry !== "function") return false;
+
+  try {
+    return await candidate.isSameEntry(right);
+  } catch {
+    return false;
+  }
 }
 
 async function assertNameAvailable(
@@ -435,6 +489,25 @@ async function copyHandle(
   for await (const [name, child] of source.entries()) {
     await copyHandle(child, target, name);
   }
+}
+
+type PermissionAwareDirectoryHandle = FileSystemDirectoryHandle & {
+  queryPermission?: (
+    descriptor?: { readonly mode?: "read" | "write" | "readwrite" },
+  ) => Promise<PermissionState>;
+  requestPermission?: (
+    descriptor?: { readonly mode?: "read" | "write" | "readwrite" },
+  ) => Promise<PermissionState>;
+  isSameEntry?: (other: FileSystemHandle) => Promise<boolean>;
+};
+
+function permissionMethod(
+  handle: FileSystemDirectoryHandle,
+  method: "queryPermission" | "requestPermission",
+): PermissionAwareDirectoryHandle[typeof method] | undefined {
+  const candidate = handle as PermissionAwareDirectoryHandle;
+  const value = candidate[method];
+  return typeof value === "function" ? value.bind(handle) : undefined;
 }
 
 function isFileSystemFileHandle(

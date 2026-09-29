@@ -22,6 +22,8 @@ The repository currently includes:
 - CodeMirror 6 Markdown editor + reading view;
 - note tabs with browser-local recovery drafts, content-aware canonical-storage synchronization, hidden Markdown safety copies and a Settings Recovery Center;
 - direct local-folder vaults backed by the browser File System Access API;
+- browser-persisted recent local vault handles with permission-aware reopening;
+- stable local workspace/file identities for restoring tabs and reusable derived indexes across reloads;
 - Google Drive workspaces behind the same storage-provider contract;
 - nested vault explorer that includes Markdown and ordinary attachments;
 - arbitrary file attachment upload with portable Markdown references and Reading View image rendering;

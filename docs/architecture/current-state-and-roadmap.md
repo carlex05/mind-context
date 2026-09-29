@@ -28,9 +28,12 @@ conventions.
 - direct local-folder adapter using the browser File System Access API;
 - local vaults open in place without import or format conversion;
 - local files, attachments, folders, rename/move/delete and conflict revisions use the same workspace flows as Drive;
-- local object IDs remain stable within the session even when paths change through MindContext;
-- local-folder access requires a compatible secure browser context and explicit user selection;
-- local folder handles are not yet restored automatically across a fully closed browser session;
+- unchanged local file IDs are deterministic across reloads from stable workspace identity + relative path;
+- local object IDs remain stable within the active session when paths change through MindContext;
+- selected local directory handles and stable workspace IDs are persisted in browser IndexedDB;
+- the most recently opened local vault is restored automatically only while read/write permission is already granted;
+- remembered vaults with expired permission remain visible and request reauthorization only after an explicit user action;
+- local-folder access requires a compatible secure browser context and explicit initial selection;
 - Google Drive adapter behind `StorageProvider`;
 - `drive.file` least-privilege scope;
 - MindContext-created/discoverable Drive workspace folders;
@@ -222,20 +225,19 @@ Do not turn this into a proprietary manifest or transactional database.
 
 ## Local-vault follow-up
 
-The first direct-local-folder slice is implemented and intentionally keeps the
-permission model explicit.
+Direct local folders now have browser-persisted recent-vault handles, stable
+workspace identities, deterministic unchanged-file IDs, automatic reopen when
+permission remains granted, and explicit user-driven reauthorization when it
+does not.
 
 Remaining work:
 
-- persist selected `FileSystemDirectoryHandle` records in IndexedDB;
-- on reload, call `queryPermission()` and offer a user-initiated
-  `requestPermission()` flow instead of silently assuming access;
-- assign a stable browser-local workspace identity so search snapshots, recent
-  notes and UI state can be reused when the same folder is reopened;
 - add compatibility guidance/fallback import for browsers without
   `showDirectoryPicker()`;
 - decide whether tool metadata folders such as `.obsidian/` should be hidden
-  from the default file explorer while always remaining untouched on disk.
+  from the default file explorer while always remaining untouched on disk;
+- add UX for renaming browser shortcuts independently from the physical folder
+  name if user feedback shows that it is useful.
 
 Do not fall back to OPFS or IndexedDB as canonical note storage merely because
 direct local-folder access is unavailable.

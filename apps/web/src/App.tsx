@@ -16,8 +16,10 @@ import {
 import {
   IndexedDbEmbeddingIndexStore,
   IndexedDbKnowledgeIndexStore,
+  IndexedDbLocalVaultStore,
   IndexedDbPendingNoteDraftStore,
   IndexedDbSearchIndexStore,
+  type PersistedLocalVault,
 } from "@mind-context/persistence-indexeddb";
 import {
   HybridSearchService,
@@ -41,8 +43,14 @@ import {
   type GoogleDriveWorkspace,
 } from "@mind-context/storage-google-drive";
 import {
+  browserLocalVaultPermission,
+  createBrowserLocalVault,
   isBrowserLocalStorageSupported,
+  isSameBrowserLocalVault,
   pickBrowserLocalVault,
+  requestBrowserLocalVaultPermission,
+  type BrowserLocalVault,
+  type BrowserLocalVaultPermission,
 } from "@mind-context/storage-local";
 import {
   StorageConflictError,
@@ -128,6 +136,7 @@ const knowledgeStore = new IndexedDbKnowledgeIndexStore();
 const searchStore = new IndexedDbSearchIndexStore();
 const embeddingStore = new IndexedDbEmbeddingIndexStore();
 const pendingDraftStore = new IndexedDbPendingNoteDraftStore();
+const localVaultStore = new IndexedDbLocalVaultStore();
 const SEMANTIC_SEARCH_KEY = "mindcontext.semantic-search.enabled";
 const LOCAL_DRAFT_DEBOUNCE_MS = 120;
 const DRIVE_SYNC_DEBOUNCE_MS = 1200;
@@ -166,6 +175,10 @@ interface NoteConflict {
   readonly remoteMetadata: StorageObjectMetadata;
   readonly remoteContent: string;
   readonly recoveryFileName?: string;
+}
+
+interface RecentLocalVault extends PersistedLocalVault {
+  readonly permission: BrowserLocalVaultPermission;
 }
 
 export function App() {
@@ -272,6 +285,10 @@ export function App() {
     useState<WorkspaceOnboardingMode>();
   const [onboardingSubmitting, setOnboardingSubmitting] = useState(false);
   const [recentNoteIds, setRecentNoteIds] = useState<readonly string[]>([]);
+  const [recentLocalVaults, setRecentLocalVaults] = useState<
+    readonly RecentLocalVault[]
+  >([]);
+  const localVaultAutoOpenAttemptedRef = useRef(false);
   const [navigation, setNavigation] = useState<{
     readonly entries: readonly string[];
     readonly index: number;
@@ -423,6 +440,10 @@ export function App() {
     embeddingSnapshot,
     embeddingProvider,
   ]);
+
+  useEffect(() => {
+    void initializeLocalVaults();
+  }, []);
 
   useEffect(() => {
     if (!semanticEnabled || !activeWorkspace || !searchSnapshot) return;
@@ -733,6 +754,150 @@ export function App() {
     );
   }
 
+  async function initializeLocalVaults() {
+    if (localVaultAutoOpenAttemptedRef.current) return;
+    localVaultAutoOpenAttemptedRef.current = true;
+
+    const vaults = await loadRememberedLocalVaults();
+    setRecentLocalVaults(vaults);
+
+    const mostRecentGranted = vaults.find(
+      (vault) => vault.permission === "granted",
+    );
+    if (mostRecentGranted) {
+      await openRememberedLocalVault(mostRecentGranted, {
+        requestPermission: false,
+        discardConfirmed: true,
+      });
+    }
+  }
+
+  async function loadRememberedLocalVaults(): Promise<
+    readonly RecentLocalVault[]
+  > {
+    try {
+      const remembered = await localVaultStore.list();
+      return Promise.all(
+        remembered.map(async (vault) => ({
+          ...vault,
+          permission: await browserLocalVaultPermission(vault.handle),
+        })),
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  async function refreshRememberedLocalVaults() {
+    setRecentLocalVaults(await loadRememberedLocalVaults());
+  }
+
+  async function rememberLocalVault(local: BrowserLocalVault) {
+    const record: PersistedLocalVault = {
+      workspaceId: local.workspaceId,
+      name: local.name,
+      handle: local.handle,
+      lastOpenedAt: new Date().toISOString(),
+    };
+
+    try {
+      await localVaultStore.put(record);
+      await refreshRememberedLocalVaults();
+    } catch {
+      const permission = await browserLocalVaultPermission(local.handle);
+      setRecentLocalVaults((current) => [
+        { ...record, permission },
+        ...current.filter(
+          (vault) => vault.workspaceId !== local.workspaceId,
+        ),
+      ]);
+    }
+  }
+
+  async function rememberedLocalVaultFor(
+    handle: FileSystemDirectoryHandle,
+  ): Promise<PersistedLocalVault | undefined> {
+    try {
+      const remembered = await localVaultStore.list();
+      for (const vault of remembered) {
+        if (await isSameBrowserLocalVault(handle, vault.handle)) {
+          return vault;
+        }
+      }
+    } catch {
+      // Persistence is an enhancement. A selected local vault must still open.
+    }
+    return undefined;
+  }
+
+  async function openRememberedLocalVault(
+    vault: RecentLocalVault,
+    options: {
+      readonly requestPermission?: boolean;
+      readonly discardConfirmed?: boolean;
+    } = {},
+  ) {
+    if (!options.discardConfirmed && !confirmDiscardAllDirty()) return;
+
+    let permission = vault.permission;
+    if (permission !== "granted") {
+      if (options.requestPermission === false) return;
+
+      setStatus({
+        kind: "busy",
+        message: t("status.requestingLocalVaultPermission", {
+          name: vault.name,
+        }),
+      });
+      permission = await requestBrowserLocalVaultPermission(vault.handle);
+      setRecentLocalVaults((current) =>
+        current.map((candidate) =>
+          candidate.workspaceId === vault.workspaceId
+            ? { ...candidate, permission }
+            : candidate,
+        ),
+      );
+
+      if (permission !== "granted") {
+        setStatus({
+          kind: "error",
+          message:
+            permission === "unsupported"
+              ? t("errors.localVaultReselect", { name: vault.name })
+              : t("errors.localVaultPermissionDenied", {
+                  name: vault.name,
+                }),
+        });
+        return;
+      }
+    }
+
+    const local = createBrowserLocalVault(
+      vault.handle,
+      vault.workspaceId,
+    );
+    await rememberLocalVault(local);
+    await activateWorkspace(
+      {
+        id: local.workspaceId,
+        name: local.name,
+        kind: "local",
+      },
+      local.provider,
+      true,
+    );
+  }
+
+  async function forgetRememberedLocalVault(workspaceId: string) {
+    try {
+      await localVaultStore.delete(workspaceId);
+    } finally {
+      setRecentLocalVaults((current) =>
+        current.filter((vault) => vault.workspaceId !== workspaceId),
+      );
+    }
+  }
+
   async function openLocalVault() {
     if (!isBrowserLocalStorageSupported()) {
       setStatus({
@@ -745,7 +910,12 @@ export function App() {
 
     setStatus({ kind: "busy", message: t("status.openingLocalVault") });
     try {
-      const local = await pickBrowserLocalVault();
+      const selected = await pickBrowserLocalVault();
+      const remembered = await rememberedLocalVaultFor(selected.handle);
+      const local = remembered
+        ? createBrowserLocalVault(selected.handle, remembered.workspaceId)
+        : selected;
+      await rememberLocalVault(local);
       await activateWorkspace(
         {
           id: local.workspaceId,
@@ -936,6 +1106,8 @@ export function App() {
       }
     } catch (error) {
       setWorkspaceLoading(false);
+      setActiveWorkspace(undefined);
+      setProvider(undefined);
       setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
@@ -2403,8 +2575,15 @@ export function App() {
           status={status}
           googleAvailable={Boolean(GOOGLE_CLIENT_ID)}
           localAvailable={isBrowserLocalStorageSupported()}
+          recentLocalVaults={recentLocalVaults}
           onConnect={connectDrive}
           onOpenLocal={openLocalVault}
+          onOpenRecentLocal={(vault) =>
+            void openRememberedLocalVault(vault)
+          }
+          onForgetRecentLocal={(workspaceId) =>
+            void forgetRememberedLocalVault(workspaceId)
+          }
         />
       );
     }
@@ -2421,10 +2600,17 @@ export function App() {
           status={status}
           expiresAt={authSession.expiresAt}
           localAvailable={isBrowserLocalStorageSupported()}
+          recentLocalVaults={recentLocalVaults}
           onWorkspaceNameChange={setWorkspaceName}
           onCreateWorkspace={() => setOnboardingMode("create")}
           onOpenWorkspace={openWorkspace}
           onOpenLocal={openLocalVault}
+          onOpenRecentLocal={(vault) =>
+            void openRememberedLocalVault(vault)
+          }
+          onForgetRecentLocal={(workspaceId) =>
+            void forgetRememberedLocalVault(workspaceId)
+          }
           onRefresh={() => refreshWorkspaces()}
           onDisconnect={disconnect}
         />
@@ -3208,14 +3394,20 @@ function Landing({
   status,
   googleAvailable,
   localAvailable,
+  recentLocalVaults,
   onConnect,
   onOpenLocal,
+  onOpenRecentLocal,
+  onForgetRecentLocal,
 }: {
   readonly status: AppStatus;
   readonly googleAvailable: boolean;
   readonly localAvailable: boolean;
+  readonly recentLocalVaults: readonly RecentLocalVault[];
   readonly onConnect: () => void;
   readonly onOpenLocal: () => void;
+  readonly onOpenRecentLocal: (vault: RecentLocalVault) => void;
+  readonly onForgetRecentLocal: (workspaceId: string) => void;
 }) {
   const { t } = useTranslation();
   const principles = t("landing.principles", {
@@ -3259,6 +3451,12 @@ function Landing({
             {t("landing.localUnsupported")}
           </p>
         ) : null}
+        <RecentLocalVaultList
+          vaults={recentLocalVaults}
+          disabled={status.kind === "busy"}
+          onOpen={onOpenRecentLocal}
+          onForget={onForgetRecentLocal}
+        />
         <StatusBar status={status} />
       </section>
 
@@ -3283,10 +3481,13 @@ function WorkspaceChooser({
   status,
   expiresAt,
   localAvailable,
+  recentLocalVaults,
   onWorkspaceNameChange,
   onCreateWorkspace,
   onOpenWorkspace,
   onOpenLocal,
+  onOpenRecentLocal,
+  onForgetRecentLocal,
   onRefresh,
   onDisconnect,
 }: {
@@ -3295,10 +3496,13 @@ function WorkspaceChooser({
   readonly status: AppStatus;
   readonly expiresAt: number;
   readonly localAvailable: boolean;
+  readonly recentLocalVaults: readonly RecentLocalVault[];
   readonly onWorkspaceNameChange: (name: string) => void;
   readonly onCreateWorkspace: () => void;
   readonly onOpenWorkspace: (workspace: GoogleDriveWorkspace) => void;
   readonly onOpenLocal: () => void;
+  readonly onOpenRecentLocal: (vault: RecentLocalVault) => void;
+  readonly onForgetRecentLocal: (workspaceId: string) => void;
   readonly onRefresh: () => void;
   readonly onDisconnect: () => void;
 }) {
@@ -3330,6 +3534,12 @@ function WorkspaceChooser({
             <span className="section-label">{t("chooser.local")}</span>
             <h2>{t("chooser.localTitle")}</h2>
             <p>{t("chooser.localBody")}</p>
+            <RecentLocalVaultList
+              vaults={recentLocalVaults}
+              disabled={status.kind === "busy"}
+              onOpen={onOpenRecentLocal}
+              onForget={onForgetRecentLocal}
+            />
           </div>
           <div className="local-vault-actions">
             <button
@@ -3413,6 +3623,74 @@ function WorkspaceChooser({
       <StatusBar status={status} />
     </main>
   );
+}
+
+function RecentLocalVaultList({
+  vaults,
+  disabled,
+  onOpen,
+  onForget,
+}: {
+  readonly vaults: readonly RecentLocalVault[];
+  readonly disabled: boolean;
+  readonly onOpen: (vault: RecentLocalVault) => void;
+  readonly onForget: (workspaceId: string) => void;
+}) {
+  const { t } = useTranslation();
+  if (vaults.length === 0) return null;
+
+  return (
+    <section
+      className="recent-local-vaults"
+      aria-label={t("localVault.recent")}
+    >
+      <span className="section-label">{t("localVault.recent")}</span>
+      <div className="recent-local-vault-list">
+        {vaults.map((vault) => (
+          <div className="recent-local-vault-row" key={vault.workspaceId}>
+            <button
+              className="recent-local-vault-open"
+              type="button"
+              disabled={disabled}
+              onClick={() => onOpen(vault)}
+            >
+              <span>
+                <strong>{vault.name}</strong>
+                <small>{localVaultPermissionLabel(vault.permission, t)}</small>
+              </span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button
+              className="text-button recent-local-vault-forget"
+              type="button"
+              disabled={disabled}
+              aria-label={t("localVault.forgetAria", { name: vault.name })}
+              title={t("localVault.forgetHint")}
+              onClick={() => onForget(vault.workspaceId)}
+            >
+              {t("localVault.forget")}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function localVaultPermissionLabel(
+  permission: BrowserLocalVaultPermission,
+  t: (key: string) => string,
+): string {
+  switch (permission) {
+    case "granted":
+      return t("localVault.ready");
+    case "prompt":
+      return t("localVault.permissionRequired");
+    case "denied":
+      return t("localVault.permissionDenied");
+    case "unsupported":
+      return t("localVault.selectAgain");
+  }
 }
 
 const DEMO_MARKDOWN = `# MindContext demo

@@ -41,6 +41,13 @@ interface PendingNoteDraftRecord extends PendingNoteDraft {
   readonly key: string;
 }
 
+export interface PersistedLocalVault {
+  readonly workspaceId: string;
+  readonly name: string;
+  readonly handle: FileSystemDirectoryHandle;
+  readonly lastOpenedAt: string;
+}
+
 function createDatabase(databaseName: string): Dexie {
   const database = new Dexie(databaseName);
   database.version(1).stores({
@@ -63,6 +70,10 @@ function createRecoveryDatabase(databaseName: string): Dexie {
   const database = new Dexie(databaseName);
   database.version(1).stores({
     pendingDrafts: "&key,workspaceId,noteId,updatedAt,[workspaceId+noteId]",
+  });
+  database.version(2).stores({
+    pendingDrafts: "&key,workspaceId,noteId,updatedAt,[workspaceId+noteId]",
+    localVaults: "&workspaceId,lastOpenedAt,name",
   });
   return database;
 }
@@ -190,6 +201,38 @@ export class IndexedDbPendingNoteDraftStore
     if (records.length > 0) {
       await this.drafts.bulkDelete(records.map((record) => record.key));
     }
+  }
+
+  close(): void {
+    this.database.close();
+  }
+}
+
+export class IndexedDbLocalVaultStore {
+  private readonly database: Dexie;
+  private readonly vaults: Table<PersistedLocalVault, string>;
+
+  constructor(databaseName = "mind-context-local") {
+    this.database = createRecoveryDatabase(databaseName);
+    this.vaults = this.database.table<PersistedLocalVault, string>(
+      "localVaults",
+    );
+  }
+
+  async list(): Promise<readonly PersistedLocalVault[]> {
+    return this.vaults.orderBy("lastOpenedAt").reverse().toArray();
+  }
+
+  async get(workspaceId: string): Promise<PersistedLocalVault | undefined> {
+    return this.vaults.get(workspaceId);
+  }
+
+  async put(vault: PersistedLocalVault): Promise<void> {
+    await this.vaults.put(vault);
+  }
+
+  async delete(workspaceId: string): Promise<void> {
+    await this.vaults.delete(workspaceId);
   }
 
   close(): void {

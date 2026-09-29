@@ -57,10 +57,20 @@ Opening a local vault must be initiated by an explicit user action. The
 application requests read/write directory access only for the directory chosen
 by the user.
 
-The first local-vault slice does not silently persist and reopen folder access
-across a fully closed browser session. A future enhancement may store
-structured-cloneable directory handles in IndexedDB, but must re-check browser
-permissions and require user interaction when reauthorization is needed.
+Selected local directory handles are stored browser-locally in IndexedDB so a
+vault can retain a stable workspace identity across reloads. On startup,
+MindContext calls `queryPermission({ mode: "readwrite" })` for remembered
+handles. A most-recent vault may reopen automatically only when that check
+returns `granted`.
+
+If permission is `prompt` or `denied`, MindContext must not trigger a
+permission request on its own. Reauthorization is initiated by an explicit user
+action and uses `requestPermission({ mode: "readwrite" })`. If a browser cannot
+restore permission for a stored handle, the UI asks the user to choose that
+folder again.
+
+Remembering a vault is a browser convenience only. Removing that recent-vault
+record must never delete or mutate the underlying folder.
 
 When direct local-folder access is unavailable, MindContext must not silently
 substitute OPFS or IndexedDB as canonical note storage. A future compatibility
@@ -82,8 +92,10 @@ fallback may offer an explicit import/copy workflow instead.
 - `showDirectoryPicker()` is not available in every browser.
 - Browser permission state can require reauthorization after the browser
   session ends.
-- Path-based filesystems do not naturally provide Drive-style stable object IDs,
-  so the adapter must maintain session-local logical IDs.
+- Path-based filesystems do not naturally provide Drive-style stable object IDs.
+  MindContext derives deterministic IDs from the stable workspace identity and
+  current relative path, while preserving logical IDs across MindContext-driven
+  moves within the active session.
 - Filesystem rename/move operations may not be atomic through the browser API.
 
 ## Relation to earlier ADRs
