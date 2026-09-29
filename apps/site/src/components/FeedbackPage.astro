@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "./PageHero.astro";
+import { siteCopy, type SiteLocale } from "../i18n/site";
+const { locale = "en" } = Astro.props as { locale?: SiteLocale };
+const t = siteCopy[locale].feedback;
+const urls = {
+  bug: "https://github.com/carlex05/mind-context/issues/new?template=bug.yml",
+  idea: "https://github.com/carlex05/mind-context/issues/new?template=feature.yml",
+  issues: "https://github.com/carlex05/mind-context/issues",
+} as const;
+---
+
+<BaseLayout locale={locale} route="feedback" title={`${t.title} · MindContext — Constellation`} description={t.meta}>
+  <div class="content-shell">
+    <PageHero eyebrow={t.eyebrow} title={t.hero} description={t.description} />
+    <section class="feedback-grid">{t.cards.map((card, index) => <a class="feedback-card" href={urls[card[4]]}><span class:list={["feedback-icon", { "amber-text": index === 0 }]}>{card[0]}</span><div><h2>{card[1]}</h2><p>{card[2]}</p><strong>{card[3]}</strong></div></a>)}</section>
+    <aside class="callout privacy-callout"><strong>{t.privacyTitle}</strong><p>{t.privacy}</p></aside>
+    <section class="prose-section"><h2>{t.usefulTitle}</h2><ul>{t.useful.map((item) => <li>{item}</li>)}</ul></section>
+  </div>
+</BaseLayout>

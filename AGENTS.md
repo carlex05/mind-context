@@ -68,7 +68,7 @@ the **Linked Star** mark. Before changing product visuals, read
 The repository already contains:
 
 - MindContext — Constellation visual identity with Linked Star assets and shared design tokens;
-- Astro public product site in `apps/site`, with the React workspace composed at `/app/` for Pages;
+- Astro public product site in `apps/site`, with English at the root, Spanish under `/es/`, shared localized page components, and the React workspace composed at `/app/` for Pages;
 - responsive Obsidian-inspired workspace shell with icon rail/bottom navigation;
 - Markdown tabs with persistent browser-local recovery drafts and deferred Drive synchronization;
 - CodeMirror 6 editing with a shared Markdown command registry, formatting

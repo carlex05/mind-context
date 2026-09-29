@@ -1,0 +1,14 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "./PageHero.astro";
+import { siteCopy, type SiteLocale } from "../i18n/site";
+const { locale = "en" } = Astro.props as { locale?: SiteLocale };
+const t = siteCopy[locale].changelog;
+---
+
+<BaseLayout locale={locale} route="changelog" title={`${t.title} · MindContext — Constellation`} description={t.meta}>
+  <div class="content-shell">
+    <PageHero eyebrow={t.eyebrow} title={t.hero} description={t.description} />
+    <section class="timeline">{t.entries.map((entry) => <article><time datetime={entry[1]}>{entry[0]}</time><div><h2>{entry[2]}</h2><p>{entry[3]}</p></div></article>)}</section>
+  </div>
+</BaseLayout>

@@ -2,27 +2,43 @@
 import "@mind-context/design-system/tokens.css";
 import "../styles/global.css";
 import BrandMark from "../components/BrandMark.astro";
+import { siteCopy, sitePath, type SiteLocale, type SiteRoute } from "../i18n/site";
 
 interface Props {
   title?: string;
   description?: string;
+  locale?: SiteLocale;
+  route?: SiteRoute;
 }
 
 const {
+  locale = "en",
+  route = "",
+} = Astro.props;
+const copy = siteCopy[locale];
+const {
   title = "MindContext — Constellation",
-  description = "Turn scattered notes into connected context. A privacy-first, Markdown-first second brain in your own Google Drive.",
+  description = locale === "es"
+    ? "Convierte notas dispersas en contexto conectado. Un Second Brain privado y basado en Markdown."
+    : "Turn scattered notes into connected context. A privacy-first, Markdown-first second brain.",
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL;
-const home = base;
+const home = sitePath(base, locale);
 const appUrl = `${base}app/`;
-const page = (name: string) => `${base}${name}/`;
-const featuresUrl = `${base}#features`;
-const pricingUrl = `${base}#pricing`;
+const page = (name: SiteRoute) => sitePath(base, locale, name);
+const featuresUrl = `${home}#features`;
+const pricingUrl = `${home}#pricing`;
+const enUrl = sitePath(base, "en", route);
+const esUrl = sitePath(base, "es", route);
+const canonicalPath = locale === "es" ? esUrl : enUrl;
+const canonical = Astro.site ? new URL(canonicalPath, Astro.site).toString() : canonicalPath;
+const enCanonical = Astro.site ? new URL(enUrl, Astro.site).toString() : enUrl;
+const esCanonical = Astro.site ? new URL(esUrl, Astro.site).toString() : esUrl;
 ---
 
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang={locale} data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -32,13 +48,17 @@ const pricingUrl = `${base}#pricing`;
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="en" href={enCanonical} />
+    <link rel="alternate" hreflang="es" href={esCanonical} />
+    <link rel="alternate" hreflang="x-default" href={enCanonical} />
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
     <title>{title}</title>
   </head>
   <body>
     <div class="site-stars" aria-hidden="true"></div>
     <header class="site-header">
-      <a class="site-brand" href={home} aria-label="MindContext — Constellation home">
+      <a class="site-brand" href={home} aria-label={copy.layout.homeAria}>
         <BrandMark size={34} class="site-brand-mark" />
         <span class="site-brand-name">MindContext</span>
         <span class="site-brand-divider">—</span>
@@ -46,34 +66,38 @@ const pricingUrl = `${base}#pricing`;
         <span class="beta-badge">Beta</span>
       </a>
 
-      <nav class="desktop-nav" aria-label="Primary navigation">
-        <a href={featuresUrl}>Product</a>
-        <a href={page("privacy")}>Privacy</a>
-        <a href={page("docs")}>Docs</a>
-        <a href={page("plugins")}>Plugins</a>
-        <a href={pricingUrl}>Pricing</a>
+      <nav class="desktop-nav" aria-label={copy.layout.primaryNav}>
+        <a href={featuresUrl}>{copy.layout.nav.product}</a>
+        <a href={page("privacy")}>{copy.layout.nav.privacy}</a>
+        <a href={page("docs")}>{copy.layout.nav.docs}</a>
+        <a href={page("plugins")}>{copy.layout.nav.plugins}</a>
+        <a href={pricingUrl}>{copy.layout.nav.pricing}</a>
       </nav>
 
-      <a class="button primary header-cta" href={appUrl}>Open MindContext <span aria-hidden="true">→</span></a>
+      <nav class="language-switcher" aria-label={locale === "es" ? "Idioma" : "Language"}>
+        <a href={enUrl} lang="en" aria-current={locale === "en" ? "page" : undefined}>EN</a>
+        <span aria-hidden="true">/</span>
+        <a href={esUrl} lang="es" aria-current={locale === "es" ? "page" : undefined}>ES</a>
+      </nav>
+
+      <a class="button primary header-cta" href={appUrl}>{copy.layout.open} <span aria-hidden="true">→</span></a>
 
       <details class="mobile-nav">
-        <summary aria-label="Open navigation"><span></span><span></span><span></span></summary>
-        <nav aria-label="Mobile navigation">
-          <a href={featuresUrl}>Product</a>
-          <a href={page("privacy")}>Privacy</a>
-          <a href={page("docs")}>Docs</a>
-          <a href={page("plugins")}>Plugins</a>
-          <a href={pricingUrl}>Pricing</a>
-          <a href={page("roadmap")}>Roadmap</a>
-          <a href={page("feedback")}>Feedback</a>
-          <a class="button primary" href={appUrl}>Open MindContext</a>
+        <summary aria-label={copy.layout.openNav}><span></span><span></span><span></span></summary>
+        <nav aria-label={copy.layout.mobileNav}>
+          <a href={featuresUrl}>{copy.layout.nav.product}</a>
+          <a href={page("privacy")}>{copy.layout.nav.privacy}</a>
+          <a href={page("docs")}>{copy.layout.nav.docs}</a>
+          <a href={page("plugins")}>{copy.layout.nav.plugins}</a>
+          <a href={pricingUrl}>{copy.layout.nav.pricing}</a>
+          <a href={page("roadmap")}>{copy.layout.nav.roadmap}</a>
+          <a href={page("feedback")}>{copy.layout.nav.feedback}</a>
+          <a class="button primary" href={appUrl}>{copy.layout.open}</a>
         </nav>
       </details>
     </header>
 
-    <main>
-      <slot />
-    </main>
+    <main><slot /></main>
 
     <footer class="site-footer">
       <div>
@@ -82,16 +106,16 @@ const pricingUrl = `${base}#pricing`;
           <strong>MindContext</strong>
           <span>— Constellation</span>
         </a>
-        <p>Turn scattered notes into connected context.</p>
+        <p>{copy.layout.footerTagline}</p>
       </div>
-      <nav aria-label="Footer navigation">
-        <a href={page("docs")}>Docs</a>
-        <a href={page("roadmap")}>Roadmap</a>
-        <a href={page("changelog")}>Changelog</a>
+      <nav aria-label={locale === "es" ? "Navegación del pie" : "Footer navigation"}>
+        <a href={page("docs")}>{copy.layout.nav.docs}</a>
+        <a href={page("roadmap")}>{copy.layout.nav.roadmap}</a>
+        <a href={page("changelog")}>{copy.layout.nav.changelog}</a>
         <a href="https://github.com/carlex05/mind-context">GitHub</a>
-        <a href={page("feedback")}>Feedback</a>
+        <a href={page("feedback")}>{copy.layout.nav.feedback}</a>
       </nav>
-      <small>Free to use. Open by design.</small>
+      <small>{copy.layout.footerPromise}</small>
     </footer>
   </body>
 </html>

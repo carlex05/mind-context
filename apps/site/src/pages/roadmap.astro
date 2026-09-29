@@ -1,20 +1,4 @@
 ---
-import BaseLayout from "../layouts/BaseLayout.astro";
-import PageHero from "../components/PageHero.astro";
+import RoadmapPage from "../components/RoadmapPage.astro";
 ---
-
-<BaseLayout title="Roadmap · MindContext — Constellation" description="A transparent view of the MindContext public beta direction.">
-  <div class="content-shell">
-    <PageHero eyebrow="ROADMAP" title="Build the daily-use core before the ecosystem." description="The roadmap prioritizes trust, resilience and useful local knowledge workflows before broad plugin execution." />
-
-    <section class="roadmap-list">
-      <article class="roadmap-item active"><span>NOW · PUBLIC BETA</span><h2>Beta readiness & feedback</h2><p>Public site, brand foundation, feedback loops, daily reliability, onboarding hardening and regression coverage.</p></article>
-      <article class="roadmap-item"><span>NEXT</span><h2>Local Ask Second Brain</h2><p>Provider-neutral local LLM support, retrieval context with citations and explicit privacy boundaries.</p></article>
-      <article class="roadmap-item"><span>FOLLOWING</span><h2>Daily capture</h2><p>Daily Notes, Quick Capture and optional Inbox conventions expressed as ordinary Markdown.</p></article>
-      <article class="roadmap-item"><span>HARDENING</span><h2>Offline & resilience</h2><p>Ordinary attachments, stronger autosave/conflict UX, PWA/offline shell and explicit local-cache rebuild controls.</p></article>
-      <article class="roadmap-item"><span>LATER</span><h2>Plugin ecosystem</h2><p>Broader plugin execution and community distribution after capability boundaries and trust UX are mature.</p></article>
-    </section>
-
-    <aside class="callout"><strong>No dates by design</strong><p>This is an ordering of product priorities, not a promise of release dates. Beta feedback can change the order.</p></aside>
-  </div>
-</BaseLayout>
+<RoadmapPage locale="en" />

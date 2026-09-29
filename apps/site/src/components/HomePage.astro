@@ -1,0 +1,59 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ConstellationVisual from "./ConstellationVisual.astro";
+import { siteCopy, sitePath, type SiteLocale } from "../i18n/site";
+const { locale = "en" } = Astro.props as { locale?: SiteLocale };
+const t = siteCopy[locale].home;
+const base = import.meta.env.BASE_URL;
+const page = (route: any) => sitePath(base, locale, route);
+---
+
+<BaseLayout locale={locale} route="" description={t.metaDescription}>
+  <section class="hero-section">
+    <div class="hero-copy">
+      <span class="eyebrow">{t.eyebrow}</span>
+      <h1>{t.titleBefore} <span>{t.titleAccent}</span></h1>
+      <p class="hero-lede">{t.lede}</p>
+      <div class="hero-actions">
+        <a class="button primary large" href={`${base}app/`}>{siteCopy[locale].layout.open} <span aria-hidden="true">→</span></a>
+        <a class="button secondary large" href="#how-it-works"><span aria-hidden="true">◎</span> {t.how}</a>
+      </div>
+      <div class="trust-row" aria-label={t.trustAria}>{t.trust.map((item) => <span>✓ {item}</span>)}</div>
+    </div>
+    <ConstellationVisual locale={locale} />
+  </section>
+
+  <section class="section feature-section" id="features">
+    <div class="section-heading"><span class="eyebrow">{t.featuresEyebrow}</span><h2>{t.featuresTitle}</h2><p>{t.featuresBody}</p></div>
+    <div class="feature-grid">
+      {t.features.map((feature) => (
+        <article class="feature-card">
+          <span class="feature-icon">{feature.icon}</span><h3>{feature.title}</h3><p>{feature.body}</p>
+          <a href={page(feature.route as any)}>{feature.link}</a>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="section how-section" id="how-it-works">
+    <div class="section-heading narrow"><span class="eyebrow">{t.howEyebrow}</span><h2>{t.howTitle}</h2></div>
+    <div class="steps">{t.steps.map((step) => <article><span>{step.n}</span><h3>{step.title}</h3><p>{step.body}</p></article>)}</div>
+  </section>
+
+  <section class="section pricing-section" id="pricing">
+    <div class="pricing-card">
+      <div><span class="eyebrow">{t.freeEyebrow}</span><h2>{t.freeTitle}</h2><p>{t.freeBody}</p><p>{t.freeBody2}</p></div>
+      <ul>{t.freePoints.map((item) => <li>✓ {item}</li>)}</ul>
+    </div>
+  </section>
+
+  <section class="section plugins-preview">
+    <div class="section-heading split-heading"><div><span class="eyebrow">{t.pluginEyebrow}</span><h2>{t.pluginTitle}</h2><p>{t.pluginBody}</p></div><a class="text-link" href={page("plugins")}>{t.pluginRoadmap}</a></div>
+    <div class="plugin-grid">{t.pluginCards.map((card) => <article><span>{card.icon}</span><strong>{card.title}</strong><small>{card.body}</small></article>)}</div>
+  </section>
+
+  <section class="section final-cta">
+    <span class="eyebrow">{t.finalEyebrow}</span><h2>{t.finalTitle}</h2><p>{t.finalBody}</p>
+    <div class="hero-actions"><a class="button primary large" href={`${base}app/`}>{siteCopy[locale].layout.open} →</a><a class="button secondary large" href={page("feedback")}>{t.sendFeedback}</a></div>
+  </section>
+</BaseLayout>

@@ -1,14 +1,14 @@
-<div class="constellation-visual" aria-label="Connected MindContext notes">
+---
+import { siteCopy, type SiteLocale } from "../i18n/site";
+const { locale = "en" } = Astro.props as { locale?: SiteLocale };
+const t = siteCopy[locale].visual;
+---
+
+<div class="constellation-visual" aria-label={t.aria}>
   <svg class="constellation-lines" viewBox="0 0 720 560" aria-hidden="true">
     <defs>
-      <radialGradient id="blueGlow">
-        <stop offset="0" stop-color="#7A8DFF" stop-opacity=".7" />
-        <stop offset="1" stop-color="#7A8DFF" stop-opacity="0" />
-      </radialGradient>
-      <radialGradient id="amberGlow">
-        <stop offset="0" stop-color="#FFB257" stop-opacity=".72" />
-        <stop offset="1" stop-color="#FFB257" stop-opacity="0" />
-      </radialGradient>
+      <radialGradient id="blueGlow"><stop offset="0" stop-color="#7A8DFF" stop-opacity=".7" /><stop offset="1" stop-color="#7A8DFF" stop-opacity="0" /></radialGradient>
+      <radialGradient id="amberGlow"><stop offset="0" stop-color="#FFB257" stop-opacity=".72" /><stop offset="1" stop-color="#FFB257" stop-opacity="0" /></radialGradient>
     </defs>
     <ellipse cx="366" cy="278" rx="278" ry="188" class="orbit" />
     <ellipse cx="366" cy="278" rx="212" ry="238" class="orbit orbit-two" />
@@ -26,38 +26,21 @@
     <circle cx="360" cy="276" r="9" class="node amber" />
   </svg>
 
-  <div class="floating-card card-ideas">
-    <span class="mini-icon">▤</span>
-    <div><strong>Ideas</strong><small>Capture thoughts as they happen.</small><em>#capture</em></div>
-  </div>
-  <div class="floating-card card-connections">
-    <span class="mini-icon">⌁</span>
-    <div><strong>Connections</strong><small>Discover unexpected relationships.</small><em>#knowledge</em></div>
-  </div>
-  <div class="floating-card card-knowledge">
-    <span class="mini-icon">◇</span>
-    <div><strong>Knowledge</strong><small>Build a living body of context.</small><em>#systems</em></div>
-  </div>
-  <div class="floating-card card-action">
-    <span class="mini-icon amber-text">↗</span>
-    <div><strong>Action</strong><small>Turn insights into action.</small><em>#productivity</em></div>
-  </div>
+  <div class="floating-card card-ideas"><span class="mini-icon">▤</span><div><strong>{t.ideas}</strong><small>{t.ideasBody}</small><em>#capture</em></div></div>
+  <div class="floating-card card-connections"><span class="mini-icon">⌁</span><div><strong>{t.connections}</strong><small>{t.connectionsBody}</small><em>#knowledge</em></div></div>
+  <div class="floating-card card-knowledge"><span class="mini-icon">◇</span><div><strong>{t.knowledge}</strong><small>{t.knowledgeBody}</small><em>#systems</em></div></div>
+  <div class="floating-card card-action"><span class="mini-icon amber-text">↗</span><div><strong>{t.action}</strong><small>{t.actionBody}</small><em>#productivity</em></div></div>
 
   <div class="app-preview">
-    <div class="preview-titlebar"><span></span><span></span><span></span><strong>My Notes</strong></div>
+    <div class="preview-titlebar"><span></span><span></span><span></span><strong>{t.myNotes}</strong></div>
     <div class="preview-body">
-      <aside>
-        <b>▤ Notes</b>
-        <span>⌘ Graph</span>
-        <span>◇ Plugins</span>
-        <span>▱ Drive</span>
-      </aside>
+      <aside><b>▤ {t.notes}</b><span>⌘ {t.graph}</span><span>◇ {t.plugins}</span><span>▱ {t.drive}</span></aside>
       <section>
-        <div class="preview-search">⌕ Search notes, people, concepts… <kbd>⌘ K</kbd></div>
-        <div class="preview-row"><span>Building a Second Brain</span><em>#knowledge</em></div>
-        <div class="preview-row"><span>Link related notes</span><em>#focus</em></div>
-        <div class="preview-row"><span>Capture ideas without friction</span><em>#capture</em></div>
-        <div class="preview-row"><span>Turn knowledge into action</span><em>#systems</em></div>
+        <div class="preview-search">⌕ {t.search} <kbd>⌘ K</kbd></div>
+        <div class="preview-row"><span>{t.rows[0]}</span><em>#knowledge</em></div>
+        <div class="preview-row"><span>{t.rows[1]}</span><em>#focus</em></div>
+        <div class="preview-row"><span>{t.rows[2]}</span><em>#capture</em></div>
+        <div class="preview-row"><span>{t.rows[3]}</span><em>#systems</em></div>
       </section>
     </div>
   </div>

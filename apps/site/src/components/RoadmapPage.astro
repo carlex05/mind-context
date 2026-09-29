@@ -1,0 +1,15 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "./PageHero.astro";
+import { siteCopy, type SiteLocale } from "../i18n/site";
+const { locale = "en" } = Astro.props as { locale?: SiteLocale };
+const t = siteCopy[locale].roadmap;
+---
+
+<BaseLayout locale={locale} route="roadmap" title={`${t.title} · MindContext — Constellation`} description={t.meta}>
+  <div class="content-shell">
+    <PageHero eyebrow={t.eyebrow} title={t.hero} description={t.description} />
+    <section class="roadmap-list">{t.items.map((item, index) => <article class:list={["roadmap-item", { active: index === 0 }]}><span>{item[0]}</span><h2>{item[1]}</h2><p>{item[2]}</p></article>)}</section>
+    <aside class="callout"><strong>{t.noteTitle}</strong><p>{t.note}</p></aside>
+  </div>
+</BaseLayout>
