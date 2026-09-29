@@ -4,12 +4,19 @@ import PageHero from "./PageHero.astro";
 import { siteCopy, type SiteLocale } from "../i18n/site";
 const { locale = "en" } = Astro.props as { locale?: SiteLocale };
 const t = siteCopy[locale].privacy;
+const analyticsTitle =
+  locale === "es" ? "Analytics del sitio público" : "Public-site analytics";
+const analyticsBody =
+  locale === "es"
+    ? "El sitio público puede usar Google Analytics 4 solo después de un consentimiento explícito. Analytics no se carga dentro de /app y el contenido privado de las notas nunca se envía para analytics."
+    : "The public marketing site can use Google Analytics 4 only after explicit opt-in. Analytics is not loaded inside /app, and private note content is never sent for analytics.";
 ---
 
 <BaseLayout locale={locale} route="privacy" title={`${t.title} · MindContext — Constellation`} description={t.meta}>
   <div class="content-shell">
     <PageHero eyebrow={t.eyebrow} title={t.hero} description={t.description} />
     <section class="content-grid two">{t.cards.map((card) => <article class="content-card"><h2>{card[0]}</h2><p>{card[1]}</p></article>)}</section>
+    <section class="content-grid two"><article class="content-card"><h2>{analyticsTitle}</h2><p>{analyticsBody}</p></article></section>
     <section class="prose-section"><h2>{t.noNeedTitle}</h2><ul>{t.noNeed.map((item) => <li>{item}</li>)}</ul></section>
     <section class="prose-section"><h2>{t.localAiTitle}</h2><p>{t.localAi}</p></section>
     <aside class="callout"><strong>{t.betaTitle}</strong><p>{t.beta}</p></aside>

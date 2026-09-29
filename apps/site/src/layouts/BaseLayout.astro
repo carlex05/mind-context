@@ -2,6 +2,7 @@
 import "@mind-context/design-system/tokens.css";
 import "../styles/global.css";
 import BrandMark from "../components/BrandMark.astro";
+import Analytics from "../components/Analytics.astro";
 import { siteCopy, sitePath, type SiteLocale, type SiteRoute } from "../i18n/site";
 
 interface Props {
@@ -35,6 +36,11 @@ const canonicalPath = locale === "es" ? esUrl : enUrl;
 const canonical = Astro.site ? new URL(canonicalPath, Astro.site).toString() : canonicalPath;
 const enCanonical = Astro.site ? new URL(enUrl, Astro.site).toString() : enUrl;
 const esCanonical = Astro.site ? new URL(esUrl, Astro.site).toString() : esUrl;
+const analyticsEnabled = /^G-[A-Z0-9]+$/i.test(
+  import.meta.env.PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "",
+);
+const analyticsPreferencesLabel =
+  locale === "es" ? "Preferencias de analytics" : "Analytics preferences";
 ---
 
 <!doctype html>
@@ -80,7 +86,7 @@ const esCanonical = Astro.site ? new URL(esUrl, Astro.site).toString() : esUrl;
         <a href={esUrl} lang="es" aria-current={locale === "es" ? "page" : undefined}>ES</a>
       </nav>
 
-      <a class="button primary header-cta" href={appUrl}>{copy.layout.open} <span aria-hidden="true">→</span></a>
+      <a class="button primary header-cta" href={appUrl} data-analytics-event="open_app">{copy.layout.open} <span aria-hidden="true">→</span></a>
 
       <details class="mobile-nav">
         <summary aria-label={copy.layout.openNav}><span></span><span></span><span></span></summary>
@@ -92,7 +98,7 @@ const esCanonical = Astro.site ? new URL(esUrl, Astro.site).toString() : esUrl;
           <a href={pricingUrl}>{copy.layout.nav.pricing}</a>
           <a href={page("roadmap")}>{copy.layout.nav.roadmap}</a>
           <a href={page("feedback")}>{copy.layout.nav.feedback}</a>
-          <a class="button primary" href={appUrl}>{copy.layout.open}</a>
+          <a class="button primary" href={appUrl} data-analytics-event="open_app">{copy.layout.open}</a>
         </nav>
       </details>
     </header>
@@ -114,8 +120,15 @@ const esCanonical = Astro.site ? new URL(esUrl, Astro.site).toString() : esUrl;
         <a href={page("changelog")}>{copy.layout.nav.changelog}</a>
         <a href="https://github.com/carlex05/mind-context">GitHub</a>
         <a href={page("feedback")}>{copy.layout.nav.feedback}</a>
+        {analyticsEnabled ? (
+          <button type="button" class="footer-link-button" data-analytics-preferences>
+            {analyticsPreferencesLabel}
+          </button>
+        ) : null}
       </nav>
       <small>{copy.layout.footerPromise}</small>
     </footer>
+
+    <Analytics locale={locale} />
   </body>
 </html>

@@ -1,0 +1,228 @@
+---
+import type { SiteLocale } from "../i18n/site";
+
+interface Props {
+  locale?: SiteLocale;
+}
+
+const { locale = "en" } = Astro.props;
+const measurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID?.trim() ?? "";
+const enabled = /^G-[A-Z0-9]+$/i.test(measurementId);
+
+const copy =
+  locale === "es"
+    ? {
+        title: "Ayúdanos a mejorar MindContext",
+        body: "Usamos Google Analytics solo en este sitio público y únicamente si aceptas. La aplicación /app y el contenido de tus notas no se analizan.",
+        decline: "No, gracias",
+        accept: "Aceptar analytics",
+      }
+    : {
+        title: "Help us improve MindContext",
+        body: "We use Google Analytics only on this public site and only if you opt in. The /app workspace and your note contents are not analyzed.",
+        decline: "No, thanks",
+        accept: "Allow analytics",
+      };
+---
+
+{
+  enabled ? (
+    <>
+      <aside
+        id="analytics-consent"
+        class="analytics-consent"
+        aria-live="polite"
+        aria-label={copy.title}
+        hidden
+      >
+        <div>
+          <strong>{copy.title}</strong>
+          <p>{copy.body}</p>
+        </div>
+        <div class="analytics-consent-actions">
+          <button type="button" class="button secondary" data-analytics-decline>
+            {copy.decline}
+          </button>
+          <button type="button" class="button primary" data-analytics-accept>
+            {copy.accept}
+          </button>
+        </div>
+      </aside>
+
+      <script is:inline define:vars={{ measurementId }}>
+        (() => {
+          const consentKey = "mindcontext.analytics-consent.v1";
+          const banner = document.getElementById("analytics-consent");
+          let analyticsLoaded = false;
+          let analyticsAllowed = false;
+
+          const gtag = (...args) => {
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push(args);
+          };
+
+          const trackOpenApp = (event) => {
+            if (!analyticsAllowed) return;
+            const target =
+              event.target instanceof Element
+                ? event.target.closest("[data-analytics-event='open_app']")
+                : null;
+            if (!target) return;
+            gtag("event", "open_app", {
+              link_url:
+                target instanceof HTMLAnchorElement ? target.href : undefined,
+            });
+          };
+
+          const enableAnalytics = () => {
+            analyticsAllowed = true;
+
+            if (analyticsLoaded) {
+              gtag("consent", "update", { analytics_storage: "granted" });
+              return;
+            }
+
+            analyticsLoaded = true;
+            gtag("consent", "default", {
+              analytics_storage: "granted",
+              ad_storage: "denied",
+              ad_user_data: "denied",
+              ad_personalization: "denied",
+            });
+            gtag("js", new Date());
+            gtag("config", measurementId, {
+              allow_google_signals: false,
+              allow_ad_personalization_signals: false,
+            });
+
+            const script = document.createElement("script");
+            script.async = true;
+            script.src =
+              "https://www.googletagmanager.com/gtag/js?id=" +
+              encodeURIComponent(measurementId);
+            script.dataset.mindcontextGa = measurementId;
+            document.head.append(script);
+
+            document.addEventListener("click", trackOpenApp);
+          };
+
+          const openPreferences = () => {
+            if (banner) banner.hidden = false;
+          };
+
+          let savedConsent = null;
+          try {
+            savedConsent = localStorage.getItem(consentKey);
+          } catch {}
+
+          if (savedConsent === "granted") {
+            enableAnalytics();
+          } else if (savedConsent !== "denied") {
+            openPreferences();
+          }
+
+          document
+            .querySelectorAll("[data-analytics-preferences]")
+            .forEach((button) => {
+              button.addEventListener("click", openPreferences);
+            });
+
+          banner
+            ?.querySelector("[data-analytics-accept]")
+            ?.addEventListener("click", () => {
+              try {
+                localStorage.setItem(consentKey, "granted");
+              } catch {}
+              banner.hidden = true;
+              enableAnalytics();
+            });
+
+          banner
+            ?.querySelector("[data-analytics-decline]")
+            ?.addEventListener("click", () => {
+              try {
+                localStorage.setItem(consentKey, "denied");
+              } catch {}
+              banner.hidden = true;
+              analyticsAllowed = false;
+              document.removeEventListener("click", trackOpenApp);
+
+              if (analyticsLoaded) {
+                gtag("consent", "update", {
+                  analytics_storage: "denied",
+                });
+              }
+
+              document.cookie
+                .split(";")
+                .map((cookie) => cookie.trim().split("=")[0])
+                .filter((name) => name === "_ga" || name.startsWith("_ga_"))
+                .forEach((name) => {
+                  document.cookie =
+                    name + "=; Max-Age=0; path=/; SameSite=Lax";
+                });
+            });
+        })();
+      </script>
+
+      <style>
+        :global(.footer-link-button) {
+          border: 0;
+          padding: 0;
+          background: none;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+        }
+
+        :global(.footer-link-button:hover) {
+          text-decoration: underline;
+        }
+
+        .analytics-consent {
+          position: fixed;
+          right: 1rem;
+          bottom: 1rem;
+          z-index: 1000;
+          width: min(34rem, calc(100vw - 2rem));
+          padding: 1rem;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 1rem;
+          background: #111623;
+          color: #f7f8fc;
+          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .analytics-consent[hidden] {
+          display: none;
+        }
+
+        .analytics-consent p {
+          margin: 0.35rem 0 0;
+          color: #a8b0c0;
+          line-height: 1.5;
+        }
+
+        .analytics-consent-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.65rem;
+          margin-top: 1rem;
+          flex-wrap: wrap;
+        }
+
+        @media (max-width: 560px) {
+          .analytics-consent-actions {
+            align-items: stretch;
+            flex-direction: column-reverse;
+          }
+
+          .analytics-consent-actions .button {
+            justify-content: center;
+            width: 100%;
+          }
+        }
+      </style>
+    </>
+  ) : null
+}

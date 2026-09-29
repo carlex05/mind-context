@@ -94,19 +94,16 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-## Public preview
-
-The project deploys to:
-
-```text
-https://carlex05.github.io/mind-context/        # public site
-https://carlex05.github.io/mind-context/app/    # application
-```
+## Public deployment
 
 The public site is a static Astro build. The React application is published
-under `/app/`. Compatible browsers can open a local folder directly without
-Google authentication. Google Drive remains an optional provider and depends on
-OAuth configuration.
+under `/app/`. The production site URL, Google OAuth client ID and optional
+GA4 measurement ID are injected by GitHub Actions rather than committed to this
+repository.
+
+Compatible browsers can open a local folder directly without Google
+authentication. Google Drive remains an optional provider and depends on
+deployment-specific OAuth configuration.
 
 See [deployment instructions](docs/deployment.md) and
 [Architecture](docs/architecture/README.md).

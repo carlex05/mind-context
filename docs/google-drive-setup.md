@@ -41,6 +41,10 @@ http://localhost:5173
 
 Production should use the exact HTTPS origin that serves MindContext.
 
+The production client ID is not stored in the repository. GitHub Actions injects
+`VITE_GOOGLE_CLIENT_ID` from the repository variable `GOOGLE_CLIENT_ID`
+when building the public deployment.
+
 ## 4. Configure the local app
 
 Copy:
