@@ -25,6 +25,21 @@ Accepted ADRs are architectural constraints, not suggestions. If a change
 conflicts with one, add a new ADR that explicitly supersedes the old decision
 before changing code.
 
+## Visual identity
+
+MindContext's approved visual identity is **MindContext — Constellation** using
+the **Linked Star** mark. Before changing product visuals, read
+`docs/brand/brand-foundation.md`.
+
+- Blue communicates connections, links, graph relationships and navigation.
+- Amber is reserved for focus, active selection and discovery.
+- Glow is subtle and purposeful, not ambient decoration.
+- Dark is the primary brand presentation; light mode remains first-class.
+- Do not add third-party font requests to the core app. Bundle/self-host brand
+  fonts when introduced.
+- Preserve the calm workspace: constellation motifs should support the product,
+  not compete with note content.
+
 ## Non-negotiable boundaries
 
 - Canonical notes are plain Markdown; normal attachments remain normal files.
@@ -52,6 +67,7 @@ before changing code.
 
 The repository already contains:
 
+- MindContext — Constellation visual identity with Linked Star assets and shared design tokens;
 - responsive Obsidian-inspired workspace shell with icon rail/bottom navigation;
 - Markdown tabs with persistent browser-local recovery drafts and deferred Drive synchronization;
 - CodeMirror 6 editing with a shared Markdown command registry, formatting

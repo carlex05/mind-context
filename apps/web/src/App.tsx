@@ -67,6 +67,7 @@ import {
 } from "./MarkdownPreview";
 import { LocalGraphPanel } from "./LocalGraphPanel";
 import { LanguageSelector } from "./LanguageSelector";
+import { BrandLockup } from "./Brand";
 import { NewItemDialog, type CreateItemKind } from "./NewItemDialog";
 import { PropertiesEditor } from "./PropertiesEditor";
 import { QuickSwitcher } from "./QuickSwitcher";
@@ -2959,6 +2960,7 @@ function Landing({
         <LanguageSelector compact />
       </div>
       <section className="hero">
+        <BrandLockup className="pre-auth-brand" />
         <span className="eyebrow">{t("landing.eyebrow")}</span>
         <h1>{t("landing.title")}</h1>
         <p className="lede">{t("landing.body")}</p>
@@ -3132,6 +3134,7 @@ function ConfigurationRequired() {
       </div>
       <header className="preview-intro">
         <div>
+          <BrandLockup className="pre-auth-brand" />
           <span className="eyebrow">{t("demo.eyebrow")}</span>
           <h1>{t("demo.title")}</h1>
           <p className="lede">{t("demo.body")}</p>

@@ -355,20 +355,20 @@ const en = {
     mermaidError: "This Mermaid diagram could not be rendered. Showing its source instead.",
   },
   landing: {
-    eyebrow: "MindContext / knowledge slice",
-    title: "Your files. Your knowledge. Private by default.",
-    body: "Connect Google Drive to use Markdown as your canonical knowledge source while links, backlinks and indexes are derived locally.",
+    eyebrow: "MindContext — Constellation",
+    title: "Turn scattered notes into connected context.",
+    body: "Markdown-first. Your own Google Drive. Privacy-first. Connect Drive to build a second brain from files you control.",
     connecting: "Connecting…",
     connect: "Connect Google Drive",
     principlesAria: "Product principles",
-    guardrails: "Architecture guardrails",
+    guardrails: "Built around your data",
     principles: [
-      "Plain Markdown is canonical.",
-      "User-owned storage; no proprietary knowledge database.",
-      "Derived state is local, disposable and rebuildable.",
+      "Your notes stay plain Markdown.",
+      "Your files live in storage you control.",
+      "Connections and indexes are derived locally.",
       "Local AI is a first-class path.",
-      "Cloud integrations require an explicit privacy boundary.",
-      "Extensions use capabilities, never storage credentials."
+      "Cloud features cross explicit privacy boundaries.",
+      "Future extensions use capabilities, never storage credentials."
     ]
   },
   chooser: {
@@ -774,20 +774,20 @@ const es = {
     mermaidError: "No se pudo renderizar este diagrama Mermaid. Se muestra el código fuente.",
   },
   landing: {
-    eyebrow: "MindContext / conocimiento",
-    title: "Tus archivos. Tu conocimiento. Privado por defecto.",
-    body: "Conecta Google Drive para usar Markdown como fuente canónica de conocimiento mientras enlaces, backlinks e índices se derivan localmente.",
+    eyebrow: "MindContext — Constellation",
+    title: "Convierte notas dispersas en contexto conectado.",
+    body: "Markdown primero. Tu propio Google Drive. Privacidad primero. Conecta Drive para construir un Second Brain con archivos bajo tu control.",
     connecting: "Conectando…",
     connect: "Conectar Google Drive",
     principlesAria: "Principios del producto",
-    guardrails: "Principios de arquitectura",
+    guardrails: "Construido alrededor de tus datos",
     principles: [
-      "Markdown plano es canónico.",
-      "Almacenamiento del usuario; sin base propietaria de conocimiento.",
-      "El estado derivado es local, descartable y reconstruible.",
+      "Tus notas siguen siendo Markdown plano.",
+      "Tus archivos viven en almacenamiento bajo tu control.",
+      "Las conexiones y los índices se derivan localmente.",
       "La IA local es una ruta de primera clase.",
-      "Las integraciones cloud requieren una frontera explícita de privacidad.",
-      "Las extensiones usan capacidades, nunca credenciales de almacenamiento."
+      "Las funciones cloud cruzan fronteras explícitas de privacidad.",
+      "Las futuras extensiones usan capacidades, nunca credenciales de almacenamiento."
     ]
   },
   chooser: {

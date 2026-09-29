@@ -797,6 +797,31 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
   );
 });
 
+test("applies the Constellation brand foundation in the workspace", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await expect(page.locator(".workspace-brand-mark")).toHaveCount(1);
+
+  const tokens = await page.evaluate(() => {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      contextBlue: styles.getPropertyValue("--mc-context-blue").trim(),
+      deepBlue: styles.getPropertyValue("--mc-deep-blue").trim(),
+      focusAmber: styles.getPropertyValue("--mc-focus-amber").trim(),
+    };
+  });
+
+  expect(tokens).toEqual({
+    contextBlue: "#7a8dff",
+    deepBlue: "#536fd8",
+    focusAmber: "#ffb257",
+  });
+});
+
 test("renders Markdown task lists as compact checkboxes", async ({
   page,
 }) => {

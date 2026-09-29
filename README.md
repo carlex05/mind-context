@@ -1,6 +1,6 @@
-# MindContext
+# MindContext — Constellation
 
-MindContext is a privacy-first, local-first, Markdown-first knowledge workspace.
+MindContext is a privacy-first, local-first, Markdown-first knowledge workspace. Its visual identity is **Constellation**, built around the **Linked Star** mark and the idea that scattered notes gain value when they become connected context.
 
 > **Markdown is the source of truth. Everything else is a disposable projection.**
 
@@ -38,7 +38,8 @@ The next implementation order and acceptance criteria live in
 [Current state and continuation roadmap](docs/architecture/current-state-and-roadmap.md).
 
 For coding-agent continuity, read [AGENTS.md](AGENTS.md) before making
-architecture changes.
+architecture changes. Visual/product work should also follow the
+[Brand Foundation](docs/brand/brand-foundation.md).
 
 ## Architecture principles
 
