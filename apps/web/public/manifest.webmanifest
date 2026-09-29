@@ -1,0 +1,18 @@
+{
+  "name": "MindContext — Constellation",
+  "short_name": "MindContext",
+  "description": "A Markdown-first second brain stored in your own Google Drive.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0A0D16",
+  "theme_color": "#0A0D16",
+  "icons": [
+    {
+      "src": "brand/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

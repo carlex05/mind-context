@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { BrandMark } from "./Brand";
 import type { NoteViewMode, WorkspacePanel, WorkspaceTab } from "./workspaceUi";
 
 export type NoteSyncState =
@@ -42,6 +43,14 @@ export function WorkspaceRail({
 
   return (
     <nav className="workspace-rail" aria-label={t("nav.workspaceViews")}>
+      <div
+        className="workspace-brand-mark"
+        role="img"
+        aria-label="MindContext — Constellation"
+        title="MindContext — Constellation"
+      >
+        <BrandMark size={28} />
+      </div>
       {items.map((item) => (
         <button
           type="button"

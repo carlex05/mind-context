@@ -43,8 +43,14 @@ export function LocalGraphPanel({
         computed.getPropertyValue("--surface").trim() || "#fff";
       const border =
         computed.getPropertyValue("--border").trim() || "#ccc";
-      const subtle =
-        computed.getPropertyValue("--subtle").trim() || "#eee";
+      const graphNode =
+        computed.getPropertyValue("--graph-node").trim() || "#7A8DFF";
+      const graphNodeBoth =
+        computed.getPropertyValue("--graph-node-both").trim() || "#536FD8";
+      const graphNodeActive =
+        computed.getPropertyValue("--graph-node-active").trim() || "#FFB257";
+      const graphEdge =
+        computed.getPropertyValue("--graph-edge").trim() || muted;
 
       const cy = cytoscape({
         container,
@@ -69,8 +75,8 @@ export function LocalGraphPanel({
           {
             selector: "node",
             style: {
-              "background-color": surface,
-              "border-color": border,
+              "background-color": graphNode,
+              "border-color": surface,
               "border-width": "1.5px",
               color: ink,
               label: "data(label)",
@@ -86,8 +92,8 @@ export function LocalGraphPanel({
           {
             selector: "node.center",
             style: {
-              "background-color": ink,
-              "border-color": ink,
+              "background-color": graphNodeActive,
+              "border-color": graphNodeActive,
               color: ink,
               width: "34px",
               height: "34px",
@@ -97,7 +103,7 @@ export function LocalGraphPanel({
           {
             selector: "node.both",
             style: {
-              "background-color": subtle,
+              "background-color": graphNodeBoth,
               "border-width": "2px",
             },
           },
@@ -105,8 +111,8 @@ export function LocalGraphPanel({
             selector: "edge",
             style: {
               width: "1.2px",
-              "line-color": muted,
-              "target-arrow-color": muted,
+              "line-color": graphEdge,
+              "target-arrow-color": graphEdge,
               "target-arrow-shape": "triangle",
               "curve-style": "bezier",
               opacity: 0.65,
