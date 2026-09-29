@@ -295,7 +295,7 @@ async function attachFilesAtPosition(
   ) => Promise<readonly string[]>,
 ) {
   const references = await attachFiles(files, source);
-  if (references.length === 0 || view.destroyed) return;
+  if (references.length === 0 || !view.dom.isConnected) return;
 
   const from = Math.min(requestedFrom, view.state.doc.length);
   const to = Math.min(Math.max(requestedTo, from), view.state.doc.length);
