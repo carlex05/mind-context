@@ -847,7 +847,7 @@ test("shows Drive loading feedback before deciding a vault is empty", async ({
   await page.getByRole("button", { name: /My Second Brain/ }).click();
 
   await expect(
-    page.getByText("Loading files from Google Drive…", { exact: true }),
+    page.getByText("Loading vault files…", { exact: true }),
   ).toBeVisible();
   await expect(page.locator(".drive-tree-skeleton")).toBeVisible();
   await expect(page.getByText("Open a note", { exact: true })).toHaveCount(0);
@@ -863,7 +863,7 @@ test("shows Drive loading feedback before deciding a vault is empty", async ({
     }),
   ).toBeVisible({ timeout: 6000 });
   await expect(
-    page.getByText("Loading files from Google Drive…", { exact: true }),
+    page.getByText("Loading vault files…", { exact: true }),
   ).toHaveCount(0);
 });
 
@@ -1018,7 +1018,7 @@ test("renders Obsidian P0 syntax and navigates headings and block refs", async (
 test("pre-auth screen avoids repeating the product name", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("img", { name: "MindContext — Constellation" })).toBeVisible();
-  await expect(page.getByText("Privacy-first · Markdown-first · Your own Drive", { exact: true })).toBeVisible();
+  await expect(page.getByText("Privacy-first · Markdown-first · Your own files", { exact: true })).toBeVisible();
   await expect(page.getByText("MindContext — Constellation", { exact: true })).toHaveCount(0);
 });
 
