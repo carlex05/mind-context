@@ -915,6 +915,7 @@ h2 {
 }
 
 .markdown-editor-shell {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100%;
@@ -922,6 +923,31 @@ h2 {
   flex-direction: column;
   overflow: hidden;
   background: var(--editor-surface);
+}
+
+.markdown-attachment-dropzone {
+  position: absolute;
+  z-index: 30;
+  inset: 54px 12px 12px;
+  display: grid;
+  pointer-events: none;
+  place-items: center;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--editor-surface) 88%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+  font-size: 0.9rem;
+  font-weight: 700;
+  backdrop-filter: blur(2px);
+}
+
+.markdown-attachment-dropzone span {
+  padding: 10px 14px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
 }
 
 .markdown-editor-toolbar {

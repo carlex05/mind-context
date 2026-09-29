@@ -335,6 +335,7 @@ const en = {
     emptyBody: "Pick a note from Files or use the Quick Switcher. Your workspace is plain Markdown in Google Drive.",
     readingAria: "Reading view",
     toolbarAria: "Formatting toolbar",
+    dropAttachments: "Drop files to attach",
     commands: {
       heading1: "Heading 1",
       heading2: "Heading 2",
@@ -762,6 +763,7 @@ const es = {
     emptyBody: "Elige una nota en Archivos o usa el selector rápido. Tu Second Brain es Markdown plano en Google Drive.",
     readingAria: "Vista de lectura",
     toolbarAria: "Barra de formato",
+    dropAttachments: "Suelta los archivos para adjuntarlos",
     commands: {
       heading1: "Encabezado 1",
       heading2: "Encabezado 2",

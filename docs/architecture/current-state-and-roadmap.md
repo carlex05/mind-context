@@ -325,11 +325,13 @@ Implemented baseline:
 - standard Markdown images resolve through the active storage provider;
 - Obsidian-style image embeds resolve without rewriting canonical Markdown;
 - non-image attachment links open/download through the provider;
-- attachments appear in the normal vault tree.
+- attachments appear in the normal vault tree;
+- drag/drop attachment authoring inserts references at the editor position;
+- clipboard image paste stores the image beside the active note and inserts a portable reference;
+- authoring uploads resolve filename collisions without overwriting existing attachments.
 
 Remaining hardening:
 
-- drag/drop and paste-to-attach authoring;
 - richer inline PDF/audio/video previews;
 - safe attachment-reference rewriting when attachments are renamed or moved;
 - collision UX beyond the current explicit same-folder rejection.

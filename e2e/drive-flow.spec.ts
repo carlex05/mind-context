@@ -59,6 +59,105 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   }
 });
 
+test("drops files and pastes clipboard images into the active note folder", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createFolder(page, "Journal");
+  await createNote(page, "Capture");
+
+  const editor = page.getByRole("textbox", { name: "Edit Capture.md" });
+  await replaceEditorContent(page, editor, "# Capture\n\n");
+
+  await editor.evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(
+      new File(
+        [
+          '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"></svg>',
+        ],
+        "dropped-diagram.svg",
+        { type: "image/svg+xml" },
+      ),
+    );
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(
+      new DragEvent("dragenter", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+        clientX: rect.left + 20,
+        clientY: rect.top + 20,
+      }),
+    );
+    element.dispatchEvent(
+      new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: transfer,
+        clientX: rect.left + 20,
+        clientY: rect.top + 20,
+      }),
+    );
+  });
+
+  await expect(
+    page.getByText("1 attachment added to the vault."),
+  ).toBeVisible();
+  await expect(editor).toContainText("dropped-diagram.svg");
+  expect(drive.filePathByName("dropped-diagram.svg")).toBe(
+    "Journal/dropped-diagram.svg",
+  );
+
+  await editor.click();
+  await editor.evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(
+      new File(["clipboard image"], "image.png", {
+        type: "image/png",
+      }),
+    );
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: transfer,
+      }),
+    );
+  });
+
+  await expect(
+    page.getByText("1 attachment added to the vault."),
+  ).toBeVisible();
+  await expect(editor).toContainText("pasted-image.png");
+  expect(drive.filePathByName("pasted-image.png")).toBe(
+    "Journal/pasted-image.png",
+  );
+
+  await editor.evaluate((element) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(
+      new File(["second clipboard image"], "image.png", {
+        type: "image/png",
+      }),
+    );
+    element.dispatchEvent(
+      new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData: transfer,
+      }),
+    );
+  });
+
+  await expect(editor).toContainText("pasted-image-2.png");
+  expect(drive.filePathByName("pasted-image-2.png")).toBe(
+    "Journal/pasted-image-2.png",
+  );
+});
+
 test("adds ordinary vault attachments and renders referenced images", async ({
   page,
 }) => {

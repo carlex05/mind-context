@@ -1471,8 +1471,13 @@ export function App() {
   async function attachFiles(
     files: readonly File[],
     requestedParentId?: string,
-  ) {
-    if (!provider || files.length === 0) return;
+    options: {
+      readonly appendReferences?: boolean;
+      readonly autoRename?: boolean;
+      readonly source?: "drop" | "paste";
+    } = {},
+  ): Promise<readonly string[]> {
+    if (!provider || files.length === 0) return [];
 
     const parentId =
       requestedParentId || selectedFolderId || provider.rootId;
@@ -1488,29 +1493,34 @@ export function App() {
       const seenNames = new Set(
         existing.map((item) => item.name.toLocaleLowerCase()),
       );
-      for (const file of files) {
-        const key = file.name.trim().toLocaleLowerCase();
+      const uploads = files.map((file) => {
+        const requestedName = attachmentFileName(file, options.source);
+        const name = options.autoRename
+          ? nextAvailableAttachmentName(requestedName, seenNames)
+          : requestedName;
+        const key = name.toLocaleLowerCase();
         if (!key || seenNames.has(key)) {
           throw new Error(
-            t("errors.attachmentExists", { name: file.name || "file" }),
+            t("errors.attachmentExists", { name: requestedName || "file" }),
           );
         }
         seenNames.add(key);
-      }
+        return { file, name };
+      });
 
       const currentNotePath = openNote
         ? getNote(knowledgeIndex, openNote.metadata.id)?.path
         : undefined;
       const references: string[] = [];
 
-      for (const file of files) {
+      for (const { file, name } of uploads) {
         const mediaType = inferMediaType(
-          file.name,
+          name,
           file.type || undefined,
         );
         const metadata = await provider.createBinary(
           parentId,
-          file.name,
+          name,
           new Uint8Array(await file.arrayBuffer()),
           mediaType,
         );
@@ -1529,7 +1539,11 @@ export function App() {
         }
       }
 
-      if (references.length > 0 && openNote) {
+      if (
+        options.appendReferences !== false &&
+        references.length > 0 &&
+        openNote
+      ) {
         updateActiveDraft(appendMarkdownReferences(draft, references));
       }
 
@@ -1538,9 +1552,11 @@ export function App() {
         kind: "success",
         message: t("status.attachmentsAdded", { count: files.length }),
       });
+      return references;
     } catch (error) {
       await refreshWorkspaceState().catch(() => undefined);
       setStatus({ kind: "error", message: errorMessage(error, t) });
+      return [];
     }
   }
 
@@ -2726,6 +2742,17 @@ export function App() {
                     navigationTarget={activeMarkdownNavigation}
                     navigationKey={activeMarkdownNavigation?.key}
                     onChange={updateActiveDraft}
+                    onAttachFiles={(files, source) =>
+                      attachFiles(
+                        files,
+                        openNote.metadata.parentIds[0] ?? provider.rootId,
+                        {
+                          appendReferences: false,
+                          autoRename: true,
+                          source,
+                        },
+                      )
+                    }
                   />
                 ) : (
                   <MarkdownPreview
@@ -3368,6 +3395,60 @@ function StatusBar({ status }: { readonly status: AppStatus }) {
 
 function isDriveUnauthorized(error: unknown): boolean {
   return error instanceof GoogleDriveApiError && error.status === 401;
+}
+
+function attachmentFileName(
+  file: File,
+  source?: "drop" | "paste",
+): string {
+  if (source === "paste") {
+    return `pasted-image${attachmentExtension(file.type, file.name)}`;
+  }
+
+  const name = file.name.trim();
+  return name || `attachment${attachmentExtension(file.type, "")}`;
+}
+
+function attachmentExtension(mediaType: string, fileName: string): string {
+  const fileMatch = /(\.[a-z0-9]{1,10})$/i.exec(fileName.trim());
+  if (fileMatch) return fileMatch[1]!.toLocaleLowerCase();
+
+  switch (mediaType.toLocaleLowerCase()) {
+    case "image/png":
+      return ".png";
+    case "image/jpeg":
+      return ".jpg";
+    case "image/gif":
+      return ".gif";
+    case "image/webp":
+      return ".webp";
+    case "image/svg+xml":
+      return ".svg";
+    case "image/avif":
+      return ".avif";
+    default:
+      return "";
+  }
+}
+
+function nextAvailableAttachmentName(
+  requestedName: string,
+  occupied: ReadonlySet<string>,
+): string {
+  if (!occupied.has(requestedName.toLocaleLowerCase())) return requestedName;
+
+  const extensionMatch = /(\.[^./]+)$/.exec(requestedName);
+  const extension = extensionMatch?.[1] ?? "";
+  const stem = extension
+    ? requestedName.slice(0, -extension.length)
+    : requestedName;
+
+  for (let suffix = 2; suffix < 10_000; suffix += 1) {
+    const candidate = `${stem}-${suffix}${extension}`;
+    if (!occupied.has(candidate.toLocaleLowerCase())) return candidate;
+  }
+
+  throw new Error("Could not choose an available attachment name.");
 }
 
 function appendMarkdownReferences(
