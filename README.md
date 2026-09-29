@@ -32,7 +32,8 @@ The repository currently includes:
 - Blank and PARA Second Brain onboarding in English/Spanish;
 - empty-existing-vault onboarding suggestion;
 - desktop/mobile Playwright coverage;
-- GitHub Pages deployment workflow and public preview.
+- separate Astro public product site plus the React application under `/app`;
+- GitHub Pages deployment workflow and public beta.
 
 The next implementation order and acceptance criteria live in
 [Current state and continuation roadmap](docs/architecture/current-state-and-roadmap.md).
@@ -88,11 +89,13 @@ pnpm test:e2e
 The project deploys to:
 
 ```text
-https://carlex05.github.io/mind-context/
+https://carlex05.github.io/mind-context/        # public site
+https://carlex05.github.io/mind-context/app/    # application
 ```
 
-Google Drive availability in the deployed build depends on repository/environment
-OAuth configuration. Without a configured Google Client ID, the site
+The public site is a static Astro build. The Drive-backed React application is
+published under `/app/`. Google Drive availability in that application depends
+on its OAuth configuration; without a configured Google Client ID, `/app/`
 intentionally exposes a non-persistent local editor preview.
 
 See [deployment instructions](docs/deployment.md) and

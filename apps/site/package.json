@@ -1,0 +1,14 @@
+{
+  "name": "@mind-context/site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build"
+  },
+  "dependencies": {
+    "@mind-context/design-system": "workspace:*",
+    "astro": "^6.0.0"
+  }
+}

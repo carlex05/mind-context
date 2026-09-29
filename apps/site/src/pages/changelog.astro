@@ -1,0 +1,25 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "../components/PageHero.astro";
+---
+
+<BaseLayout title="Changelog · MindContext — Constellation" description="Notable changes in the MindContext public beta.">
+  <div class="content-shell">
+    <PageHero eyebrow="CHANGELOG" title="What changed." description="A concise record of visible product milestones during the public beta." />
+
+    <section class="timeline">
+      <article>
+        <time datetime="2026-09-29">September 29, 2026</time>
+        <div><h2>Constellation identity & public site</h2><p>Adopted the Linked Star identity, shared design tokens, blue/amber graph language, brand documentation and the first public product site.</p></div>
+      </article>
+      <article>
+        <time datetime="2026-09-28">September 28, 2026</time>
+        <div><h2>Markdown authoring & task rendering</h2><p>Added shared authoring commands, toolbar and slash commands, and corrected task-list rendering across desktop and mobile.</p></div>
+      </article>
+      <article>
+        <time datetime="2026-09-25">September 25, 2026</time>
+        <div><h2>Open Markdown compatibility</h2><p>Expanded the Preserve / Parse / Render / Interact compatibility work for portable Markdown and Obsidian-style conventions.</p></div>
+      </article>
+    </section>
+  </div>
+</BaseLayout>

@@ -1,0 +1,97 @@
+---
+import "@mind-context/design-system/tokens.css";
+import "../styles/global.css";
+import BrandMark from "../components/BrandMark.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "MindContext — Constellation",
+  description = "Turn scattered notes into connected context. A privacy-first, Markdown-first second brain in your own Google Drive.",
+} = Astro.props;
+
+const base = import.meta.env.BASE_URL;
+const home = base;
+const appUrl = `${base}app/`;
+const page = (name: string) => `${base}${name}/`;
+const featuresUrl = `${base}#features`;
+const pricingUrl = `${base}#pricing`;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#0A0D16" />
+    <meta name="application-name" content="MindContext" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <title>{title}</title>
+  </head>
+  <body>
+    <div class="site-stars" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="site-brand" href={home} aria-label="MindContext — Constellation home">
+        <BrandMark size={34} class="site-brand-mark" />
+        <span class="site-brand-name">MindContext</span>
+        <span class="site-brand-divider">—</span>
+        <span class="site-brand-edition">Constellation</span>
+        <span class="beta-badge">Beta</span>
+      </a>
+
+      <nav class="desktop-nav" aria-label="Primary navigation">
+        <a href={featuresUrl}>Product</a>
+        <a href={page("privacy")}>Privacy</a>
+        <a href={page("docs")}>Docs</a>
+        <a href={page("plugins")}>Plugins</a>
+        <a href={pricingUrl}>Pricing</a>
+      </nav>
+
+      <a class="button primary header-cta" href={appUrl}>Open MindContext <span aria-hidden="true">→</span></a>
+
+      <details class="mobile-nav">
+        <summary aria-label="Open navigation"><span></span><span></span><span></span></summary>
+        <nav aria-label="Mobile navigation">
+          <a href={featuresUrl}>Product</a>
+          <a href={page("privacy")}>Privacy</a>
+          <a href={page("docs")}>Docs</a>
+          <a href={page("plugins")}>Plugins</a>
+          <a href={pricingUrl}>Pricing</a>
+          <a href={page("roadmap")}>Roadmap</a>
+          <a href={page("feedback")}>Feedback</a>
+          <a class="button primary" href={appUrl}>Open MindContext</a>
+        </nav>
+      </details>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <a class="footer-brand" href={home}>
+          <BrandMark size={28} />
+          <strong>MindContext</strong>
+          <span>— Constellation</span>
+        </a>
+        <p>Turn scattered notes into connected context.</p>
+      </div>
+      <nav aria-label="Footer navigation">
+        <a href={page("docs")}>Docs</a>
+        <a href={page("roadmap")}>Roadmap</a>
+        <a href={page("changelog")}>Changelog</a>
+        <a href="https://github.com/carlex05/mind-context">GitHub</a>
+        <a href={page("feedback")}>Feedback</a>
+      </nav>
+      <small>Free to use. Open by design.</small>
+    </footer>
+  </body>
+</html>

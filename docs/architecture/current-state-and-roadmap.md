@@ -67,6 +67,15 @@ inventing another parser. See
 [Markdown and Obsidian compatibility](markdown-obsidian-compatibility.md) for
 the Preserve / Parse / Render / Interact contract and future plugin seam.
 
+### Public beta surface
+
+- MindContext — Constellation / Linked Star brand foundation;
+- shared design tokens for app and public site;
+- Astro public product site with home, Privacy, Docs, Plugins, Roadmap,
+  Changelog and Feedback pages;
+- GitHub Issue Forms for bug reports and improvement requests;
+- GitHub Pages composition with the React app published under `/app/`.
+
 ### Workspace UX
 
 - minimal icon-rail shell on desktop;

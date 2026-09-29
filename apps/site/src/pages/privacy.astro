@@ -1,0 +1,34 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "../components/PageHero.astro";
+---
+
+<BaseLayout title="Privacy · MindContext — Constellation" description="How MindContext keeps Markdown canonical, uses user-owned storage, and minimizes data exposure.">
+  <div class="content-shell">
+    <PageHero eyebrow="PRIVACY" title="Your ideas stay yours." description="MindContext is designed so the core personal knowledge path does not require a MindContext server to store or process your notes." />
+
+    <section class="content-grid two">
+      <article class="content-card"><h2>Your files</h2><p>Canonical notes are plain Markdown and ordinary files stored in your Google Drive workspace. MindContext does not replace them with a proprietary vault database.</p></article>
+      <article class="content-card"><h2>Drive permission</h2><p>The current Google Drive integration uses <code>drive.file</code>, a narrow scope for files the app creates or that are explicitly made available to it.</p></article>
+      <article class="content-card"><h2>Local projections</h2><p>Search snapshots, graph projections, recovery drafts and optional embeddings are browser-local, disposable and rebuildable from canonical files.</p></article>
+      <article class="content-card"><h2>Tokens</h2><p>Google access tokens are kept in browser memory for the active session. MindContext does not operate a token-storage backend for the core app.</p></article>
+    </section>
+
+    <section class="prose-section">
+      <h2>What MindContext does not need</h2>
+      <ul>
+        <li>A separate MindContext account for the current beta.</li>
+        <li>A MindContext cloud database containing your notes.</li>
+        <li>Your raw Google Drive credentials inside plugins.</li>
+        <li>Your private note text for product analytics or brand telemetry.</li>
+      </ul>
+    </section>
+
+    <section class="prose-section">
+      <h2>Local AI</h2>
+      <p>Semantic search is optional. Model assets are downloaded only after explicit opt-in; private note content remains in the browser inference path. The roadmap prioritizes local, OpenAI-compatible LLM endpoints for future Ask Second Brain features instead of silently routing private context to a cloud model.</p>
+    </section>
+
+    <aside class="callout"><strong>Beta note</strong><p>MindContext is still evolving. Privacy-sensitive changes are treated as architecture decisions and should be regression-tested at the browser/network boundary.</p></aside>
+  </div>
+</BaseLayout>

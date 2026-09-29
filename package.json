@@ -7,12 +7,16 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @mind-context/web dev",
+    "dev": "pnpm dev:app",
     "build:packages": "pnpm --filter './packages/**' -r --if-present build",
-    "build": "pnpm build:packages && pnpm --filter @mind-context/web build",
+    "build": "pnpm build:packages && pnpm build:web && pnpm build:site && node scripts/compose-pages.mjs",
     "typecheck": "pnpm build:packages && pnpm -r --if-present typecheck",
     "test": "pnpm build:packages && pnpm -r --if-present test",
-    "test:e2e": "playwright test --config=e2e/playwright.config.ts"
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "dev:app": "pnpm --filter @mind-context/web dev",
+    "dev:site": "pnpm --filter @mind-context/site dev",
+    "build:web": "pnpm --filter @mind-context/web build",
+    "build:site": "pnpm --filter @mind-context/site build"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",

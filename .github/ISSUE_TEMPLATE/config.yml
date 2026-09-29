@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MindContext documentation
+    url: https://carlex05.github.io/mind-context/docs/
+    about: Check the beta documentation before filing an issue.
+  - name: Existing beta feedback
+    url: https://github.com/carlex05/mind-context/issues
+    about: Search existing bug reports and improvement requests.

@@ -68,6 +68,7 @@ the **Linked Star** mark. Before changing product visuals, read
 The repository already contains:
 
 - MindContext — Constellation visual identity with Linked Star assets and shared design tokens;
+- Astro public product site in `apps/site`, with the React workspace composed at `/app/` for Pages;
 - responsive Obsidian-inspired workspace shell with icon rail/bottom navigation;
 - Markdown tabs with persistent browser-local recovery drafts and deferred Drive synchronization;
 - CodeMirror 6 editing with a shared Markdown command registry, formatting
@@ -121,7 +122,9 @@ network boundary, not only a unit test.
 - storage contracts: `packages/storage`
 - Drive adapter: `packages/storage-google-drive`
 - IndexedDB adapters: `packages/persistence-indexeddb`
-- web adapters/UI only: `apps/web`
+- web application adapters/UI only: `apps/web`
+- public marketing/docs site: `apps/site`
+- shared visual tokens/brand metadata: `packages/design-system`
 
 Do not put provider-specific behavior into domain packages.
 

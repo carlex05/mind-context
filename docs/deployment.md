@@ -6,16 +6,18 @@ The repository contains a GitHub Pages workflow at:
 .github/workflows/pages.yml
 ```
 
-It builds the static Vite application and publishes `apps/web/dist`.
+It builds both surfaces, composes the React application into the Astro site at
+`/app/`, and publishes `apps/site/dist`.
 
 ## GitHub Pages
 
 GitHub Pages must use **GitHub Actions** as its publishing source.
 
-Expected project URL:
+Expected URLs:
 
 ```text
-https://carlex05.github.io/mind-context/
+https://carlex05.github.io/mind-context/      # public product site
+https://carlex05.github.io/mind-context/app/  # Drive-backed application
 ```
 
 ## Google OAuth configuration
@@ -44,7 +46,9 @@ client secret MUST NOT be committed or embedded in the browser application.
 
 ## Deployment behavior
 
-Every push to `main` rebuilds and deploys GitHub Pages automatically.
+Every push to `main` rebuilds the shared packages, React app and Astro public
+site. `scripts/compose-pages.mjs` then copies the app build under the site's
+`/app/` directory before GitHub Pages uploads the final static artifact.
 
 The deployed application uses Google Identity Services directly in the browser.
 Access tokens remain browser-session state and are not sent to MindContext
