@@ -3409,7 +3409,12 @@ function Landing({
   readonly onOpenRecentLocal: (vault: RecentLocalVault) => void;
   readonly onForgetRecentLocal: (workspaceId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const legalLocale = i18n.resolvedLanguage?.toLowerCase().startsWith("es")
+    ? "es/"
+    : "";
+  const privacyUrl = `../${legalLocale}privacy/`;
+  const termsUrl = `../${legalLocale}terms/`;
   const principles = t("landing.principles", {
     returnObjects: true,
   }) as string[];
@@ -3446,6 +3451,18 @@ function Landing({
             </button>
           ) : null}
         </div>
+        {googleAvailable ? (
+          <p className="storage-support-note">
+            {t("landing.googleDisclosure")}{" "}
+            <a href={privacyUrl} target="_blank" rel="noreferrer">
+              {t("landing.privacy")}
+            </a>
+            {" · "}
+            <a href={termsUrl} target="_blank" rel="noreferrer">
+              {t("landing.terms")}
+            </a>
+          </p>
+        ) : null}
         {!localAvailable ? (
           <p className="storage-support-note">
             {t("landing.localUnsupported")}

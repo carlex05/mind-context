@@ -1,24 +1,221 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHero from "./PageHero.astro";
-import { siteCopy, type SiteLocale } from "../i18n/site";
+import type { SiteLocale } from "../i18n/site";
+
 const { locale = "en" } = Astro.props as { locale?: SiteLocale };
-const t = siteCopy[locale].privacy;
-const analyticsTitle =
-  locale === "es" ? "Analytics del sitio público" : "Public-site analytics";
-const analyticsBody =
-  locale === "es"
-    ? "El sitio público puede usar Google Analytics 4 solo después de un consentimiento explícito. Analytics no se carga dentro de /app y el contenido privado de las notas nunca se envía para analytics."
-    : "The public marketing site can use Google Analytics 4 only after explicit opt-in. Analytics is not loaded inside /app, and private note content is never sent for analytics.";
+const isEs = locale === "es";
+
+const copy = isEs
+  ? {
+      title: "Política de privacidad",
+      meta: "Cómo MindContext accede, usa, almacena, comparte y protege datos, incluidos los datos de Google Drive.",
+      eyebrow: "PRIVACIDAD · DATOS DE GOOGLE",
+      hero: "Tus archivos siguen siendo tuyos.",
+      description:
+        "Esta política explica el tratamiento de datos en MindContext, incluida la integración opcional con Google Drive y el analytics del sitio público.",
+      effective: "Vigente desde el 29 de septiembre de 2026.",
+      introTitle: "1. Alcance y responsable",
+      intro: [
+        "MindContext es una aplicación web de gestión de conocimiento basada en Markdown. El proyecto está diseñado para que el contenido canónico permanezca en el almacenamiento elegido por el usuario y para minimizar los datos recibidos por infraestructura controlada por MindContext.",
+        "Para consultas sobre privacidad puedes usar el canal de feedback del repositorio de MindContext. No publiques tokens, contenido privado de notas ni otros datos sensibles en un issue público.",
+      ],
+      collectTitle: "2. Datos que trata MindContext",
+      collect: [
+        ["Vaults locales", "Si abres una carpeta local compatible, el navegador accede a los archivos únicamente después de tu permiso explícito. El contenido permanece en tu dispositivo y carpeta seleccionada."],
+        ["Google Drive", "Si conectas Google Drive, MindContext solicita el permiso https://www.googleapis.com/auth/drive.file. Este alcance permite trabajar con archivos creados por MindContext o que el usuario pone explícitamente a disposición de la aplicación; no concede acceso general a todo el Drive."],
+        ["Estado local del navegador", "MindContext puede guardar en IndexedDB o almacenamiento local preferencias, pestañas, borradores de recuperación, índices de búsqueda, metadatos derivados y embeddings locales opcionales. Estos datos permanecen en el navegador y son necesarios para funciones locales, recuperación y rendimiento."],
+        ["Sitio público", "El sitio público puede usar Google Analytics 4 solo después de consentimiento explícito. La aplicación /app no carga GA4. El contenido de notas, consultas de búsqueda privadas, archivos del vault, embeddings y tokens de Google no se envían a analytics."],
+      ],
+      googleTitle: "3. Datos de Google: acceso y finalidad",
+      googleParagraphs: [
+        "MindContext usa Google Drive únicamente para permitir al usuario crear, descubrir, abrir, leer, editar, organizar, sincronizar y eliminar los archivos y carpetas de su workspace de MindContext dentro del alcance autorizado.",
+        "El acceso se solicita en contexto cuando el usuario decide conectar Google Drive. MindContext no solicita permisos de Drive más amplios de los necesarios para esta funcionalidad.",
+        "MindContext usa la información recibida de las APIs de Google exclusivamente para proporcionar o mejorar las funciones visibles de Google Drive solicitadas por el usuario. Su uso de datos de Google se rige por la Google API Services User Data Policy, incluidos los requisitos de Limited Use.",
+      ],
+      storageTitle: "4. Almacenamiento y retención de datos de Google",
+      storage: [
+        "Los archivos canónicos permanecen en el Google Drive del usuario. MindContext no mantiene una base de datos cloud propia con el contenido de las notas.",
+        "El token de acceso OAuth de Google se mantiene en memoria JavaScript durante la sesión activa. MindContext no almacena refresh tokens ni Client Secrets en el navegador y no opera un backend de almacenamiento de tokens para la experiencia principal.",
+        "Para mejorar rendimiento y recuperación, el navegador puede mantener copias derivadas o borradores locales de contenido. Esos datos no se envían a servidores de MindContext y pueden eliminarse borrando los datos del sitio en el navegador.",
+        "Las copias de recuperación creadas por conflictos pueden guardarse dentro del propio Google Drive del usuario, en el workspace correspondiente, y siguen bajo control del usuario.",
+      ],
+      sharingTitle: "5. Compartición y acceso humano",
+      sharing: [
+        "MindContext no vende datos personales ni datos obtenidos de Google APIs.",
+        "MindContext no comparte contenido de Google Drive con anunciantes, redes publicitarias o Google Analytics.",
+        "La arquitectura principal no proporciona a operadores de MindContext acceso humano al contenido privado del vault. Si un usuario decide incluir contenido en un issue, mensaje de soporte u otro canal externo, ese envío voluntario queda fuera del acceso automático del producto.",
+        "Los datos solo podrían tratarse de otra forma cuando sea necesario para cumplir una obligación legal, proteger la seguridad del servicio o con consentimiento explícito del usuario, según corresponda.",
+      ],
+      analyticsTitle: "6. Analytics y cookies",
+      analytics: [
+        "GA4 se limita al sitio público y se carga únicamente después de que el visitante acepte analytics. Antes del consentimiento no cargamos la etiqueta de Google Analytics.",
+        "Configuramos analytics sin Google Signals ni personalización publicitaria. El consentimiento puede cambiarse desde “Analytics preferences” en el pie del sitio.",
+        "Google puede procesar datos técnicos y de uso de acuerdo con sus propias condiciones y políticas una vez que el usuario haya consentido la carga de GA4.",
+      ],
+      securityTitle: "7. Seguridad",
+      security: [
+        "El sitio se sirve mediante HTTPS. Las llamadas a Google Drive se realizan directamente desde el navegador mediante Google Identity Services y la API de Drive.",
+        "MindContext no incrusta un Google OAuth Client Secret en la aplicación. Los tokens de acceso no se incluyen en telemetría, logs de producto ni plugins.",
+        "Los índices, embeddings y contexto privado derivados de notas están diseñados para permanecer en el dispositivo durante las funciones locales.",
+      ],
+      controlTitle: "8. Control, revocación y eliminación",
+      control: [
+        "Puedes desconectar Google Drive desde MindContext y puedes revocar el acceso concedido a MindContext desde la configuración de seguridad de tu Cuenta de Google.",
+        "Puedes eliminar archivos o carpetas de MindContext desde tu Google Drive. Al hacerlo, se eliminan del almacenamiento canónico sujeto al comportamiento normal de papelera y retención de Google Drive.",
+        "Puedes eliminar datos locales de MindContext borrando los datos del sitio en tu navegador. Esto puede eliminar preferencias, índices, permisos persistidos por el navegador y borradores locales, pero no borra automáticamente tus archivos de Google Drive o de una carpeta local.",
+        "Puedes rechazar analytics o retirar tu consentimiento posteriormente desde el sitio público.",
+      ],
+      rightsTitle: "9. Derechos y solicitudes de privacidad",
+      rights: [
+        "Cuando la legislación aplicable otorgue derechos de acceso, rectificación, eliminación, oposición, limitación o portabilidad, puedes ejercerlos mediante el canal de contacto del proyecto. La capacidad de MindContext para responder sobre contenido privado es limitada precisamente porque el servicio principal no mantiene una copia central de ese contenido.",
+        "Para solicitudes que contengan datos personales o información sensible, no utilices un issue público; usa el contacto de soporte indicado en la pantalla de consentimiento OAuth de MindContext.",
+      ],
+      childrenTitle: "10. Menores",
+      children:
+        "MindContext no está dirigido específicamente a menores ni pretende recopilar deliberadamente datos de menores mediante la experiencia principal. Los usuarios deben cumplir los requisitos de edad aplicables a su Cuenta de Google y jurisdicción.",
+      changesTitle: "11. Cambios en esta política",
+      changes:
+        "Podemos actualizar esta política cuando cambien las funciones o prácticas de datos. Las modificaciones materiales se publicarán en esta página y la fecha de vigencia se actualizará. Las prácticas reales del producto deben permanecer alineadas con esta política.",
+      contactTitle: "12. Contacto",
+      contact:
+        "Canal público del proyecto: GitHub Issues de MindContext. No incluyas secretos ni contenido privado en un reporte público.",
+    }
+  : {
+      title: "Privacy Policy",
+      meta: "How MindContext accesses, uses, stores, shares and protects data, including Google Drive user data.",
+      eyebrow: "PRIVACY · GOOGLE USER DATA",
+      hero: "Your files stay yours.",
+      description:
+        "This policy explains data handling in MindContext, including the optional Google Drive integration and analytics on the public website.",
+      effective: "Effective September 29, 2026.",
+      introTitle: "1. Scope and operator",
+      intro: [
+        "MindContext is a Markdown-first knowledge-management web application. It is designed so canonical content remains in storage selected by the user and so MindContext-controlled infrastructure receives as little private knowledge as possible.",
+        "For privacy questions, use the MindContext repository feedback channel. Do not post access tokens, private note content or other sensitive information in a public issue.",
+      ],
+      collectTitle: "2. Data MindContext processes",
+      collect: [
+        ["Local vaults", "When you open a compatible local folder, the browser accesses files only after your explicit permission. Content remains on your device and in the folder you selected."],
+        ["Google Drive", "When you connect Google Drive, MindContext requests https://www.googleapis.com/auth/drive.file. This scope permits access to files created by MindContext or files the user explicitly makes available to the app; it does not provide general access to the user's entire Drive."],
+        ["Browser-local state", "MindContext may store preferences, tabs, recovery drafts, search indexes, derived metadata and optional local embeddings in IndexedDB or browser storage. This information stays in the browser and supports local functionality, recovery and performance."],
+        ["Public website", "The public website may use Google Analytics 4 only after explicit consent. The /app workspace does not load GA4. Note contents, private search queries, vault files, embeddings and Google access tokens are not sent to analytics."],
+      ],
+      googleTitle: "3. Google user data: access and purpose",
+      googleParagraphs: [
+        "MindContext uses Google Drive only so users can create, discover, open, read, edit, organize, synchronize and delete MindContext workspace files and folders within the authorized scope.",
+        "Access is requested in context when the user chooses to connect Google Drive. MindContext does not request broader Drive permissions than are necessary for this user-facing functionality.",
+        "Information received from Google APIs is used only to provide or improve the user-visible Google Drive functionality requested by the user. MindContext's use of Google user data follows the Google API Services User Data Policy, including the Limited Use requirements.",
+      ],
+      storageTitle: "4. Storage and retention of Google data",
+      storage: [
+        "Canonical files remain in the user's Google Drive. MindContext does not maintain its own cloud database containing note contents.",
+        "The Google OAuth access token is kept in JavaScript memory for the active session. MindContext does not store Google refresh tokens or Client Secrets in the browser and does not operate a token-storage backend for the core experience.",
+        "For performance and recovery, the browser may hold derived copies or local drafts of content. These are not sent to MindContext servers and can be removed by clearing site data in the browser.",
+        "Conflict recovery copies may be written into the user's own Google Drive workspace and remain under the user's control.",
+      ],
+      sharingTitle: "5. Sharing and human access",
+      sharing: [
+        "MindContext does not sell personal data or data obtained from Google APIs.",
+        "MindContext does not share Google Drive contents with advertisers, advertising networks or Google Analytics.",
+        "The core architecture does not provide MindContext operators with human access to private vault content. If a user voluntarily includes content in an issue, support message or other external channel, that voluntary submission is outside the product's automatic access path.",
+        "Data may otherwise be handled only when necessary to comply with law, protect service security, or with explicit user consent where applicable.",
+      ],
+      analyticsTitle: "6. Analytics and cookies",
+      analytics: [
+        "GA4 is limited to the public website and loads only after the visitor opts in to analytics. Before consent, the Google Analytics tag is not loaded.",
+        "Analytics is configured without Google Signals or advertising personalization. Consent can be changed through “Analytics preferences” in the site footer.",
+        "After consent, Google may process technical and usage information under Google's own terms and privacy policies.",
+      ],
+      securityTitle: "7. Security",
+      security: [
+        "The site is served over HTTPS. Google Drive requests are made directly from the browser through Google Identity Services and the Drive API.",
+        "MindContext does not embed a Google OAuth Client Secret in the app. Access tokens are not included in product telemetry, analytics or plugins.",
+        "Indexes, embeddings and private context derived from notes are designed to remain on-device for local features.",
+      ],
+      controlTitle: "8. Control, revocation and deletion",
+      control: [
+        "You can disconnect Google Drive in MindContext and revoke MindContext's access from the security settings of your Google Account.",
+        "You can delete MindContext files or folders directly from your Google Drive. Deletion is then governed by normal Google Drive trash and retention behavior.",
+        "You can remove browser-local MindContext data by clearing site data in your browser. This may remove preferences, indexes, browser-persisted permissions and local drafts, but it does not automatically delete files from Google Drive or a local folder.",
+        "You can decline analytics or withdraw consent later from the public website.",
+      ],
+      rightsTitle: "9. Privacy rights and requests",
+      rights: [
+        "Where applicable law provides rights of access, correction, deletion, objection, restriction or portability, you may exercise them through the project's contact channel. MindContext's ability to act on private note content is intentionally limited because the core service does not retain a central copy of that content.",
+        "For requests containing personal or sensitive information, do not use a public issue; use the support contact shown on MindContext's OAuth consent screen.",
+      ],
+      childrenTitle: "10. Children",
+      children:
+        "MindContext is not specifically directed to children and does not intend to knowingly collect children's data through the core experience. Users must satisfy the age requirements applicable to their Google Account and jurisdiction.",
+      changesTitle: "11. Changes to this policy",
+      changes:
+        "We may update this policy as product features or data practices change. Material changes will be published on this page and the effective date will be updated. Actual product practices must remain aligned with this policy.",
+      contactTitle: "12. Contact",
+      contact:
+        "Public project channel: MindContext GitHub Issues. Do not include secrets or private content in a public report.",
+    };
 ---
 
-<BaseLayout locale={locale} route="privacy" title={`${t.title} · MindContext — Constellation`} description={t.meta}>
+<BaseLayout locale={locale} route="privacy" title={`${copy.title} · MindContext`} description={copy.meta}>
   <div class="content-shell">
-    <PageHero eyebrow={t.eyebrow} title={t.hero} description={t.description} />
-    <section class="content-grid two">{t.cards.map((card) => <article class="content-card"><h2>{card[0]}</h2><p>{card[1]}</p></article>)}</section>
-    <section class="content-grid two"><article class="content-card"><h2>{analyticsTitle}</h2><p>{analyticsBody}</p></article></section>
-    <section class="prose-section"><h2>{t.noNeedTitle}</h2><ul>{t.noNeed.map((item) => <li>{item}</li>)}</ul></section>
-    <section class="prose-section"><h2>{t.localAiTitle}</h2><p>{t.localAi}</p></section>
-    <aside class="callout"><strong>{t.betaTitle}</strong><p>{t.beta}</p></aside>
+    <PageHero eyebrow={copy.eyebrow} title={copy.hero} description={copy.description} />
+    <p class="section-label">{copy.effective}</p>
+
+    <section class="prose-section">
+      <h2>{copy.introTitle}</h2>
+      {copy.intro.map((paragraph) => <p>{paragraph}</p>)}
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.collectTitle}</h2>
+      <div class="content-grid two">
+        {copy.collect.map(([title, body]) => <article class="content-card"><h3>{title}</h3><p>{body}</p></article>)}
+      </div>
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.googleTitle}</h2>
+      {copy.googleParagraphs.map((paragraph) => <p>{paragraph}</p>)}
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.storageTitle}</h2>
+      <ul>{copy.storage.map((item) => <li>{item}</li>)}</ul>
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.sharingTitle}</h2>
+      <ul>{copy.sharing.map((item) => <li>{item}</li>)}</ul>
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.analyticsTitle}</h2>
+      {copy.analytics.map((paragraph) => <p>{paragraph}</p>)}
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.securityTitle}</h2>
+      <ul>{copy.security.map((item) => <li>{item}</li>)}</ul>
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.controlTitle}</h2>
+      <ul>{copy.control.map((item) => <li>{item}</li>)}</ul>
+    </section>
+
+    <section class="prose-section">
+      <h2>{copy.rightsTitle}</h2>
+      {copy.rights.map((paragraph) => <p>{paragraph}</p>)}
+    </section>
+
+    <section class="prose-section"><h2>{copy.childrenTitle}</h2><p>{copy.children}</p></section>
+    <section class="prose-section"><h2>{copy.changesTitle}</h2><p>{copy.changes}</p></section>
+
+    <section class="prose-section">
+      <h2>{copy.contactTitle}</h2>
+      <p>{copy.contact}</p>
+      <p><a href="https://github.com/carlex05/mind-context/issues">GitHub Issues →</a></p>
+    </section>
   </div>
 </BaseLayout>

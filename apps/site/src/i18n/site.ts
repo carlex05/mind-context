@@ -2,6 +2,7 @@ export type SiteLocale = "en" | "es";
 export type SiteRoute =
   | ""
   | "privacy"
+  | "terms"
   | "docs"
   | "plugins"
   | "roadmap"
@@ -14,6 +15,7 @@ export const siteCopy = {
       nav: {
         product: "Product",
         privacy: "Privacy",
+        terms: "Terms",
         docs: "Docs",
         plugins: "Plugins",
         pricing: "Pricing",
@@ -213,6 +215,7 @@ export const siteCopy = {
       nav: {
         product: "Producto",
         privacy: "Privacidad",
+        terms: "Términos",
         docs: "Docs",
         plugins: "Plugins",
         pricing: "Gratuidad",

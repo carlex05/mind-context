@@ -1,0 +1,168 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "./PageHero.astro";
+import type { SiteLocale } from "../i18n/site";
+
+const { locale = "en" } = Astro.props as { locale?: SiteLocale };
+const isEs = locale === "es";
+
+const copy = isEs
+  ? {
+      title: "Términos y condiciones",
+      meta: "Términos de uso de MindContext, incluida la beta pública, almacenamiento local y Google Drive.",
+      eyebrow: "TÉRMINOS DE USO",
+      hero: "Un workspace abierto, bajo tu control.",
+      description:
+        "Estos términos regulan el uso de la aplicación y el sitio MindContext. Al utilizar el servicio aceptas estos términos.",
+      effective: "Vigentes desde el 29 de septiembre de 2026.",
+      sections: [
+        ["1. Qué es MindContext", [
+          "MindContext es una aplicación web en beta para crear y gestionar conocimiento en archivos Markdown. Puede trabajar con una carpeta local autorizada por el navegador o con archivos del usuario en Google Drive.",
+          "La experiencia principal está diseñada para funcionar sin una cuenta propia de MindContext y sin convertir tus notas a un formato propietario.",
+        ]],
+        ["2. Elegibilidad y aceptación", [
+          "Debes tener capacidad legal para aceptar estos términos y cumplir los requisitos de edad aplicables a los servicios que conectes, incluida tu Cuenta de Google.",
+          "Si no estás de acuerdo con estos términos, no debes utilizar MindContext.",
+        ]],
+        ["3. Tus archivos y contenido", [
+          "Conservas los derechos que tengas sobre tus notas, adjuntos y demás contenido. El uso de MindContext no transfiere a MindContext la propiedad de tus archivos.",
+          "Eres responsable del contenido que creas o almacenas, de contar con los derechos necesarios sobre él y de mantener copias de seguridad adecuadas para información importante.",
+          "MindContext intenta preservar Markdown y archivos ordinarios como fuente canónica, pero una beta puede contener errores. No utilices el servicio como única copia de información crítica sin un sistema de respaldo apropiado.",
+        ]],
+        ["4. Google Drive", [
+          "La integración de Google Drive es opcional. Si eliges conectarla, autorizas a MindContext a usar el alcance drive.file para operar sobre archivos creados por MindContext o puestos explícitamente a su disposición.",
+          "MindContext usa esos datos únicamente para proporcionar las funciones de almacenamiento, edición, sincronización y organización solicitadas por ti, según se describe en la Política de privacidad.",
+          "Google Drive y Google Identity Services son servicios de terceros sujetos a los términos, disponibilidad y políticas de Google. MindContext no controla dichos servicios.",
+        ]],
+        ["5. Uso permitido", [
+          "Puedes usar MindContext para fines personales o profesionales lícitos. No debes utilizar el servicio para vulnerar derechos de terceros, distribuir malware, intentar comprometer el servicio, eludir controles de seguridad o usar integraciones de terceros de forma contraria a sus términos.",
+          "No intentes obtener acceso a datos o sistemas para los que no tengas autorización.",
+        ]],
+        ["6. Beta, cambios y disponibilidad", [
+          "MindContext se ofrece actualmente como beta pública. Las funciones pueden cambiar, mejorarse, suspenderse o eliminarse a medida que evoluciona el producto.",
+          "No garantizamos disponibilidad ininterrumpida ni ausencia total de errores. El funcionamiento de características que dependen del navegador, Google Drive u otros terceros también depende de esos proveedores.",
+        ]],
+        ["7. Promesa del core gratuito", [
+          "Leer, escribir, organizar y continuar trabajando con tus propias notas Markdown mediante las funciones principales de MindContext seguirá siendo gratuito. Tus notas existentes no se bloquearán detrás de un pago.",
+          "En el futuro pueden existir servicios opcionales de pago. Cualquier servicio adicional tendrá sus propias condiciones antes de ser contratado.",
+        ]],
+        ["8. Privacidad", [
+          "La Política de privacidad de MindContext forma parte de estos términos y describe el acceso a Google Drive, almacenamiento local, analytics, revocación y eliminación de datos.",
+        ]],
+        ["9. Servicios y enlaces de terceros", [
+          "MindContext puede enlazar o integrarse con servicios de terceros. Tu uso de esos servicios se rige por sus propios términos y políticas. MindContext no asume responsabilidad por cambios, indisponibilidad o tratamiento de datos realizado directamente por terceros fuera del control de MindContext.",
+        ]],
+        ["10. Código fuente y propiedad intelectual", [
+          "El código fuente del proyecto puede estar disponible públicamente. La reutilización del código se rige exclusivamente por la licencia que, en su caso, acompañe al repositorio o a componentes concretos.",
+          "Las marcas, identidad visual y otros elementos distintivos de MindContext no se transfieren por el mero uso del producto o acceso al repositorio.",
+        ]],
+        ["11. Exclusión de garantías y responsabilidad", [
+          "En la medida máxima permitida por la ley aplicable, MindContext se proporciona “tal cual” y “según disponibilidad”, sin garantías adicionales sobre adecuación a un propósito concreto, disponibilidad permanente o ausencia de errores.",
+          "En la medida permitida por la ley, MindContext y sus mantenedores no serán responsables por pérdidas indirectas o consecuentes derivadas del uso del servicio. Nada de estos términos excluye responsabilidades que legalmente no puedan excluirse ni limita derechos imperativos de consumidores.",
+        ]],
+        ["12. Suspensión y finalización", [
+          "Puedes dejar de usar MindContext en cualquier momento. Tus archivos permanecen en el almacenamiento que controles, sujeto a las reglas de ese proveedor.",
+          "Podemos restringir acceso a superficies controladas por MindContext cuando sea necesario por seguridad, abuso, cumplimiento legal o integridad del servicio.",
+        ]],
+        ["13. Cambios en estos términos", [
+          "Podemos actualizar estos términos cuando cambie el producto o sus obligaciones legales. Los cambios materiales se publicarán en esta página y se actualizará la fecha de vigencia.",
+        ]],
+        ["14. Ley aplicable y derechos obligatorios", [
+          "Estos términos no reducen derechos obligatorios que te correspondan por la legislación aplicable. Las cuestiones de ley y jurisdicción se determinarán conforme a las normas imperativas aplicables.",
+        ]],
+        ["15. Contacto", [
+          "El canal público del proyecto es GitHub Issues de MindContext. No publiques tokens, contenido privado ni datos sensibles en un issue público; para asuntos sensibles utiliza el contacto de soporte indicado en la pantalla OAuth de MindContext.",
+        ]],
+      ],
+      privacy: "Política de privacidad",
+    }
+  : {
+      title: "Terms and Conditions",
+      meta: "Terms for using MindContext, including the public beta, local storage and Google Drive integration.",
+      eyebrow: "TERMS OF USE",
+      hero: "An open workspace, under your control.",
+      description:
+        "These terms govern use of the MindContext application and website. By using the service, you agree to these terms.",
+      effective: "Effective September 29, 2026.",
+      sections: [
+        ["1. What MindContext is", [
+          "MindContext is a beta web application for creating and managing knowledge in Markdown files. It can work with a browser-authorized local folder or with user files in Google Drive.",
+          "The core experience is designed to work without a separate MindContext account and without converting your notes into a proprietary format.",
+        ]],
+        ["2. Eligibility and acceptance", [
+          "You must have legal capacity to accept these terms and meet the age requirements applicable to services you connect, including your Google Account.",
+          "If you do not agree to these terms, do not use MindContext.",
+        ]],
+        ["3. Your files and content", [
+          "You retain the rights you have in your notes, attachments and other content. Using MindContext does not transfer ownership of your files to MindContext.",
+          "You are responsible for the content you create or store, for having the necessary rights to it, and for maintaining appropriate backups of important information.",
+          "MindContext aims to preserve ordinary Markdown and files as canonical data, but beta software may contain defects. Do not rely on the service as the only copy of critical information without appropriate backups.",
+        ]],
+        ["4. Google Drive", [
+          "Google Drive integration is optional. If you connect it, you authorize MindContext to use the drive.file scope for files created by MindContext or explicitly made available to it.",
+          "MindContext uses that data only to provide the storage, editing, synchronization and organization features you request, as described in the Privacy Policy.",
+          "Google Drive and Google Identity Services are third-party services subject to Google's own terms, availability and policies. MindContext does not control those services.",
+        ]],
+        ["5. Acceptable use", [
+          "You may use MindContext for lawful personal or professional purposes. You must not use the service to violate third-party rights, distribute malware, attempt to compromise the service, bypass security controls, or use third-party integrations contrary to their terms.",
+          "Do not attempt to access data or systems for which you are not authorized.",
+        ]],
+        ["6. Beta, changes and availability", [
+          "MindContext is currently provided as a public beta. Features may change, improve, be suspended or be removed as the product evolves.",
+          "We do not guarantee uninterrupted availability or complete absence of errors. Features that depend on browsers, Google Drive or other third parties also depend on those providers.",
+        ]],
+        ["7. Core Free Promise", [
+          "Reading, writing, organizing and continuing to work with your own Markdown notes through MindContext's core functionality will remain free. Existing notes will not be locked behind payment.",
+          "Optional paid services may be introduced in the future. Any additional paid service will present its own terms before purchase.",
+        ]],
+        ["8. Privacy", [
+          "The MindContext Privacy Policy forms part of these terms and explains Google Drive access, browser-local storage, analytics, revocation and deletion.",
+        ]],
+        ["9. Third-party services and links", [
+          "MindContext may link to or integrate with third-party services. Your use of those services is governed by their own terms and policies. MindContext is not responsible for changes, outages or data processing performed directly by third parties outside MindContext's control.",
+        ]],
+        ["10. Source code and intellectual property", [
+          "Project source code may be publicly viewable. Reuse of source code is governed only by any license that accompanies the repository or specific components.",
+          "MindContext trademarks, visual identity and other distinctive elements are not transferred merely by using the product or viewing the repository.",
+        ]],
+        ["11. Disclaimer and limitation of liability", [
+          "To the maximum extent permitted by applicable law, MindContext is provided “as is” and “as available”, without additional warranties of fitness for a particular purpose, permanent availability or error-free operation.",
+          "To the extent permitted by law, MindContext and its maintainers are not liable for indirect or consequential losses arising from use of the service. Nothing in these terms excludes liability that cannot legally be excluded or limits mandatory consumer rights.",
+        ]],
+        ["12. Suspension and termination", [
+          "You may stop using MindContext at any time. Your files remain in storage you control, subject to the rules of that storage provider.",
+          "We may restrict access to MindContext-controlled surfaces when reasonably necessary for security, abuse prevention, legal compliance or service integrity.",
+        ]],
+        ["13. Changes to these terms", [
+          "We may update these terms as the product or legal obligations change. Material changes will be published on this page and the effective date will be updated.",
+        ]],
+        ["14. Applicable law and mandatory rights", [
+          "These terms do not reduce mandatory rights available to you under applicable law. Questions of governing law and jurisdiction will be determined under applicable mandatory rules.",
+        ]],
+        ["15. Contact", [
+          "The project's public channel is MindContext GitHub Issues. Do not post tokens, private content or sensitive information in a public issue; for sensitive matters use the support contact shown on MindContext's OAuth consent screen.",
+        ]],
+      ],
+      privacy: "Privacy Policy",
+    };
+---
+
+<BaseLayout locale={locale} route="terms" title={`${copy.title} · MindContext`} description={copy.meta}>
+  <div class="content-shell">
+    <PageHero eyebrow={copy.eyebrow} title={copy.hero} description={copy.description} />
+    <p class="section-label">{copy.effective}</p>
+
+    {copy.sections.map(([title, paragraphs]) => (
+      <section class="prose-section">
+        <h2>{title}</h2>
+        {paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+      </section>
+    ))}
+
+    <section class="prose-section">
+      <a href={locale === "es" ? "../privacy/" : "../privacy/"}>{copy.privacy} →</a>
+      <span aria-hidden="true"> · </span>
+      <a href="https://github.com/carlex05/mind-context/issues">GitHub Issues →</a>
+    </section>
+  </div>
+</BaseLayout>
