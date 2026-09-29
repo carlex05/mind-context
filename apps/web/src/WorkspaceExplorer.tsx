@@ -10,6 +10,8 @@ import {
 } from "./vaultMutations";
 import {
   findWorkspaceNode,
+  isImageFile,
+  isMarkdownFile,
   workspaceFolders,
   type WorkspaceTreeNode,
 } from "./workspaceTree";
@@ -23,6 +25,7 @@ export function WorkspaceExplorer({
   selectedFolderId,
   onSelectedFolderIdChange,
   onOpenNote,
+  onOpenAttachment,
   onRequestNewNote,
   onRequestNewFolder,
   onChanged,
@@ -36,6 +39,7 @@ export function WorkspaceExplorer({
   readonly selectedFolderId: string;
   readonly onSelectedFolderIdChange: (id: string) => void;
   readonly onOpenNote: (id: string) => void;
+  readonly onOpenAttachment: (node: WorkspaceTreeNode) => void;
   readonly onRequestNewNote: (folderId: string) => void;
   readonly onRequestNewFolder: (folderId: string) => void;
   readonly onChanged: () => Promise<void>;
@@ -208,6 +212,7 @@ export function WorkspaceExplorer({
           onSelectItem={setSelectedItemId}
           onSelectFolder={onSelectedFolderIdChange}
           onOpenNote={onOpenNote}
+          onOpenAttachment={onOpenAttachment}
           onMenuItem={setMenuItemId}
           onNewNote={onRequestNewNote}
           onNewFolder={onRequestNewFolder}
@@ -238,6 +243,7 @@ function TreeNode({
   onSelectItem,
   onSelectFolder,
   onOpenNote,
+  onOpenAttachment,
   onMenuItem,
   onNewNote,
   onNewFolder,
@@ -258,6 +264,7 @@ function TreeNode({
   readonly onSelectItem: (id: string) => void;
   readonly onSelectFolder: (id: string) => void;
   readonly onOpenNote: (id: string) => void;
+  readonly onOpenAttachment: (node: WorkspaceTreeNode) => void;
   readonly onMenuItem: (id: string | undefined) => void;
   readonly onNewNote: (folderId: string) => void;
   readonly onNewFolder: (folderId: string) => void;
@@ -294,7 +301,9 @@ function TreeNode({
             {isExpanded ? "▾" : "▸"}
           </button>
         ) : (
-          <span className="tree-spacer" aria-hidden="true">◇</span>
+          <span className="tree-spacer" aria-hidden="true">
+            {isImageFile(node.metadata) ? "▧" : "◇"}
+          </span>
         )}
         <button
           className="tree-main"
@@ -305,8 +314,10 @@ function TreeNode({
             if (isFolder) {
               onSelectFolder(node.metadata.id);
               if (!isExpanded) onToggleFolder(node.metadata.id);
-            } else {
+            } else if (isMarkdownFile(node.metadata)) {
               onOpenNote(node.metadata.id);
+            } else {
+              onOpenAttachment(node);
             }
           }}
         >
@@ -392,6 +403,7 @@ function TreeNode({
               onSelectItem={onSelectItem}
               onSelectFolder={onSelectFolder}
               onOpenNote={onOpenNote}
+              onOpenAttachment={onOpenAttachment}
               onMenuItem={onMenuItem}
               onNewNote={onNewNote}
               onNewFolder={onNewFolder}

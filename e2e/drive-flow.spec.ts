@@ -59,6 +59,57 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   }
 });
 
+test("adds ordinary vault attachments and renders referenced images", async ({
+  page,
+}) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Media");
+
+  const editor = page.getByRole("textbox", { name: "Edit Media.md" });
+  await replaceEditorContent(page, editor, "# Media\n");
+
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24"/></svg>';
+  await page.getByTestId("attachment-input").setInputFiles([
+    {
+      name: "diagram.svg",
+      mimeType: "image/svg+xml",
+      buffer: Buffer.from(svg),
+    },
+    {
+      name: "reference.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4\nMindContext attachment fixture"),
+    },
+  ]);
+
+  await expect(
+    page.getByText("2 attachments added to the vault."),
+  ).toBeVisible();
+
+  const files = page.getByRole("navigation", { name: "Workspace files" });
+  await expect(files.getByRole("button", { name: "diagram.svg" })).toBeVisible();
+  await expect(
+    files.getByRole("button", { name: "reference.pdf" }),
+  ).toBeVisible();
+  await expect(editor).toContainText("![diagram.svg](./diagram.svg)");
+  await expect(editor).toContainText("[reference.pdf](./reference.pdf)");
+
+  await page.getByRole("button", { name: "Reading view", exact: true }).click();
+  const reading = page.getByLabel("Reading view");
+  const image = reading.getByRole("img", { name: "diagram.svg" });
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute("src", /^blob:/);
+  await expect(
+    reading.getByRole("button", { name: "reference.pdf" }),
+  ).toBeVisible();
+
+  expect(drive.filePathByName("diagram.svg")).toBe("diagram.svg");
+  expect(drive.filePathByName("reference.pdf")).toBe("reference.pdf");
+});
+
 test("uses Home as the workspace start surface and persists it", async ({
   page,
 }) => {
@@ -1558,6 +1609,7 @@ class FakeDrive {
   }
   private nextNoteNumber = 1;
   private nextFolderNumber = 1;
+  private nextFileNumber = 1;
   private mediaReads = 0;
   private readonly objects = new Map<string, StoredObject>();
 
@@ -1635,6 +1687,20 @@ class FakeDrive {
         };
         this.objects.set(folder.id, folder);
         await this.json(route, this.metadata(folder));
+        return;
+      }
+
+      if (body.parents?.length) {
+        const file: StoredObject = {
+          id: `file-${this.nextFileNumber++}`,
+          name: body.name ?? "Attachment",
+          mimeType: body.mimeType ?? "application/octet-stream",
+          parents: [...body.parents],
+          version: 1,
+          content: "",
+        };
+        this.objects.set(file.id, file);
+        await this.json(route, this.metadata(file));
         return;
       }
     }

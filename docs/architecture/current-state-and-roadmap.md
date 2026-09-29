@@ -27,6 +27,11 @@ is plain Markdown/YAML with open/Obsidian-compatible linking conventions.
 - MindContext-created/discoverable workspace folders.
 - nested directories;
 - Markdown create/edit/delete;
+- arbitrary binary attachment create/read behind the same provider boundary;
+- vault explorer visibility for ordinary files and multi-file attachment upload;
+- portable Markdown references inserted for uploaded attachments;
+- Reading View image resolution for standard Markdown images and Obsidian-style image embeds;
+- linked non-image attachments open/download through the provider;
 - folder create/delete;
 - safe rename/move with conservative resolved-link rewriting;
 - content-aware Drive conflict protection using blob content revisions when available;
@@ -60,7 +65,10 @@ supported open-vault dialect, including:
 - inline/display LaTeX math with MathJax Reading View rendering;
 - Mermaid fenced diagrams rendered locally and lazily;
 - Prism-compatible language-aware fenced-code highlighting;
-- embeds at parser level (full transclusion/attachment rendering remains a later slice).
+- ordinary attachment links;
+- standard Markdown image rendering from vault storage;
+- Obsidian-style image embeds such as `![[image.png]]`;
+- note transclusion remains a later slice.
 
 Graph/search/RAG work should consume this shared interpretation rather than
 inventing another parser. See
@@ -307,10 +315,22 @@ The original daily-use gate still has important work after RAG/capture:
 
 ### Ordinary attachments
 
-- upload/open images, PDFs and other files;
-- keep them as ordinary storage files;
-- render standard Markdown attachment links;
-- preserve portability.
+Implemented baseline:
+
+- multi-file upload for images, PDFs and arbitrary binary files;
+- ordinary storage files remain canonical and provider-owned;
+- portable relative Markdown references are inserted when a note is open;
+- standard Markdown images resolve through the active storage provider;
+- Obsidian-style image embeds resolve without rewriting canonical Markdown;
+- non-image attachment links open/download through the provider;
+- attachments appear in the normal vault tree.
+
+Remaining hardening:
+
+- drag/drop and paste-to-attach authoring;
+- richer inline PDF/audio/video previews;
+- safe attachment-reference rewriting when attachments are renamed or moved;
+- collision UX beyond the current explicit same-folder rejection.
 
 ### Autosave and conflict UX
 

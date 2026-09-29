@@ -215,6 +215,13 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     return response.text();
   }
 
+  async readBinary(id: string): Promise<Uint8Array> {
+    const response = await this.request(
+      `${DRIVE_API_BASE}/files/${encodeURIComponent(id)}?alt=media`,
+    );
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
   async writeText(
     id: string,
     content: string,
@@ -239,6 +246,16 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     );
 
     return toStorageMetadata(response);
+  }
+
+  async writeBinary(
+    id: string,
+    content: Uint8Array,
+    mediaType = "application/octet-stream",
+    condition?: WriteCondition,
+  ): Promise<StorageObjectMetadata> {
+    await this.assertRevision(id, condition);
+    return this.uploadBinary(id, content, mediaType);
   }
 
   async createText(
@@ -283,6 +300,39 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     );
 
     return toStorageMetadata(response);
+  }
+
+  async createBinary(
+    parentId: string,
+    name: string,
+    content: Uint8Array,
+    mediaType = "application/octet-stream",
+  ): Promise<StorageObjectMetadata> {
+    const normalizedName = normalizeObjectName(name);
+    const created = await this.requestJson<DriveFile>(
+      `${DRIVE_API_BASE}/files?fields=${encodeURIComponent(FILE_FIELDS)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+        body: JSON.stringify({
+          name: normalizedName,
+          mimeType: mediaType,
+          parents: [parentId],
+        }),
+      },
+    );
+
+    try {
+      return await this.uploadBinary(created.id, content, mediaType);
+    } catch (error) {
+      await this.request(
+        `${DRIVE_API_BASE}/files/${encodeURIComponent(created.id)}`,
+        { method: "DELETE" },
+      ).catch(() => undefined);
+      throw error;
+    }
   }
 
   async createDirectory(
@@ -364,6 +414,30 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     return toStorageMetadata(response);
   }
 
+  private async uploadBinary(
+    id: string,
+    content: Uint8Array,
+    mediaType: string,
+  ): Promise<StorageObjectMetadata> {
+    const params = new URLSearchParams({
+      uploadType: "media",
+      fields: FILE_FIELDS,
+    });
+    const body = new Blob([Uint8Array.from(content)], { type: mediaType });
+
+    const response = await this.requestJson<DriveFile>(
+      `${DRIVE_UPLOAD_BASE}/files/${encodeURIComponent(id)}?${params.toString()}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": mediaType,
+        },
+        body,
+      },
+    );
+    return toStorageMetadata(response);
+  }
+
   private async assertRevision(
     id: string,
     condition?: WriteCondition,
@@ -415,13 +489,18 @@ export class GoogleDriveStorageProvider implements StorageProvider {
 }
 
 function normalizeFileName(name: string): string {
+  const normalized = normalizeObjectName(name);
+  return normalized.toLowerCase().endsWith(".md")
+    ? normalized
+    : `${normalized}.md`;
+}
+
+function normalizeObjectName(name: string): string {
   const normalized = name.trim();
   if (!normalized) {
     throw new Error("File name cannot be empty.");
   }
-  return normalized.toLowerCase().endsWith(".md")
-    ? normalized
-    : `${normalized}.md`;
+  return normalized;
 }
 
 function escapeDriveQueryLiteral(value: string): string {

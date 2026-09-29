@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import rehypeMathjax from "rehype-mathjax";
 import rehypePrism from "rehype-prism-plus";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import type { KnowledgeEdge } from "@mind-context/knowledge";
+import type { StorageProvider } from "@mind-context/storage";
 import {
   normalizeMarkdownHeading,
   prepareObsidianMarkdownForReading,
@@ -13,6 +14,13 @@ import {
 } from "@mind-context/markdown";
 import { useTranslation } from "react-i18next";
 import { MermaidDiagram } from "./MermaidDiagram";
+import {
+  inferMediaType,
+  isImageFile,
+  isMarkdownFile,
+  resolveWorkspaceFile,
+  type WorkspaceTreeNode,
+} from "./workspaceTree";
 
 export interface InternalMarkdownNavigationTarget
   extends MarkdownNavigationTarget {
@@ -21,12 +29,18 @@ export interface InternalMarkdownNavigationTarget
 
 export function MarkdownPreview({
   content,
+  provider,
+  tree,
+  currentNotePath,
   outgoingLinks,
   navigationTarget,
   navigationKey = 0,
   onOpenNote,
 }: {
   readonly content: string;
+  readonly provider: StorageProvider;
+  readonly tree: readonly WorkspaceTreeNode[];
+  readonly currentNotePath: string;
   readonly outgoingLinks: readonly KnowledgeEdge[];
   readonly navigationTarget?: MarkdownNavigationTarget | undefined;
   readonly navigationKey?: number | undefined;
@@ -37,6 +51,21 @@ export function MarkdownPreview({
   const resolveWiki = (rawTarget: string) => {
     const edge = resolveEdge(rawTarget, "wikilink", outgoingLinks);
     return edge?.targetNoteId ? navigationHref(edge) : undefined;
+  };
+  const resolveWikiAsset = (
+    rawTarget: string,
+  ): ResolvedWikiAsset | undefined => {
+    const node = resolveWorkspaceFile(
+      tree,
+      currentNotePath,
+      rawTarget,
+      "wikilink",
+    );
+    if (!node || isMarkdownFile(node.metadata)) return undefined;
+    return {
+      href: wikiAssetHref(rawTarget),
+      image: isImageFile(node.metadata),
+    };
   };
 
   useEffect(() => {
@@ -86,7 +115,7 @@ export function MarkdownPreview({
           remarkGfm,
           remarkMath,
           remarkObsidianBase,
-          [remarkWikilinks, { resolveWiki }],
+          [remarkWikilinks, { resolveWiki, resolveWikiAsset }],
         ]}
         rehypePlugins={[
           rehypeMathjax,
@@ -111,6 +140,24 @@ export function MarkdownPreview({
               </div>
             );
           },
+          img({ node: _node, src, alt, ...props }) {
+            const attachment = resolvePreviewAttachment(
+              src,
+              tree,
+              currentNotePath,
+            );
+            if (attachment) {
+              return (
+                <VaultImage
+                  provider={provider}
+                  node={attachment}
+                  alt={alt ?? attachment.metadata.name}
+                />
+              );
+            }
+
+            return <img src={src} alt={alt ?? ""} {...props} />;
+          },
           a({ href, children }) {
             const target = resolveHref(href, outgoingLinks);
             if (target) {
@@ -122,6 +169,19 @@ export function MarkdownPreview({
                 >
                   {children}
                 </button>
+              );
+            }
+
+            const attachment = resolvePreviewAttachment(
+              href,
+              tree,
+              currentNotePath,
+            );
+            if (attachment) {
+              return (
+                <VaultAttachmentLink provider={provider} node={attachment}>
+                  {children}
+                </VaultAttachmentLink>
               );
             }
 
@@ -137,6 +197,161 @@ export function MarkdownPreview({
       </Markdown>
     </article>
   );
+}
+
+const WIKI_ASSET_PREFIX = "#mindcontext-asset=";
+
+interface ResolvedWikiAsset {
+  readonly href: string;
+  readonly image: boolean;
+}
+
+function wikiAssetHref(target: string): string {
+  return `${WIKI_ASSET_PREFIX}${encodeURIComponent(target)}`;
+}
+
+function parseWikiAssetHref(href: string): string | undefined {
+  if (!href.startsWith(WIKI_ASSET_PREFIX)) return undefined;
+  const encoded = href.slice(WIKI_ASSET_PREFIX.length);
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
+function resolvePreviewAttachment(
+  href: string | undefined,
+  tree: readonly WorkspaceTreeNode[],
+  currentNotePath: string,
+): WorkspaceTreeNode | undefined {
+  if (!href) return undefined;
+  const wikiTarget = parseWikiAssetHref(href);
+  const node = resolveWorkspaceFile(
+    tree,
+    currentNotePath,
+    wikiTarget ?? href,
+    wikiTarget ? "wikilink" : "markdown",
+  );
+  return node && !isMarkdownFile(node.metadata) ? node : undefined;
+}
+
+function VaultImage({
+  provider,
+  node,
+  alt,
+}: {
+  readonly provider: StorageProvider;
+  readonly node: WorkspaceTreeNode;
+  readonly alt: string;
+}) {
+  const [source, setSource] = useState<string>();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    let objectUrl: string | undefined;
+    setSource(undefined);
+    setFailed(false);
+
+    void provider
+      .readBinary(node.metadata.id)
+      .then((content) => {
+        if (disposed) return;
+        const blob = new Blob([Uint8Array.from(content)], {
+          type: inferMediaType(node.metadata.name, node.metadata.mediaType),
+        });
+        objectUrl = URL.createObjectURL(blob);
+        setSource(objectUrl);
+      })
+      .catch(() => {
+        if (!disposed) setFailed(true);
+      });
+
+    return () => {
+      disposed = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [
+    provider,
+    node.metadata.id,
+    node.metadata.revision,
+    node.metadata.contentRevision,
+  ]);
+
+  if (failed) {
+    return <span className="attachment-load-error">{alt}</span>;
+  }
+  if (!source) {
+    return (
+      <span className="attachment-loading" aria-busy="true">
+        {alt}
+      </span>
+    );
+  }
+
+  return <img className="vault-image" src={source} alt={alt} loading="lazy" />;
+}
+
+function VaultAttachmentLink({
+  provider,
+  node,
+  children,
+}: {
+  readonly provider: StorageProvider;
+  readonly node: WorkspaceTreeNode;
+  readonly children: ReactNode;
+}) {
+  const [opening, setOpening] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="preview-internal-link preview-attachment-link"
+      disabled={opening}
+      onClick={() => {
+        setOpening(true);
+        void openVaultAttachment(provider, node).finally(() =>
+          setOpening(false),
+        );
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+async function openVaultAttachment(
+  provider: StorageProvider,
+  node: WorkspaceTreeNode,
+) {
+  const content = await provider.readBinary(node.metadata.id);
+  const mediaType = inferMediaType(
+    node.metadata.name,
+    node.metadata.mediaType,
+  );
+  const blob = new Blob([Uint8Array.from(content)], { type: mediaType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+
+  if (
+    mediaType.startsWith("image/") ||
+    mediaType.startsWith("audio/") ||
+    mediaType.startsWith("video/") ||
+    mediaType === "application/pdf" ||
+    mediaType.startsWith("text/")
+  ) {
+    anchor.target = "_blank";
+    anchor.rel = "noreferrer";
+  } else {
+    anchor.download = node.metadata.name;
+  }
+
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 function resolveHref(
@@ -276,28 +491,45 @@ interface RemarkNode {
   value?: string;
   children?: RemarkNode[];
   url?: string;
+  alt?: string;
 }
 
 function remarkWikilinks(options: {
   readonly resolveWiki: (target: string) => string | undefined;
+  readonly resolveWikiAsset: (
+    target: string,
+  ) => ResolvedWikiAsset | undefined;
 }) {
   return (tree: RemarkNode) => {
-    transformChildren(tree, options.resolveWiki);
+    transformChildren(
+      tree,
+      options.resolveWiki,
+      options.resolveWikiAsset,
+    );
   };
 }
 
 function transformChildren(
   parent: RemarkNode,
   resolveWiki: (target: string) => string | undefined,
+  resolveWikiAsset: (
+    target: string,
+  ) => ResolvedWikiAsset | undefined,
 ): void {
   if (!parent.children) return;
 
   const next: RemarkNode[] = [];
   for (const child of parent.children) {
     if (child.type === "text" && child.value) {
-      next.push(...splitWikilinks(child.value, resolveWiki));
+      next.push(
+        ...splitWikilinks(
+          child.value,
+          resolveWiki,
+          resolveWikiAsset,
+        ),
+      );
     } else {
-      transformChildren(child, resolveWiki);
+      transformChildren(child, resolveWiki, resolveWikiAsset);
       next.push(child);
     }
   }
@@ -307,8 +539,11 @@ function transformChildren(
 function splitWikilinks(
   value: string,
   resolveWiki: (target: string) => string | undefined,
+  resolveWikiAsset: (
+    target: string,
+  ) => ResolvedWikiAsset | undefined,
 ): RemarkNode[] {
-  const pattern = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+  const pattern = /(!)?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
   const nodes: RemarkNode[] = [];
   let cursor = 0;
 
@@ -318,18 +553,37 @@ function splitWikilinks(
       nodes.push({ type: "text", value: value.slice(cursor, index) });
     }
 
-    const rawTarget = match[1]?.trim() ?? "";
-    const label = match[2]?.trim() || rawTarget;
-    const href = resolveWiki(rawTarget);
+    const embed = match[1] === "!";
+    const rawTarget = match[2]?.trim() ?? "";
+    const label = match[3]?.trim() || rawTarget;
+    const asset = resolveWikiAsset(rawTarget);
 
-    if (href) {
-      nodes.push({
-        type: "link",
-        url: href,
-        children: [{ type: "text", value: label }],
-      });
+    if (asset) {
+      if (embed && asset.image) {
+        nodes.push({
+          type: "image",
+          url: asset.href,
+          alt: label,
+        });
+      } else {
+        nodes.push({
+          type: "link",
+          url: asset.href,
+          children: [{ type: "text", value: label }],
+        });
+      }
     } else {
-      nodes.push({ type: "text", value: match[0] });
+      const href = resolveWiki(rawTarget);
+      if (href) {
+        if (embed) nodes.push({ type: "text", value: "!" });
+        nodes.push({
+          type: "link",
+          url: href,
+          children: [{ type: "text", value: label }],
+        });
+      } else {
+        nodes.push({ type: "text", value: match[0] });
+      }
     }
     cursor = index + match[0].length;
   }

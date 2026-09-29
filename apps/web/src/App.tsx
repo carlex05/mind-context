@@ -109,8 +109,12 @@ import {
   type WorkspaceTab,
 } from "./workspaceUi";
 import {
+  childPath,
   findWorkspaceNode,
+  inferMediaType,
+  isImageFile,
   loadWorkspaceTree,
+  relativeWorkspaceFilePath,
   type WorkspaceTreeNode,
 } from "./workspaceTree";
 
@@ -178,6 +182,7 @@ export function App() {
     useState<GoogleDriveStorageProvider>();
   const [tree, setTree] = useState<readonly WorkspaceTreeNode[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState("");
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [openNote, setOpenNote] = useState<OpenNote>();
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState(
@@ -1462,6 +1467,104 @@ export function App() {
     }
   }
 
+  async function attachFiles(files: readonly File[]) {
+    if (!provider || files.length === 0) return;
+
+    const parentId = selectedFolderId || provider.rootId;
+    const parentNode =
+      parentId === provider.rootId
+        ? undefined
+        : findWorkspaceNode(tree, parentId);
+    const parentPath = parentNode?.path ?? "";
+    setStatus({ kind: "busy", message: t("status.attachingFiles") });
+
+    try {
+      const existing = await provider.list(parentId);
+      const seenNames = new Set(
+        existing.map((item) => item.name.toLocaleLowerCase()),
+      );
+      for (const file of files) {
+        const key = file.name.trim().toLocaleLowerCase();
+        if (!key || seenNames.has(key)) {
+          throw new Error(
+            t("errors.attachmentExists", { name: file.name || "file" }),
+          );
+        }
+        seenNames.add(key);
+      }
+
+      const currentNotePath = openNote
+        ? getNote(knowledgeIndex, openNote.metadata.id)?.path
+        : undefined;
+      const references: string[] = [];
+
+      for (const file of files) {
+        const mediaType = inferMediaType(
+          file.name,
+          file.type || undefined,
+        );
+        const metadata = await provider.createBinary(
+          parentId,
+          file.name,
+          new Uint8Array(await file.arrayBuffer()),
+          mediaType,
+        );
+
+        if (currentNotePath) {
+          const targetPath = childPath(parentPath, metadata.name);
+          const relativePath = encodeMarkdownPath(
+            relativeWorkspaceFilePath(currentNotePath, targetPath),
+          );
+          const label = escapeMarkdownLabel(metadata.name);
+          references.push(
+            isImageFile(metadata)
+              ? `![${label}](${relativePath})`
+              : `[${label}](${relativePath})`,
+          );
+        }
+      }
+
+      if (references.length > 0 && openNote) {
+        updateActiveDraft(appendMarkdownReferences(draft, references));
+      }
+
+      await refreshWorkspaceState();
+      setStatus({
+        kind: "success",
+        message: t("status.attachmentsAdded", { count: files.length }),
+      });
+    } catch (error) {
+      await refreshWorkspaceState().catch(() => undefined);
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
+  async function openAttachment(node: WorkspaceTreeNode) {
+    if (!provider) return;
+    setStatus({
+      kind: "busy",
+      message: t("status.openingAttachment", {
+        name: node.metadata.name,
+      }),
+    });
+    try {
+      const content = await provider.readBinary(node.metadata.id);
+      openBinaryInBrowser(
+        node.metadata.name,
+        inferMediaType(node.metadata.name, node.metadata.mediaType),
+        content,
+      );
+      setStatus({
+        kind: "success",
+        message: t("status.attachmentOpened", {
+          name: node.metadata.name,
+        }),
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
   function requestNewItem(
     kind: CreateItemKind,
     folderId = selectedFolderId || provider?.rootId || "",
@@ -2258,6 +2361,15 @@ export function App() {
             </button>
             <button
               type="button"
+              aria-label={t("actions.attachFiles")}
+              title={t("actions.attachFiles")}
+              disabled={workspaceLoading}
+              onClick={() => attachmentInputRef.current?.click()}
+            >
+              <Icon name="attachment" />
+            </button>
+            <button
+              type="button"
               aria-label={t("actions.refreshVault")}
               title={t("common.refresh")}
               disabled={workspaceLoading}
@@ -2280,6 +2392,19 @@ export function App() {
           </>
         }
       >
+        <input
+          ref={attachmentInputRef}
+          data-testid="attachment-input"
+          type="file"
+          multiple
+          hidden
+          onChange={(event) => {
+            const input = event.currentTarget;
+            const files = Array.from(input.files ?? []);
+            input.value = "";
+            void attachFiles(files);
+          }}
+        />
         <WorkspaceExplorer
           provider={provider}
           tree={tree}
@@ -2289,6 +2414,7 @@ export function App() {
           selectedFolderId={selectedFolderId || provider.rootId}
           onSelectedFolderIdChange={setSelectedFolderId}
           onOpenNote={(noteId) => void openNoteById(noteId)}
+          onOpenAttachment={(node) => void openAttachment(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onChanged={refreshWorkspaceState}
@@ -2589,6 +2715,11 @@ export function App() {
                 ) : (
                   <MarkdownPreview
                     content={draft}
+                    provider={provider}
+                    tree={tree}
+                    currentNotePath={
+                      currentIndexedNote?.path ?? openNote.metadata.name
+                    }
                     outgoingLinks={outgoingLinks}
                     navigationTarget={activeMarkdownNavigation}
                     navigationKey={activeMarkdownNavigation?.key}
@@ -3222,6 +3353,64 @@ function StatusBar({ status }: { readonly status: AppStatus }) {
 
 function isDriveUnauthorized(error: unknown): boolean {
   return error instanceof GoogleDriveApiError && error.status === 401;
+}
+
+function appendMarkdownReferences(
+  content: string,
+  references: readonly string[],
+): string {
+  if (references.length === 0) return content;
+  const separator =
+    content.length === 0
+      ? ""
+      : content.endsWith("\n\n")
+        ? ""
+        : content.endsWith("\n")
+          ? "\n"
+          : "\n\n";
+  return `${content}${separator}${references.join("\n")}\n`;
+}
+
+function encodeMarkdownPath(path: string): string {
+  return path
+    .split("/")
+    .map((part) =>
+      part === "." || part === ".." ? part : encodeURIComponent(part),
+    )
+    .join("/");
+}
+
+function escapeMarkdownLabel(value: string): string {
+  return value.replaceAll("[", "\\[").replaceAll("]", "\\]");
+}
+
+function openBinaryInBrowser(
+  name: string,
+  mediaType: string,
+  content: Uint8Array,
+) {
+  const blob = new Blob([Uint8Array.from(content)], { type: mediaType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+
+  if (
+    mediaType.startsWith("image/") ||
+    mediaType.startsWith("audio/") ||
+    mediaType.startsWith("video/") ||
+    mediaType === "application/pdf" ||
+    mediaType.startsWith("text/")
+  ) {
+    anchor.target = "_blank";
+    anchor.rel = "noreferrer";
+  } else {
+    anchor.download = name;
+  }
+
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 function errorMessage(

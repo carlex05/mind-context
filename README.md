@@ -20,7 +20,8 @@ The repository currently includes:
 - React + Vite responsive web shell inspired by a minimal Obsidian workspace;
 - CodeMirror 6 Markdown editor + reading view;
 - note tabs with browser-local recovery drafts, content-aware Drive synchronization, hidden Markdown safety copies and a Settings Recovery Center;
-- nested Drive-backed file explorer;
+- nested Drive-backed vault explorer that includes Markdown and ordinary attachments;
+- arbitrary file attachment upload with portable Markdown references and Reading View image rendering;
 - safe note/folder create, rename, move and delete;
 - conservative link rewriting on rename/move;
 - one remark/mdast-based Markdown compatibility parser;

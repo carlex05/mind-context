@@ -147,6 +147,73 @@ describe("GoogleDriveStorageProvider", () => {
     }
   });
 
+  it("creates and reads arbitrary binary files without routing content through MindContext", async () => {
+    const requests: CapturedRequest[] = [];
+    const bytes = Uint8Array.from([0, 1, 2, 127, 255]);
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse({
+          id: "asset-1",
+          name: "pixel.png",
+          mimeType: "image/png",
+          version: "1",
+          parents: ["workspace-1"],
+        }),
+        jsonResponse({
+          id: "asset-1",
+          name: "pixel.png",
+          mimeType: "image/png",
+          version: "2",
+          headRevisionId: "content-1",
+          parents: ["workspace-1"],
+          size: String(bytes.byteLength),
+        }),
+        new Response(bytes, {
+          status: 200,
+          headers: { "Content-Type": "image/png" },
+        }),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: tokenProvider,
+      fetchImplementation,
+    });
+
+    const metadata = await provider.createBinary(
+      provider.rootId,
+      "pixel.png",
+      bytes,
+      "image/png",
+    );
+    expect(metadata.name).toBe("pixel.png");
+    expect(metadata.mediaType).toBe("image/png");
+
+    const createUrl = new URL(requests[0]!.url);
+    expect(createUrl.pathname).toBe("/drive/v3/files");
+    expect(JSON.parse(String(requests[0]!.body))).toMatchObject({
+      name: "pixel.png",
+      mimeType: "image/png",
+      parents: ["workspace-1"],
+    });
+
+    const uploadUrl = new URL(requests[1]!.url);
+    expect(uploadUrl.pathname).toBe("/upload/drive/v3/files/asset-1");
+    expect(uploadUrl.searchParams.get("uploadType")).toBe("media");
+    expect(requests[1]!.headers.get("Content-Type")).toBe("image/png");
+    const uploaded = new Uint8Array(
+      await new Response(requests[1]!.body).arrayBuffer(),
+    );
+    expect(Array.from(uploaded)).toEqual(Array.from(bytes));
+
+    await expect(provider.readBinary("asset-1")).resolves.toEqual(bytes);
+    const readUrl = new URL(requests[2]!.url);
+    expect(readUrl.pathname).toBe("/drive/v3/files/asset-1");
+    expect(readUrl.searchParams.get("alt")).toBe("media");
+  });
+
   it("reads note content directly from the Drive media endpoint", async () => {
     const requests: CapturedRequest[] = [];
     const fetchImplementation = createFetchMock(

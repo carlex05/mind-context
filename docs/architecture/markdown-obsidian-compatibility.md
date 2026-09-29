@@ -42,12 +42,30 @@ The built-in dialect now also includes:
 
 Math and fenced-code semantics are parsed by `@mind-context/markdown`. Mermaid is loaded lazily only when Reading View encounters a Mermaid fence, and its rendered SVG is a disposable projection. Mermaid uses its strict security level so note content cannot enable diagram click handlers or raw HTML behavior.
 
+## Attachment compatibility
+
+The vault now treats non-Markdown files as ordinary first-class storage objects.
+
+Implemented behavior:
+
+- arbitrary files can be uploaded into any selected vault folder;
+- uploaded files appear in the normal file tree;
+- when a note is open, upload inserts a portable relative Markdown reference;
+- standard Markdown image references render from the active storage provider;
+- Obsidian-style image embeds such as `![[image.png]]` render without rewriting the source;
+- linked PDFs and other non-image files remain ordinary files and open/download on demand.
+
+The renderer creates browser-local object URLs only after reading bytes directly from
+the selected storage provider. Attachment contents are not sent to
+MindContext-controlled infrastructure.
+
 ## Remaining compatibility slices
 
 The overall compatibility goal still has separate work for:
 
-- note transclusion and embeds;
-- images, PDFs, audio/video and other attachments;
+- note transclusion embeds;
+- richer inline PDF/audio/video rendering;
+- attachment-reference rewriting across rename/move operations;
 - remaining documented Obsidian base edge cases that surface from the full compatibility matrix, including HTML behavior and attachment-specific syntax.
 
 Parser recognition alone does not mean Render/Interact compatibility is complete.

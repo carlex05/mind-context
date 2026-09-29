@@ -382,6 +382,8 @@ export function Icon({
       return <svg {...common}><path d="M3 6.5h6l2 2H21v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M12 12v5m-2.5-2.5h5" /></svg>;
     case "refresh":
       return <svg {...common}><path d="M20 7v5h-5" /><path d="M19 12a7 7 0 1 0-2 5" /></svg>;
+    case "attachment":
+      return <svg {...common}><path d="m20.5 11.5-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.7 9.7a2 2 0 1 1-2.8-2.8l8.9-8.9" /></svg>;
   }
 }
 
@@ -400,4 +402,5 @@ export type IconName =
   | "save"
   | "file-plus"
   | "folder-plus"
-  | "refresh";
+  | "refresh"
+  | "attachment";

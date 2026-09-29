@@ -43,6 +43,20 @@ export interface StorageProvider {
     name: string,
     content: string,
   ): Promise<StorageObjectMetadata>;
+  readBinary(id: string): Promise<Uint8Array>;
+  writeBinary(
+    id: string,
+    content: Uint8Array,
+    mediaType?: string,
+    condition?: WriteCondition,
+  ): Promise<StorageObjectMetadata>;
+  createBinary(
+    parentId: string,
+    name: string,
+    content: Uint8Array,
+    mediaType?: string,
+  ): Promise<StorageObjectMetadata>;
+
   createDirectory(
     parentId: string,
     name: string,

@@ -88,6 +88,7 @@ const en = {
   actions: {
     newNote: "New note",
     newFolder: "New folder",
+    attachFiles: "Attach files",
     refreshVault: "Refresh vault and local index",
     collapseSidebar: "Collapse sidebar",
     closeTab: "Close {{title}}",
@@ -125,6 +126,11 @@ const en = {
     creatingFolder: "Creating folder…",
     folderCreated: "Folder “{{name}}” created.",
     noteCreated: "{{name}} created.",
+    attachingFiles: "Adding files to your vault…",
+    attachmentsAdded_one: "{{count}} attachment added to the vault.",
+    attachmentsAdded_other: "{{count}} attachments added to the vault.",
+    openingAttachment: "Opening {{name}}…",
+    attachmentOpened: "{{name}} opened from your vault.",
     savingDrive: "Saving to Google Drive…",
     saved: "Synced to Google Drive.",
     conflict: "This note changed in Drive after you opened it.",
@@ -421,6 +427,7 @@ const en = {
   },
   errors: {
     driveExpired: "Google Drive authorization expired. Reconnect Drive to continue syncing.",
+    attachmentExists: "A file named “{{name}}” already exists in this folder.",
     unexpected: "Something unexpected happened.",
   },
 };
@@ -507,6 +514,7 @@ const es = {
   actions: {
     newNote: "Nueva nota",
     newFolder: "Nueva carpeta",
+    attachFiles: "Adjuntar archivos",
     refreshVault: "Actualizar vault e índice local",
     collapseSidebar: "Colapsar barra lateral",
     closeTab: "Cerrar {{title}}",
@@ -544,6 +552,11 @@ const es = {
     creatingFolder: "Creando carpeta…",
     folderCreated: "Carpeta “{{name}}” creada.",
     noteCreated: "{{name}} creada.",
+    attachingFiles: "Añadiendo archivos a tu vault…",
+    attachmentsAdded_one: "{{count}} adjunto añadido al vault.",
+    attachmentsAdded_other: "{{count}} adjuntos añadidos al vault.",
+    openingAttachment: "Abriendo {{name}}…",
+    attachmentOpened: "{{name}} abierto desde tu vault.",
     savingDrive: "Guardando en Google Drive…",
     saved: "Sincronizado con Google Drive.",
     conflict: "Esta nota cambió en Drive después de abrirla.",
@@ -840,6 +853,7 @@ const es = {
   },
   errors: {
     driveExpired: "La autorización de Google Drive expiró. Reconecta Drive para continuar sincronizando.",
+    attachmentExists: "Ya existe un archivo llamado “{{name}}” en esta carpeta.",
     unexpected: "Ocurrió algo inesperado.",
   },
 };
