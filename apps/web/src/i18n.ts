@@ -355,7 +355,7 @@ const en = {
     mermaidError: "This Mermaid diagram could not be rendered. Showing its source instead.",
   },
   landing: {
-    eyebrow: "MindContext — Constellation",
+    eyebrow: "Privacy-first · Markdown-first · Your own Drive",
     title: "Turn scattered notes into connected context.",
     body: "Markdown-first. Your own Google Drive. Privacy-first. Connect Drive to build a second brain from files you control.",
     connecting: "Connecting…",
@@ -774,7 +774,7 @@ const es = {
     mermaidError: "No se pudo renderizar este diagrama Mermaid. Se muestra el código fuente.",
   },
   landing: {
-    eyebrow: "MindContext — Constellation",
+    eyebrow: "Privacidad primero · Markdown primero · Tu propio Drive",
     title: "Convierte notas dispersas en contexto conectado.",
     body: "Markdown primero. Tu propio Google Drive. Privacidad primero. Conecta Drive para construir un Second Brain con archivos bajo tu control.",
     connecting: "Conectando…",

@@ -21,7 +21,28 @@ Supporting product messages:
 
 - **Your second brain. In your own Drive.**
 - **Your thoughts. Your files. Your context.**
-- **Free to use. Open by design.**
+- **Free core. Your notes stay yours.**
+- **Your core workspace stays free.**
+
+### Core Free Promise
+
+MindContext's core note workspace is committed to remaining free.
+
+The promise covers the fundamental ability to:
+
+- read existing notes;
+- write and edit Markdown notes;
+- organize and navigate the user's note workspace;
+- continue working with notes stored in user-owned storage.
+
+Existing user notes must never become inaccessible because a payment is required.
+Future paid offerings may exist only as optional services or capabilities layered
+around the free core; they must not turn basic access to the user's own notes into
+a paid entitlement.
+
+Preferred public wording:
+
+> **Your core workspace stays free. Your notes will never be put behind a paywall.**
 
 When describing authentication, prefer **"No separate MindContext account"**.
 Do not claim that no account is required because Google Drive access requires a

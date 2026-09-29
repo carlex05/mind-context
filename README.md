@@ -4,6 +4,10 @@ MindContext is a privacy-first, local-first, Markdown-first knowledge workspace.
 
 > **Markdown is the source of truth. Everything else is a disposable projection.**
 
+> **Core Free Promise:** reading, writing, organizing and continuing to work with
+> your own Markdown notes in MindContext will remain free. Existing notes will
+> never be put behind a paywall.
+
 User knowledge stays between the user's browser/device and the storage provider
 selected by the user. The first storage provider is Google Drive.
 MindContext-controlled infrastructure must not require note contents, embeddings,
