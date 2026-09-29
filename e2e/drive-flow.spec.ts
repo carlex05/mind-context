@@ -899,8 +899,11 @@ test("authors portable Markdown with toolbar and slash commands", async ({
   );
 
   await replaceEditorContent(page, editor, "/tab");
-  await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("Table");
-  await page.keyboard.press("Enter");
+  const tableCompletion = page
+    .locator('.cm-tooltip-autocomplete [role="option"]')
+    .filter({ hasText: "Table" });
+  await expect(tableCompletion).toBeVisible();
+  await tableCompletion.click();
   await page.keyboard.insertText("Topic");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Synced", { exact: true })).toBeVisible();
