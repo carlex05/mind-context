@@ -77,7 +77,7 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     name: string,
     content: string,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeName(name);
+    const normalizedName = normalizeMarkdownFileName(name);
     const parentPath = this.pathForId(parentId);
     const directory = await this.directoryAt(parentPath);
     await assertNameAvailable(directory, normalizedName);
@@ -458,6 +458,13 @@ function createWorkspaceId(): string {
 
 function fileRevision(file: File): string {
   return `${file.lastModified}:${file.size}`;
+}
+
+function normalizeMarkdownFileName(name: string): string {
+  const normalized = normalizeName(name);
+  return normalized.toLocaleLowerCase().endsWith(".md")
+    ? normalized
+    : `${normalized}.md`;
 }
 
 function normalizeName(name: string): string {
