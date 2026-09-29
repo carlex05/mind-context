@@ -4,8 +4,8 @@ const configuredBaseUrl = process.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, ""
 const repositoryName = process.env.GITHUB_REPOSITORY?.split("/")[1];
 const repositoryOwner = process.env.GITHUB_REPOSITORY_OWNER;
 
-let site: string;
-let base: string;
+let site;
+let base;
 
 if (configuredBaseUrl) {
   const pagesUrl = new URL(configuredBaseUrl);
