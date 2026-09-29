@@ -269,7 +269,7 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     id: string,
   ): Promise<FileSystemFileHandle> {
     const handle = await this.handleAt(this.pathForId(id));
-    if (handle.kind !== "file") {
+    if (!isFileSystemFileHandle(handle)) {
       throw new Error("The requested local vault item is not a file.");
     }
     return handle;
@@ -283,13 +283,16 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     const parent = parentPath(path);
     const parentIds = path ? [this.ensureId(parent)] : [];
 
-    if (handle.kind === "directory") {
+    if (isFileSystemDirectoryHandle(handle)) {
       return {
         id,
         name: handle.name,
         kind: "directory",
         parentIds,
       };
+    }
+    if (!isFileSystemFileHandle(handle)) {
+      throw new Error(`Unsupported local file-system handle: ${handle.name}`);
     }
 
     const file = await handle.getFile();
@@ -413,7 +416,7 @@ async function copyHandle(
   destination: FileSystemDirectoryHandle,
   targetName: string,
 ): Promise<void> {
-  if (source.kind === "file") {
+  if (isFileSystemFileHandle(source)) {
     const sourceFile = await source.getFile();
     const target = await destination.getFileHandle(targetName, {
       create: true,
@@ -422,12 +425,28 @@ async function copyHandle(
     return;
   }
 
+  if (!isFileSystemDirectoryHandle(source)) {
+    throw new Error(`Unsupported local file-system handle: ${source.name}`);
+  }
+
   const target = await destination.getDirectoryHandle(targetName, {
     create: true,
   });
   for await (const [name, child] of source.entries()) {
     await copyHandle(child, target, name);
   }
+}
+
+function isFileSystemFileHandle(
+  handle: FileSystemHandle,
+): handle is FileSystemFileHandle {
+  return handle.kind === "file";
+}
+
+function isFileSystemDirectoryHandle(
+  handle: FileSystemHandle,
+): handle is FileSystemDirectoryHandle {
+  return handle.kind === "directory";
 }
 
 function createWorkspaceId(): string {
