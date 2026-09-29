@@ -1443,6 +1443,84 @@ test("reuses persisted search snapshots and only downloads changed notes", async
   ).toBeVisible();
 });
 
+test("collapsed left sidebar gives the workspace all remaining desktop width", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name.startsWith("mobile"));
+
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createNote(page, "Wide");
+
+  const workspaceMain = page.locator(".workspace-main");
+  const rail = page.locator(".workspace-rail");
+  const before = await workspaceMain.boundingBox();
+  const railBox = await rail.boundingBox();
+  const viewport = page.viewportSize();
+  expect(before).not.toBeNull();
+  expect(railBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+
+  await page
+    .getByRole("button", { name: "Collapse sidebar", exact: true })
+    .click();
+
+  const after = await workspaceMain.boundingBox();
+  expect(after).not.toBeNull();
+  expect(after!.x).toBeCloseTo(railBox!.x + railBox!.width, 0);
+  expect(after!.width).toBeCloseTo(
+    viewport!.width - railBox!.width,
+    0,
+  );
+  expect(after!.width).toBeGreaterThan(before!.width);
+});
+
+test("tree active note always follows the currently selected tab", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+
+  await createNote(page, "Alpha");
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Beta");
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+
+  const files = page.getByRole("navigation", { name: "Workspace files" });
+  const alphaTree = files.getByRole("button", {
+    name: "Alpha.md",
+    exact: true,
+  });
+  const betaTree = files.getByRole("button", {
+    name: "Beta.md",
+    exact: true,
+  });
+
+  await alphaTree.click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Alpha.md" }),
+  ).toBeVisible();
+
+  const tabs = page.getByLabel("Open tabs");
+  await tabs.getByRole("button", { name: "Beta", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Beta.md" }),
+  ).toBeVisible();
+
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
+
+  await expect(alphaTree).not.toHaveAttribute("aria-current", "page");
+  await expect(betaTree).toHaveAttribute("aria-current", "page");
+  await expect(
+    files.locator('.tree-main[aria-current="page"]'),
+  ).toHaveCount(1);
+});
+
 test("keeps multiple note tabs and restores them from local workspace state", async ({
   page,
 }, testInfo) => {

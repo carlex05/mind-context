@@ -31,6 +31,8 @@ is plain Markdown/YAML with open/Obsidian-compatible linking conventions.
 - vault explorer visibility for ordinary files and multi-file attachment upload;
 - folder action popovers can attach directly into their target folder;
 - file-tree action popovers overlay the tree instead of reflowing sibling nodes;
+- workspace grid collapses absent sidebars without reserving ghost columns;
+- file-tree Markdown selection follows the active tab as the single source of truth;
 - portable Markdown references inserted for uploaded attachments;
 - Reading View image resolution for standard Markdown images and Obsidian-style image embeds;
 - linked non-image attachments open/download through the provider;

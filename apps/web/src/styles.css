@@ -2102,12 +2102,24 @@ h2 {
 
 .workspace-shell-v2 {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: 48px minmax(0, 1fr);
   width: 100%;
   height: 100vh;
   height: 100dvh;
   min-width: 0;
   overflow: hidden;
+}
+
+.app-shell-v2.left-sidebar-open .workspace-shell-v2 {
+  grid-template-columns: 48px 282px minmax(0, 1fr);
+}
+
+.app-shell-v2.right-sidebar-open .workspace-shell-v2 {
+  grid-template-columns: 48px minmax(0, 1fr) 310px;
+}
+
+.app-shell-v2.left-sidebar-open.right-sidebar-open .workspace-shell-v2 {
+  grid-template-columns: 48px 282px minmax(0, 1fr) 310px;
 }
 
 .workspace-rail {

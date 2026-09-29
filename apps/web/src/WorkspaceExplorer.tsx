@@ -274,7 +274,7 @@ function TreeNode({
   readonly rootId: string;
   readonly expanded: ReadonlySet<string>;
   readonly onToggleFolder: (id: string) => void;
-  readonly onSelectItem: (id: string) => void;
+  readonly onSelectItem: (id: string | undefined) => void;
   readonly onSelectFolder: (id: string) => void;
   readonly onOpenNote: (id: string) => void;
   readonly onOpenAttachment: (node: WorkspaceTreeNode) => void;
@@ -288,6 +288,7 @@ function TreeNode({
 }) {
   const { t } = useTranslation();
   const isFolder = node.metadata.kind === "directory";
+  const isMarkdown = !isFolder && isMarkdownFile(node.metadata);
   const isExpanded = expanded.has(node.metadata.id);
   const menuOpen = menuItemId === node.metadata.id;
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -302,7 +303,9 @@ function TreeNode({
       <div
         className={`tree-row ${
           activeNoteId === node.metadata.id ? "active" : ""
-        } ${selectedItemId === node.metadata.id ? "selected" : ""} ${
+        } ${
+          selectedItemId === node.metadata.id && !isMarkdown ? "selected" : ""
+        } ${
           selectedFolderId === node.metadata.id ? "folder-selected" : ""
         }`}
         style={{ paddingInlineStart: `${8 + depth * 14}px` }}
@@ -328,15 +331,22 @@ function TreeNode({
         <button
           className="tree-main"
           type="button"
+          aria-current={
+            isMarkdown && activeNoteId === node.metadata.id
+              ? "page"
+              : undefined
+          }
           onClick={() => {
-            onSelectItem(node.metadata.id);
             onMenuItem(undefined);
             if (isFolder) {
+              onSelectItem(node.metadata.id);
               onSelectFolder(node.metadata.id);
               if (!isExpanded) onToggleFolder(node.metadata.id);
-            } else if (isMarkdownFile(node.metadata)) {
+            } else if (isMarkdown) {
+              onSelectItem(undefined);
               onOpenNote(node.metadata.id);
             } else {
+              onSelectItem(node.metadata.id);
               onOpenAttachment(node);
             }
           }}
