@@ -1421,6 +1421,51 @@ test("preserves unsaved drafts in memory while switching note tabs", async ({
   expect(drive.noteContentByName("Alpha.md")).toContain("Unsaved tab draft");
 });
 
+test("folder action popover overlays the tree and attaches into that folder", async ({
+  page,
+}, testInfo) => {
+  const drive = new FakeDrive();
+  await prepareDrive(page, drive);
+  await openFreshWorkspace(page);
+  await createFolder(page, "Assets");
+  await page.getByRole("button", { name: "/", exact: true }).click();
+  await createFolder(page, "Following");
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  const files = page.getByRole("navigation", { name: "Workspace files" });
+  const following = files.getByRole("button", {
+    name: "Following",
+    exact: true,
+  });
+  const before = await following.boundingBox();
+
+  await files.getByRole("button", { name: "Actions for Assets" }).click();
+  const popover = page.getByRole("dialog", { name: "Actions for Assets" });
+  await expect(popover).toBeVisible();
+  await expect(
+    popover.getByRole("button", { name: "Attach file here", exact: true }),
+  ).toBeVisible();
+
+  const after = await following.boundingBox();
+  expect(before?.y).toBe(after?.y);
+
+  await popover
+    .getByRole("button", { name: "Attach file here", exact: true })
+    .click();
+  await page.getByTestId("attachment-input").setInputFiles({
+    name: "inside-assets.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("folder attachment"),
+  });
+
+  await expect(
+    page.getByText("1 attachment added to the vault."),
+  ).toBeVisible();
+  expect(drive.filePathByName("inside-assets.txt")).toBe(
+    "Assets/inside-assets.txt",
+  );
+});
+
 test("manages nested folders and safely rewrites resolved links on rename", async ({
   page,
 }, testInfo) => {

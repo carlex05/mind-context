@@ -1,4 +1,13 @@
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import type { KnowledgeIndexSnapshot } from "@mind-context/knowledge";
 import type { StorageProvider } from "@mind-context/storage";
 import { useTranslation } from "react-i18next";
@@ -28,6 +37,7 @@ export function WorkspaceExplorer({
   onOpenAttachment,
   onRequestNewNote,
   onRequestNewFolder,
+  onRequestAttachFiles,
   onChanged,
   onStatus,
 }: {
@@ -42,6 +52,7 @@ export function WorkspaceExplorer({
   readonly onOpenAttachment: (node: WorkspaceTreeNode) => void;
   readonly onRequestNewNote: (folderId: string) => void;
   readonly onRequestNewFolder: (folderId: string) => void;
+  readonly onRequestAttachFiles: (folderId: string) => void;
   readonly onChanged: () => Promise<void>;
   readonly onStatus: (
     message: string,
@@ -216,6 +227,7 @@ export function WorkspaceExplorer({
           onMenuItem={setMenuItemId}
           onNewNote={onRequestNewNote}
           onNewFolder={onRequestNewFolder}
+          onAttachFiles={onRequestAttachFiles}
           onRename={(target) => void renameNode(target)}
           onMove={(target, destinationId) =>
             void moveNode(target, destinationId)
@@ -247,6 +259,7 @@ function TreeNode({
   onMenuItem,
   onNewNote,
   onNewFolder,
+  onAttachFiles,
   onRename,
   onMove,
   onDelete,
@@ -268,6 +281,7 @@ function TreeNode({
   readonly onMenuItem: (id: string | undefined) => void;
   readonly onNewNote: (folderId: string) => void;
   readonly onNewFolder: (folderId: string) => void;
+  readonly onAttachFiles: (folderId: string) => void;
   readonly onRename: (node: WorkspaceTreeNode) => void;
   readonly onMove: (node: WorkspaceTreeNode, destinationId: string) => void;
   readonly onDelete: (node: WorkspaceTreeNode) => void;
@@ -276,6 +290,12 @@ function TreeNode({
   const isFolder = node.metadata.kind === "directory";
   const isExpanded = expanded.has(node.metadata.id);
   const menuOpen = menuItemId === node.metadata.id;
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+
+  function runMenuAction(action: () => void) {
+    onMenuItem(undefined);
+    action();
+  }
 
   return (
     <div className="tree-node">
@@ -324,9 +344,12 @@ function TreeNode({
           {node.metadata.name}
         </button>
         <button
+          ref={menuTriggerRef}
           className="tree-menu-trigger"
           type="button"
           aria-label={t("explorer.actionsFor", { name: node.metadata.name })}
+          aria-haspopup="dialog"
+          aria-expanded={menuOpen}
           onClick={() => onMenuItem(menuOpen ? undefined : node.metadata.id)}
         >
           ⋯
@@ -334,21 +357,43 @@ function TreeNode({
       </div>
 
       {menuOpen ? (
-        <div
-          className="tree-menu"
-          style={{ marginInlineStart: `${38 + depth * 14}px` }}
+        <TreeActionPopover
+          triggerRef={menuTriggerRef}
+          label={t("explorer.actionsFor", { name: node.metadata.name })}
+          onClose={() => onMenuItem(undefined)}
         >
           {isFolder ? (
             <>
-              <button type="button" onClick={() => onNewNote(node.metadata.id)}>
+              <button
+                type="button"
+                onClick={() =>
+                  runMenuAction(() => onNewNote(node.metadata.id))
+                }
+              >
                 {t("explorer.newNoteHere")}
               </button>
-              <button type="button" onClick={() => onNewFolder(node.metadata.id)}>
+              <button
+                type="button"
+                onClick={() =>
+                  runMenuAction(() => onNewFolder(node.metadata.id))
+                }
+              >
                 {t("explorer.newFolderHere")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  runMenuAction(() => onAttachFiles(node.metadata.id))
+                }
+              >
+                {t("explorer.attachFileHere")}
               </button>
             </>
           ) : null}
-          <button type="button" onClick={() => onRename(node)}>
+          <button
+            type="button"
+            onClick={() => runMenuAction(() => onRename(node))}
+          >
             {t("explorer.rename")}
           </button>
           <label>
@@ -358,7 +403,9 @@ function TreeNode({
               onChange={(event) => {
                 const destinationId = event.target.value;
                 event.target.value = "";
-                if (destinationId) onMove(node, destinationId);
+                if (destinationId) {
+                  runMenuAction(() => onMove(node, destinationId));
+                }
               }}
             >
               <option value="">{t("explorer.choose")}</option>
@@ -379,11 +426,11 @@ function TreeNode({
           <button
             className="danger-action"
             type="button"
-            onClick={() => onDelete(node)}
+            onClick={() => runMenuAction(() => onDelete(node))}
           >
             {t("explorer.delete")}
           </button>
-        </div>
+        </TreeActionPopover>
       ) : null}
 
       {isFolder && isExpanded
@@ -407,6 +454,7 @@ function TreeNode({
               onMenuItem={onMenuItem}
               onNewNote={onNewNote}
               onNewFolder={onNewFolder}
+              onAttachFiles={onAttachFiles}
               onRename={onRename}
               onMove={onMove}
               onDelete={onDelete}
@@ -414,6 +462,101 @@ function TreeNode({
           ))
         : null}
     </div>
+  );
+}
+
+function TreeActionPopover({
+  triggerRef,
+  label,
+  onClose,
+  children,
+}: {
+  readonly triggerRef: RefObject<HTMLButtonElement | null>;
+  readonly label: string;
+  readonly onClose: () => void;
+  readonly children: ReactNode;
+}) {
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{
+    readonly top: number;
+    readonly left: number;
+  }>();
+
+  useLayoutEffect(() => {
+    const trigger = triggerRef.current;
+    const popover = popoverRef.current;
+    if (!trigger || !popover) return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+    const gap = 4;
+    const edge = 8;
+    const left = Math.min(
+      window.innerWidth - popoverRect.width - edge,
+      Math.max(edge, triggerRect.right - popoverRect.width),
+    );
+    const roomBelow = window.innerHeight - triggerRect.bottom - edge;
+    const top =
+      roomBelow >= popoverRect.height + gap
+        ? triggerRect.bottom + gap
+        : Math.max(edge, triggerRect.top - popoverRect.height - gap);
+
+    setPosition({ top, left });
+    popover
+      .querySelector<HTMLElement>("button:not(:disabled), select")
+      ?.focus();
+  }, [triggerRef]);
+
+  useEffect(() => {
+    function closeFromOutside(event: PointerEvent) {
+      const target = event.target as Node;
+      if (
+        popoverRef.current?.contains(target) ||
+        triggerRef.current?.contains(target)
+      ) {
+        return;
+      }
+      onClose();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+      triggerRef.current?.focus();
+    }
+
+    function closeOnViewportChange() {
+      onClose();
+    }
+
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [onClose, triggerRef]);
+
+  return createPortal(
+    <div
+      ref={popoverRef}
+      className="tree-menu tree-menu-popover"
+      role="dialog"
+      aria-label={label}
+      style={{
+        top: position?.top ?? 0,
+        left: position?.left ?? 0,
+        visibility: position ? "visible" : "hidden",
+      }}
+    >
+      {children}
+    </div>,
+    document.body,
   );
 }
 

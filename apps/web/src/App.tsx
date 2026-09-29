@@ -183,6 +183,7 @@ export function App() {
   const [tree, setTree] = useState<readonly WorkspaceTreeNode[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const attachmentTargetFolderIdRef = useRef<string>();
   const [openNote, setOpenNote] = useState<OpenNote>();
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState(
@@ -1467,10 +1468,14 @@ export function App() {
     }
   }
 
-  async function attachFiles(files: readonly File[]) {
+  async function attachFiles(
+    files: readonly File[],
+    requestedParentId?: string,
+  ) {
     if (!provider || files.length === 0) return;
 
-    const parentId = selectedFolderId || provider.rootId;
+    const parentId =
+      requestedParentId || selectedFolderId || provider.rootId;
     const parentNode =
       parentId === provider.rootId
         ? undefined
@@ -1537,6 +1542,11 @@ export function App() {
       await refreshWorkspaceState().catch(() => undefined);
       setStatus({ kind: "error", message: errorMessage(error, t) });
     }
+  }
+
+  function requestAttachFiles(folderId: string) {
+    attachmentTargetFolderIdRef.current = folderId;
+    attachmentInputRef.current?.click();
   }
 
   async function openAttachment(node: WorkspaceTreeNode) {
@@ -2364,7 +2374,9 @@ export function App() {
               aria-label={t("actions.attachFiles")}
               title={t("actions.attachFiles")}
               disabled={workspaceLoading}
-              onClick={() => attachmentInputRef.current?.click()}
+              onClick={() =>
+                requestAttachFiles(selectedFolderId || provider.rootId)
+              }
             >
               <Icon name="attachment" />
             </button>
@@ -2401,8 +2413,10 @@ export function App() {
           onChange={(event) => {
             const input = event.currentTarget;
             const files = Array.from(input.files ?? []);
+            const targetFolderId = attachmentTargetFolderIdRef.current;
+            attachmentTargetFolderIdRef.current = undefined;
             input.value = "";
-            void attachFiles(files);
+            void attachFiles(files, targetFolderId);
           }}
         />
         <WorkspaceExplorer
@@ -2417,6 +2431,7 @@ export function App() {
           onOpenAttachment={(node) => void openAttachment(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
+          onRequestAttachFiles={requestAttachFiles}
           onChanged={refreshWorkspaceState}
           onStatus={(message, kind = "success") =>
             setStatus({ kind, message })

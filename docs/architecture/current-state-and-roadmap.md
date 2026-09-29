@@ -29,6 +29,8 @@ is plain Markdown/YAML with open/Obsidian-compatible linking conventions.
 - Markdown create/edit/delete;
 - arbitrary binary attachment create/read behind the same provider boundary;
 - vault explorer visibility for ordinary files and multi-file attachment upload;
+- folder action popovers can attach directly into their target folder;
+- file-tree action popovers overlay the tree instead of reflowing sibling nodes;
 - portable Markdown references inserted for uploaded attachments;
 - Reading View image resolution for standard Markdown images and Obsidian-style image embeds;
 - linked non-image attachments open/download through the provider;
