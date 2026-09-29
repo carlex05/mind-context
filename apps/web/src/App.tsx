@@ -183,7 +183,7 @@ export function App() {
   const [tree, setTree] = useState<readonly WorkspaceTreeNode[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const attachmentTargetFolderIdRef = useRef<string>();
+  const attachmentTargetFolderIdRef = useRef<string | undefined>(undefined);
   const [openNote, setOpenNote] = useState<OpenNote>();
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState(
