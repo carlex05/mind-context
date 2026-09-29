@@ -172,6 +172,7 @@ export function WorkspaceHeader({
   syncState,
   driveStatus,
   pendingDriveCount,
+  storageKind,
   rightSidebarOpen,
   onBack,
   onForward,
@@ -188,6 +189,7 @@ export function WorkspaceHeader({
   readonly syncState: NoteSyncState;
   readonly driveStatus: DriveStatusState;
   readonly pendingDriveCount: number;
+  readonly storageKind: "google-drive" | "local";
   readonly rightSidebarOpen: boolean;
   readonly onBack: () => void;
   readonly onForward: () => void;
@@ -224,7 +226,11 @@ export function WorkspaceHeader({
       <div className="workspace-breadcrumb" title={breadcrumb}>
         {breadcrumb ?? ""}
       </div>
-      <DriveStatus state={driveStatus} pendingCount={pendingDriveCount} />
+      <DriveStatus
+        state={driveStatus}
+        pendingCount={pendingDriveCount}
+        storageKind={storageKind}
+      />
       {hasNote ? (
         <div className="workspace-note-actions">
           <span
@@ -282,9 +288,11 @@ export function WorkspaceHeader({
 function DriveStatus({
   state,
   pendingCount,
+  storageKind,
 }: {
   readonly state: DriveStatusState;
   readonly pendingCount: number;
+  readonly storageKind: "google-drive" | "local";
 }) {
   const { t } = useTranslation();
   const label =
@@ -300,14 +308,21 @@ function DriveStatus({
               ? t("driveStatus.pending", { count: pendingCount })
               : t("driveStatus.synced");
 
+  const title =
+    storageKind === "local"
+      ? t("driveStatus.localTitle")
+      : t("driveStatus.title");
+  const storageLabel =
+    storageKind === "local" ? t("driveStatus.localLabel") : "Drive";
+
   return (
     <span
       className={`global-drive-status ${state}`}
-      title={t("driveStatus.title")}
-      aria-label={`${t("driveStatus.title")}: ${label}`}
+      title={title}
+      aria-label={`${title}: ${label}`}
     >
       <span className="global-drive-dot" aria-hidden="true" />
-      <span className="global-drive-label">Drive</span>
+      <span className="global-drive-label">{storageLabel}</span>
       <span className="global-drive-detail">· {label}</span>
     </span>
   );

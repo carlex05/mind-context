@@ -41,8 +41,13 @@ import {
   type GoogleDriveWorkspace,
 } from "@mind-context/storage-google-drive";
 import {
+  isBrowserLocalStorageSupported,
+  pickBrowserLocalVault,
+} from "@mind-context/storage-local";
+import {
   StorageConflictError,
   type StorageObjectMetadata,
+  type StorageProvider,
 } from "@mind-context/storage";
 
 import {
@@ -141,6 +146,12 @@ type AppStatus =
   | { readonly kind: "error"; readonly message: string }
   | { readonly kind: "success"; readonly message: string };
 
+interface ActiveWorkspace {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: "google-drive" | "local";
+}
+
 interface OpenNote {
   readonly metadata: StorageObjectMetadata;
   readonly originalContent: string;
@@ -177,9 +188,9 @@ export function App() {
     readonly GoogleDriveWorkspace[]
   >([]);
   const [activeWorkspace, setActiveWorkspace] =
-    useState<GoogleDriveWorkspace>();
+    useState<ActiveWorkspace>();
   const [provider, setProvider] =
-    useState<GoogleDriveStorageProvider>();
+    useState<StorageProvider>();
   const [tree, setTree] = useState<readonly WorkspaceTreeNode[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -316,17 +327,23 @@ export function App() {
       state === "conflict",
   ).length;
   const globalDriveStatus: DriveStatusState =
-    driveSessionState === "reconnect-required"
-      ? "reconnect-required"
-      : driveSessionState === "reconnecting"
-        ? "reconnecting"
-        : driveSessionState === "expiring"
-          ? "expiring"
-          : Object.values(noteSyncStates).some((state) => state === "syncing")
-            ? "syncing"
-            : pendingDriveCount > 0
-              ? "pending"
-              : "synced";
+    activeWorkspace?.kind === "local"
+      ? Object.values(noteSyncStates).some((state) => state === "syncing")
+        ? "syncing"
+        : pendingDriveCount > 0
+          ? "pending"
+          : "synced"
+      : driveSessionState === "reconnect-required"
+        ? "reconnect-required"
+        : driveSessionState === "reconnecting"
+          ? "reconnecting"
+          : driveSessionState === "expiring"
+            ? "expiring"
+            : Object.values(noteSyncStates).some((state) => state === "syncing")
+              ? "syncing"
+              : pendingDriveCount > 0
+                ? "pending"
+                : "synced";
 
   const dirtyNoteIds = useMemo(() => {
     const result = new Set<string>();
@@ -598,6 +615,10 @@ export function App() {
     );
   }
 
+  function storageCanSync(): boolean {
+    return activeWorkspace?.kind === "local" || driveSessionCanSync();
+  }
+
   async function reconnectDrive() {
     if (!GOOGLE_CLIENT_ID || driveSessionStateRef.current === "reconnecting") {
       return;
@@ -627,11 +648,11 @@ export function App() {
     }
   }
 
-  if (!GOOGLE_CLIENT_ID) {
-    return <ConfigurationRequired />;
-  }
-
   async function connectDrive() {
+    if (!GOOGLE_CLIENT_ID) {
+      setStatus({ kind: "error", message: t("errors.driveNotConfigured") });
+      return;
+    }
     setStatus({ kind: "busy", message: t("status.connectingDrive") });
     try {
       const session = await requestGoogleDriveAccess(GOOGLE_CLIENT_ID);
@@ -701,10 +722,56 @@ export function App() {
 
   async function openWorkspace(workspace: GoogleDriveWorkspace) {
     if (!authSession) return;
+    const nextProvider = storageProviderFor(workspace, driveTokenProvider);
+    await activateWorkspace(
+      {
+        id: workspace.id,
+        name: workspace.name,
+        kind: "google-drive",
+      },
+      nextProvider,
+    );
+  }
+
+  async function openLocalVault() {
+    if (!isBrowserLocalStorageSupported()) {
+      setStatus({
+        kind: "error",
+        message: t("errors.localVaultUnsupported"),
+      });
+      return;
+    }
     if (!confirmDiscardAllDirty()) return;
 
+    setStatus({ kind: "busy", message: t("status.openingLocalVault") });
+    try {
+      const local = await pickBrowserLocalVault();
+      await activateWorkspace(
+        {
+          id: local.workspaceId,
+          name: local.name,
+          kind: "local",
+        },
+        local.provider,
+        true,
+      );
+    } catch (error) {
+      if (isPickerAbort(error)) {
+        setStatus({ kind: "idle" });
+        return;
+      }
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
+  async function activateWorkspace(
+    workspace: ActiveWorkspace,
+    nextProvider: StorageProvider,
+    discardConfirmed = false,
+  ) {
+    if (!discardConfirmed && !confirmDiscardAllDirty()) return;
+
     cancelAllScheduledSyncs();
-    const nextProvider = storageProviderFor(workspace, driveTokenProvider);
     setOnboardingMode(undefined);
 
     setWorkspaceLoading(true);
@@ -872,7 +939,6 @@ export function App() {
       setStatus({ kind: "error", message: errorMessage(error, t) });
     }
   }
-
   async function refreshWorkspaceState() {
     if (!provider || !activeWorkspace) return;
 
@@ -1716,7 +1782,7 @@ export function App() {
     delay = DRIVE_SYNC_DEBOUNCE_MS,
   ) {
     if (noteSyncStatesRef.current[noteId] === "conflict") return;
-    if (!driveSessionCanSync()) return;
+    if (!storageCanSync()) return;
     cancelDriveSyncTimer(noteId);
     const timer = setTimeout(() => {
       driveSyncTimersRef.current.delete(noteId);
@@ -1867,7 +1933,9 @@ export function App() {
 
     if (remoteContent === localContent) {
       await applyRemoteCanonical(noteId, remoteMetadata, remoteContent);
-      setStatus({ kind: "success", message: t("status.saved") });
+      setStatus({ kind: "success", message: activeWorkspace?.kind === "local"
+          ? t("status.savedLocalVault")
+          : t("status.saved") });
       return;
     }
 
@@ -2083,7 +2151,7 @@ export function App() {
     if (noteSyncStatesRef.current[noteId] === "conflict") return;
 
     cancelDriveSyncTimer(noteId);
-    if (!driveSessionCanSync()) {
+    if (!storageCanSync()) {
       await persistPendingDraft(noteId, false);
       if (tabBuffersRef.current[noteId]) {
         setNoteSyncState(noteId, "local");
@@ -2105,7 +2173,13 @@ export function App() {
 
     syncInFlightRef.current.add(noteId);
     setNoteSyncState(noteId, "syncing");
-    setStatus({ kind: "busy", message: t("status.savingDrive") });
+    setStatus({
+      kind: "busy",
+      message:
+        activeWorkspace.kind === "local"
+          ? t("status.savingLocalVault")
+          : t("status.savingDrive"),
+    });
 
     const contentToSave = buffer.draft;
     const noteAtStart = buffer.note;
@@ -2158,7 +2232,9 @@ export function App() {
 
       setStatus({
         kind: "success",
-        message: t("status.saved"),
+        message: activeWorkspace?.kind === "local"
+          ? t("status.savedLocalVault")
+          : t("status.saved"),
       });
 
       void updateDerivedIndexesAfterRemoteSave(metadata, contentToSave).catch(
@@ -2320,40 +2396,50 @@ export function App() {
     return window.confirm(t("confirm.discardOpenTabs"));
   }
 
-  if (!authSession || !workspaceService) {
-    return <Landing status={status} onConnect={connectDrive} />;
-  }
-
   if (!activeWorkspace || !provider) {
+    if (!authSession || !workspaceService) {
+      return (
+        <Landing
+          status={status}
+          googleAvailable={Boolean(GOOGLE_CLIENT_ID)}
+          localAvailable={isBrowserLocalStorageSupported()}
+          onConnect={connectDrive}
+          onOpenLocal={openLocalVault}
+        />
+      );
+    }
+
     return (
       <>
-      <DriveSessionBanner
-        state={driveSessionState}
-        onReconnect={() => void reconnectDrive()}
-      />
-      <WorkspaceChooser
-        workspaces={workspaces}
-        workspaceName={workspaceName}
-        status={status}
-        expiresAt={authSession.expiresAt}
-        onWorkspaceNameChange={setWorkspaceName}
-        onCreateWorkspace={() => setOnboardingMode("create")}
-        onOpenWorkspace={openWorkspace}
-        onRefresh={() => refreshWorkspaces()}
-        onDisconnect={disconnect}
-      />
-      <WorkspaceOnboardingDialog
-        open={onboardingMode === "create"}
-        mode="create"
-        workspaceName={workspaceName}
-        initialLocale={resolvedTemplateLocale(i18n.resolvedLanguage)}
-        submitting={onboardingSubmitting}
-        onClose={() => {
-          if (!onboardingSubmitting) setOnboardingMode(undefined);
-        }}
-        onSubmit={createWorkspace}
-      />
-    </>
+        <DriveSessionBanner
+          state={driveSessionState}
+          onReconnect={() => void reconnectDrive()}
+        />
+        <WorkspaceChooser
+          workspaces={workspaces}
+          workspaceName={workspaceName}
+          status={status}
+          expiresAt={authSession.expiresAt}
+          localAvailable={isBrowserLocalStorageSupported()}
+          onWorkspaceNameChange={setWorkspaceName}
+          onCreateWorkspace={() => setOnboardingMode("create")}
+          onOpenWorkspace={openWorkspace}
+          onOpenLocal={openLocalVault}
+          onRefresh={() => refreshWorkspaces()}
+          onDisconnect={disconnect}
+        />
+        <WorkspaceOnboardingDialog
+          open={onboardingMode === "create"}
+          mode="create"
+          workspaceName={workspaceName}
+          initialLocale={resolvedTemplateLocale(i18n.resolvedLanguage)}
+          submitting={onboardingSubmitting}
+          onClose={() => {
+            if (!onboardingSubmitting) setOnboardingMode(undefined);
+          }}
+          onSubmit={createWorkspace}
+        />
+      </>
     );
   }
 
@@ -2640,10 +2726,12 @@ export function App() {
         mobileSidebarOpen ? "mobile-sidebar-open" : "",
       ].join(" ")}
     >
-      <DriveSessionBanner
-        state={driveSessionState}
-        onReconnect={() => void reconnectDrive()}
-      />
+      {activeWorkspace.kind === "google-drive" ? (
+        <DriveSessionBanner
+          state={driveSessionState}
+          onReconnect={() => void reconnectDrive()}
+        />
+      ) : null}
       <div className="workspace-shell-v2">
         <WorkspaceRail
           activePanel={activeLeftPanel}
@@ -2680,6 +2768,7 @@ export function App() {
             syncState={activeSyncState}
             driveStatus={globalDriveStatus}
             pendingDriveCount={pendingDriveCount}
+            storageKind={activeWorkspace.kind}
             rightSidebarOpen={rightSidebarOpen}
             onBack={() => void navigateHistory("back")}
             onForward={() => void navigateHistory("forward")}
@@ -3117,10 +3206,16 @@ function brokenReason(
 
 function Landing({
   status,
+  googleAvailable,
+  localAvailable,
   onConnect,
+  onOpenLocal,
 }: {
   readonly status: AppStatus;
+  readonly googleAvailable: boolean;
+  readonly localAvailable: boolean;
   readonly onConnect: () => void;
+  readonly onOpenLocal: () => void;
 }) {
   const { t } = useTranslation();
   const principles = t("landing.principles", {
@@ -3137,16 +3232,33 @@ function Landing({
         <span className="eyebrow">{t("landing.eyebrow")}</span>
         <h1>{t("landing.title")}</h1>
         <p className="lede">{t("landing.body")}</p>
-        <button
-          className="primary-button large"
-          type="button"
-          onClick={onConnect}
-          disabled={status.kind === "busy"}
-        >
-          {status.kind === "busy"
-            ? t("landing.connecting")
-            : t("landing.connect")}
-        </button>
+        <div className="hero-actions">
+          <button
+            className="primary-button large"
+            type="button"
+            onClick={onOpenLocal}
+            disabled={!localAvailable || status.kind === "busy"}
+          >
+            {t("landing.openLocal")}
+          </button>
+          {googleAvailable ? (
+            <button
+              className="secondary-button large"
+              type="button"
+              onClick={onConnect}
+              disabled={status.kind === "busy"}
+            >
+              {status.kind === "busy"
+                ? t("landing.connecting")
+                : t("landing.connect")}
+            </button>
+          ) : null}
+        </div>
+        {!localAvailable ? (
+          <p className="storage-support-note">
+            {t("landing.localUnsupported")}
+          </p>
+        ) : null}
         <StatusBar status={status} />
       </section>
 
@@ -3170,9 +3282,11 @@ function WorkspaceChooser({
   workspaceName,
   status,
   expiresAt,
+  localAvailable,
   onWorkspaceNameChange,
   onCreateWorkspace,
   onOpenWorkspace,
+  onOpenLocal,
   onRefresh,
   onDisconnect,
 }: {
@@ -3180,9 +3294,11 @@ function WorkspaceChooser({
   readonly workspaceName: string;
   readonly status: AppStatus;
   readonly expiresAt: number;
+  readonly localAvailable: boolean;
   readonly onWorkspaceNameChange: (name: string) => void;
   readonly onCreateWorkspace: () => void;
   readonly onOpenWorkspace: (workspace: GoogleDriveWorkspace) => void;
+  readonly onOpenLocal: () => void;
   readonly onRefresh: () => void;
   readonly onDisconnect: () => void;
 }) {
@@ -3197,16 +3313,39 @@ function WorkspaceChooser({
         <div>
           <span className="eyebrow">{t("chooser.connected")}</span>
           <h1>{t("chooser.title")}</h1>
-          <p>
-            {t("chooser.body")}
-          </p>
+          <p>{t("chooser.body")}</p>
         </div>
-        <button className="secondary-button" type="button" onClick={onDisconnect}>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={onDisconnect}
+        >
           {t("chooser.disconnect")}
         </button>
       </header>
 
       <section className="chooser-grid">
+        <article className="local-vault-card">
+          <div>
+            <span className="section-label">{t("chooser.local")}</span>
+            <h2>{t("chooser.localTitle")}</h2>
+            <p>{t("chooser.localBody")}</p>
+          </div>
+          <div className="local-vault-actions">
+            <button
+              className="primary-button"
+              type="button"
+              disabled={!localAvailable || status.kind === "busy"}
+              onClick={onOpenLocal}
+            >
+              {t("chooser.openLocal")}
+            </button>
+            {!localAvailable ? (
+              <small>{t("chooser.localUnsupported")}</small>
+            ) : null}
+          </div>
+        </article>
+
         <article className="create-card">
           <span className="section-label">{t("chooser.newWorkspace")}</span>
           <label htmlFor="workspace-name">{t("chooser.folderName")}</label>
@@ -3395,6 +3534,10 @@ function StatusBar({ status }: { readonly status: AppStatus }) {
 
 function isDriveUnauthorized(error: unknown): boolean {
   return error instanceof GoogleDriveApiError && error.status === 401;
+}
+
+function isPickerAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
 }
 
 function attachmentFileName(

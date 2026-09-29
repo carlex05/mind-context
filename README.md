@@ -8,8 +8,9 @@ MindContext is a privacy-first, local-first, Markdown-first knowledge workspace.
 > your own Markdown notes in MindContext will remain free. Existing notes will
 > never be put behind a paywall.
 
-User knowledge stays between the user's browser/device and the storage provider
-selected by the user. The first storage provider is Google Drive.
+User knowledge stays between the user's browser/device and storage selected by
+the user. MindContext can now open a local folder directly through the browser
+File System Access API, or use Google Drive through the existing provider.
 MindContext-controlled infrastructure must not require note contents, embeddings,
 search queries or RAG context.
 
@@ -19,8 +20,10 @@ The repository currently includes:
 
 - React + Vite responsive web shell inspired by a minimal Obsidian workspace;
 - CodeMirror 6 Markdown editor + reading view;
-- note tabs with browser-local recovery drafts, content-aware Drive synchronization, hidden Markdown safety copies and a Settings Recovery Center;
-- nested Drive-backed vault explorer that includes Markdown and ordinary attachments;
+- note tabs with browser-local recovery drafts, content-aware canonical-storage synchronization, hidden Markdown safety copies and a Settings Recovery Center;
+- direct local-folder vaults backed by the browser File System Access API;
+- Google Drive workspaces behind the same storage-provider contract;
+- nested vault explorer that includes Markdown and ordinary attachments;
 - arbitrary file attachment upload with portable Markdown references and Reading View image rendering;
 - safe note/folder create, rename, move and delete;
 - conservative link rewriting on rename/move;
@@ -98,10 +101,10 @@ https://carlex05.github.io/mind-context/        # public site
 https://carlex05.github.io/mind-context/app/    # application
 ```
 
-The public site is a static Astro build. The Drive-backed React application is
-published under `/app/`. Google Drive availability in that application depends
-on its OAuth configuration; without a configured Google Client ID, `/app/`
-intentionally exposes a non-persistent local editor preview.
+The public site is a static Astro build. The React application is published
+under `/app/`. Compatible browsers can open a local folder directly without
+Google authentication. Google Drive remains an optional provider and depends on
+OAuth configuration.
 
 See [deployment instructions](docs/deployment.md) and
 [Architecture](docs/architecture/README.md).

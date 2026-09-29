@@ -23,6 +23,7 @@
     "@mind-context/search": "workspace:*",
     "@mind-context/storage": "workspace:*",
     "@mind-context/storage-google-drive": "workspace:*",
+    "@mind-context/storage-local": "workspace:*",
     "codemirror": "^6.0.2",
     "cytoscape": "^3.34.3",
     "i18next": "^26.4.2",

@@ -15,16 +15,25 @@ MindContext is a browser-first, privacy-first Second Brain:
 The browser communicates directly with user-owned storage. The core personal
 path does not require a MindContext server to process private knowledge.
 
-The first storage provider is Google Drive. The supported canonical note model
-is plain Markdown/YAML with open/Obsidian-compatible linking conventions.
+Canonical storage is provider-neutral. The supported providers are now direct
+local folders in compatible browsers and Google Drive. The supported canonical
+note model is plain Markdown/YAML with open/Obsidian-compatible linking
+conventions.
 
 ## Implemented vertical slices
 
 ### Storage and vault
 
-- Google Drive adapter behind `StorageProvider`.
-- `drive.file` least-privilege scope.
-- MindContext-created/discoverable workspace folders.
+- provider-neutral `StorageProvider` boundary;
+- direct local-folder adapter using the browser File System Access API;
+- local vaults open in place without import or format conversion;
+- local files, attachments, folders, rename/move/delete and conflict revisions use the same workspace flows as Drive;
+- local object IDs remain stable within the session even when paths change through MindContext;
+- local-folder access requires a compatible secure browser context and explicit user selection;
+- local folder handles are not yet restored automatically across a fully closed browser session;
+- Google Drive adapter behind `StorageProvider`;
+- `drive.file` least-privilege scope;
+- MindContext-created/discoverable Drive workspace folders;
 - nested directories;
 - Markdown create/edit/delete;
 - arbitrary binary attachment create/read behind the same provider boundary;
@@ -109,9 +118,10 @@ the Preserve / Parse / Render / Interact contract and future plugin seam.
 - dark/light/system theme.
 
 Pending edits are persisted browser-locally in a dedicated IndexedDB recovery
-store before deferred Drive synchronization. Drive remains canonical. Pending
-drafts retain their base revision/content so conflicts can be detected now and
-a future multi-device sync layer can perform three-way reconciliation.
+store before deferred canonical-storage synchronization. The selected provider
+remains canonical. Pending drafts retain their base revision/content so
+conflicts can be detected and future provider-specific reconciliation can build
+on the same model.
 
 ### Internationalization
 
@@ -209,6 +219,26 @@ but it needs dedicated behavior tests before treating it as fully hardened.
 Before adding more starter types, extract a small creation-plan/preflight layer
 that can detect path collisions and return a useful partial-failure report.
 Do not turn this into a proprietary manifest or transactional database.
+
+## Local-vault follow-up
+
+The first direct-local-folder slice is implemented and intentionally keeps the
+permission model explicit.
+
+Remaining work:
+
+- persist selected `FileSystemDirectoryHandle` records in IndexedDB;
+- on reload, call `queryPermission()` and offer a user-initiated
+  `requestPermission()` flow instead of silently assuming access;
+- assign a stable browser-local workspace identity so search snapshots, recent
+  notes and UI state can be reused when the same folder is reopened;
+- add compatibility guidance/fallback import for browsers without
+  `showDirectoryPicker()`;
+- decide whether tool metadata folders such as `.obsidian/` should be hidden
+  from the default file explorer while always remaining untouched on disk.
+
+Do not fall back to OPFS or IndexedDB as canonical note storage merely because
+direct local-folder access is unavailable.
 
 ## Next major slice — Ask Second Brain / local RAG with citations
 
@@ -383,6 +413,7 @@ Settings should expose:
 - arbitrary third-party plugin execution/marketplace;
 - cloud LLM integrations;
 - arbitrary existing Drive-vault import/open;
+- additional storage providers such as OneDrive, Dropbox and WebDAV/Nextcloud;
 - real-time collaboration/CRDT;
 - multi-device synchronization beyond canonical storage behavior.
 

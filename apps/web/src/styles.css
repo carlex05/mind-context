@@ -165,9 +165,25 @@ h2 {
   line-height: 1.65;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.storage-support-note {
+  max-width: 620px;
+  margin: 12px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .principles-card,
 .create-card,
 .existing-card,
+.local-vault-card,
 .setup-card {
   padding: 24px;
   background: var(--surface);
@@ -374,6 +390,38 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.local-vault-card {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.local-vault-card h2 {
+  margin-bottom: 8px;
+}
+
+.local-vault-card p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.local-vault-actions {
+  display: flex;
+  min-width: 190px;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.local-vault-actions small {
+  color: var(--ink-muted);
+  line-height: 1.4;
 }
 
 .create-card label,
@@ -1144,6 +1192,15 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .local-vault-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hero-actions > button {
+    flex: 1 1 220px;
+  }
+
   .topbar {
     min-height: 62px;
   }
@@ -1267,6 +1324,7 @@ h2 {
   .principles-card,
   .create-card,
   .existing-card,
+  .local-vault-card,
   .setup-card {
     padding: 18px;
     border-radius: 14px;

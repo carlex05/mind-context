@@ -59,6 +59,56 @@ test("creates, edits and saves a private Markdown note through the Drive boundar
   }
 });
 
+test("opens and edits an existing local Markdown vault without Google Drive", async ({
+  page,
+}, testInfo) => {
+  const googleRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("googleapis.com")) {
+      googleRequests.push(request.url());
+    }
+  });
+
+  await prepareLocalVault(page);
+  await page.getByRole("button", { name: "Open local vault" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  const files = page.getByRole("navigation", { name: "Workspace files" });
+  await expect(
+    files.getByRole("button", { name: "Existing.md", exact: true }),
+  ).toBeVisible();
+
+  await files
+    .getByRole("button", { name: "Existing.md", exact: true })
+    .click();
+  const editor = page.getByRole("textbox", { name: "Edit Existing.md" });
+  await expect(editor).toContainText("Existing local note");
+  await replaceEditorContent(
+    page,
+    editor,
+    "# Existing\n\nUpdated directly in the local vault.",
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved to local vault.")).toBeVisible();
+
+  const saved = await page.evaluate(() =>
+    (window as any).__mindContextReadLocal("Existing.md"),
+  );
+  expect(saved).toContain("Updated directly in the local vault.");
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Created Locally");
+  const paths = await page.evaluate(() =>
+    (window as any).__mindContextLocalPaths(),
+  );
+  expect(paths).toContain("Created Locally.md");
+  expect(paths).toContain(".obsidian/app.json");
+  expect(googleRequests).toHaveLength(0);
+});
+
 test("drops files and pastes clipboard images into the active note folder", async ({
   page,
 }) => {
@@ -1703,6 +1753,223 @@ test("manages nested folders and safely rewrites resolved links on rename", asyn
   expect(drive.filePathByName("Alpha.md")).toBe("Projects/Alpha.md");
   expect(drive.filePathByName("Gamma.md")).toBe("Gamma.md");
 });
+
+async function prepareLocalVault(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type LocalFileNode = {
+      kind: "file";
+      name: string;
+      content: string;
+      mimeType: string;
+      modifiedAt: number;
+    };
+    type LocalDirectoryNode = {
+      kind: "directory";
+      name: string;
+      children: Map<string, LocalNode>;
+    };
+    type LocalNode = LocalFileNode | LocalDirectoryNode;
+
+    const textFromChunk = async (chunk: unknown): Promise<string> => {
+      if (typeof chunk === "string") return chunk;
+      if (chunk instanceof Blob) return chunk.text();
+      if (chunk instanceof ArrayBuffer) {
+        return new TextDecoder().decode(new Uint8Array(chunk));
+      }
+      if (ArrayBuffer.isView(chunk)) {
+        return new TextDecoder().decode(
+          new Uint8Array(
+            chunk.buffer,
+            chunk.byteOffset,
+            chunk.byteLength,
+          ),
+        );
+      }
+      return String(chunk ?? "");
+    };
+
+    class FakeLocalFileHandle {
+      readonly kind = "file" as const;
+
+      constructor(readonly node: LocalFileNode) {}
+
+      get name(): string {
+        return this.node.name;
+      }
+
+      async getFile(): Promise<File> {
+        return new File([this.node.content], this.node.name, {
+          type: this.node.mimeType,
+          lastModified: this.node.modifiedAt,
+        });
+      }
+
+      async createWritable() {
+        const node = this.node;
+        return {
+          async write(chunk: unknown) {
+            node.content = await textFromChunk(chunk);
+            node.modifiedAt += 1;
+          },
+          async close() {},
+          async abort() {},
+        };
+      }
+    }
+
+    class FakeLocalDirectoryHandle {
+      readonly kind = "directory" as const;
+
+      constructor(readonly node: LocalDirectoryNode) {}
+
+      get name(): string {
+        return this.node.name;
+      }
+
+      async *entries(): AsyncGenerator<
+        [string, FakeLocalFileHandle | FakeLocalDirectoryHandle]
+      > {
+        for (const [name, child] of this.node.children.entries()) {
+          yield [
+            name,
+            child.kind === "file"
+              ? new FakeLocalFileHandle(child)
+              : new FakeLocalDirectoryHandle(child),
+          ];
+        }
+      }
+
+      async getFileHandle(
+        name: string,
+        options?: { create?: boolean },
+      ): Promise<FakeLocalFileHandle> {
+        const current = this.node.children.get(name);
+        if (current?.kind === "file") {
+          return new FakeLocalFileHandle(current);
+        }
+        if (current) {
+          throw new DOMException("Wrong kind", "TypeMismatchError");
+        }
+        if (!options?.create) {
+          throw new DOMException("Not found", "NotFoundError");
+        }
+        const created: LocalFileNode = {
+          kind: "file",
+          name,
+          content: "",
+          mimeType: name.toLowerCase().endsWith(".md")
+            ? "text/markdown"
+            : "application/octet-stream",
+          modifiedAt: Date.now(),
+        };
+        this.node.children.set(name, created);
+        return new FakeLocalFileHandle(created);
+      }
+
+      async getDirectoryHandle(
+        name: string,
+        options?: { create?: boolean },
+      ): Promise<FakeLocalDirectoryHandle> {
+        const current = this.node.children.get(name);
+        if (current?.kind === "directory") {
+          return new FakeLocalDirectoryHandle(current);
+        }
+        if (current) {
+          throw new DOMException("Wrong kind", "TypeMismatchError");
+        }
+        if (!options?.create) {
+          throw new DOMException("Not found", "NotFoundError");
+        }
+        const created: LocalDirectoryNode = {
+          kind: "directory",
+          name,
+          children: new Map(),
+        };
+        this.node.children.set(name, created);
+        return new FakeLocalDirectoryHandle(created);
+      }
+
+      async removeEntry(name: string): Promise<void> {
+        if (!this.node.children.delete(name)) {
+          throw new DOMException("Not found", "NotFoundError");
+        }
+      }
+    }
+
+    const obsidian: LocalDirectoryNode = {
+      kind: "directory",
+      name: ".obsidian",
+      children: new Map([
+        [
+          "app.json",
+          {
+            kind: "file",
+            name: "app.json",
+            content: "{}",
+            mimeType: "application/json",
+            modifiedAt: Date.now(),
+          },
+        ],
+      ]),
+    };
+    const root: LocalDirectoryNode = {
+      kind: "directory",
+      name: "Obsidian Vault",
+      children: new Map([
+        [
+          "Existing.md",
+          {
+            kind: "file",
+            name: "Existing.md",
+            content: "# Existing\n\nExisting local note.",
+            mimeType: "text/markdown",
+            modifiedAt: Date.now(),
+          },
+        ],
+        [".obsidian", obsidian],
+      ]),
+    };
+
+    const readNode = (path: string): LocalNode | undefined => {
+      let current: LocalNode = root;
+      for (const segment of path.split("/").filter(Boolean)) {
+        if (current.kind !== "directory") return undefined;
+        const next = current.children.get(segment);
+        if (!next) return undefined;
+        current = next;
+      }
+      return current;
+    };
+
+    const collectPaths = (
+      directory: LocalDirectoryNode,
+      prefix = "",
+    ): string[] => {
+      const paths: string[] = [];
+      for (const child of directory.children.values()) {
+        const path = prefix ? `${prefix}/${child.name}` : child.name;
+        if (child.kind === "file") {
+          paths.push(path);
+        } else {
+          paths.push(...collectPaths(child, path));
+        }
+      }
+      return paths.sort();
+    };
+
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: async () => new FakeLocalDirectoryHandle(root),
+    });
+    (window as any).__mindContextReadLocal = (path: string) => {
+      const node = readNode(path);
+      return node?.kind === "file" ? node.content : undefined;
+    };
+    (window as any).__mindContextLocalPaths = () => collectPaths(root);
+  });
+
+  await page.goto("/");
+}
 
 async function prepareDrive(page: Page, drive: FakeDrive): Promise<void> {
   await installGoogleIdentityMock(page);
