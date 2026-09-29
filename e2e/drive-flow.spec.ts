@@ -89,15 +89,33 @@ test("adds ordinary vault attachments and renders referenced images", async ({
     page.getByText("2 attachments added to the vault."),
   ).toBeVisible();
 
-  const files = page.getByRole("navigation", { name: "Workspace files" });
-  await expect(files.getByRole("button", { name: "diagram.svg" })).toBeVisible();
-  await expect(
-    files.getByRole("button", { name: "reference.pdf" }),
-  ).toBeVisible();
   await expect(editor).toContainText("![diagram.svg](./diagram.svg)");
   await expect(editor).toContainText("[reference.pdf](./reference.pdf)");
 
-  await page.getByRole("button", { name: "Reading view", exact: true }).click();
+  const files = page.getByRole("navigation", { name: "Workspace files" });
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
+  await expect(
+    files.getByRole("button", { name: "diagram.svg", exact: true }),
+  ).toBeVisible();
+  await expect(
+    files.getByRole("button", { name: "reference.pdf", exact: true }),
+  ).toBeVisible();
+
+  const readingView = page.getByRole("button", {
+    name: "Reading view",
+    exact: true,
+  });
+  if (!(await readingView.isVisible())) {
+    const collapse = page.getByRole("button", {
+      name: "Collapse sidebar",
+      exact: true,
+    });
+    if (await collapse.isVisible()) await collapse.click();
+  }
+  await readingView.click();
   const reading = page.getByLabel("Reading view");
   const image = reading.getByRole("img", { name: "diagram.svg" });
   await expect(image).toBeVisible();
