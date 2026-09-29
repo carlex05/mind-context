@@ -17,10 +17,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
     env:
-      PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
-      PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
-      VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL || secrets.PUBLIC_SITE_URL }}
+      PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID || secrets.GA_MEASUREMENT_ID }}
+      VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID || secrets.GOOGLE_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +31,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          missing=0
+
+          if [[ -z "$PUBLIC_SITE_URL" ]]; then
+            echo "::error::Missing PUBLIC_SITE_URL. Configure it as a repository or github-pages environment variable."
+            missing=1
+          fi
+
+          if [[ -z "$VITE_GOOGLE_CLIENT_ID" ]]; then
+            echo "::error::Missing GOOGLE_CLIENT_ID. Configure it as a repository or github-pages environment variable."
+            missing=1
+          fi
+
+          if [[ -z "$PUBLIC_GA_MEASUREMENT_ID" ]]; then
+            echo "::warning::GA_MEASUREMENT_ID is not configured. The site will deploy without analytics."
+          fi
+
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
 
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm build
