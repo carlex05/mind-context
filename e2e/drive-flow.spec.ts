@@ -109,10 +109,10 @@ test("opens and edits an existing local Markdown vault without Google Drive", as
   expect(googleRequests).toHaveLength(0);
 });
 
-test("remembers a granted local vault and restores it after reload", async ({
+test("remembers a local vault identity across reload and folder reselection", async ({
   page,
 }, testInfo) => {
-  await preparePersistentLocalVault(page);
+  await prepareLocalVault(page);
 
   await page.getByRole("button", { name: "Open local vault" }).click();
   await expect(
@@ -125,41 +125,37 @@ test("remembers a granted local vault and restores it after reload", async ({
     .getByRole("button", { name: "Existing.md", exact: true })
     .click();
 
-  const editor = page.getByRole("textbox", { name: "Edit Existing.md" });
-  await expect(editor).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Existing.md" }),
+  ).toBeVisible();
 
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Object.entries(window.localStorage).some(([key, value]) => {
-          if (!key.startsWith("mindcontext.workspace-ui.")) return false;
-          try {
-            const parsed = JSON.parse(value) as { tabs?: unknown[] };
-            return Array.isArray(parsed.tabs) && parsed.tabs.length > 0;
-          } catch {
-            return false;
-          }
-        }),
-      ),
-    )
-    .toBe(true);
-
+  const workspaceKeyBefore = await waitForPersistedWorkspaceUi(page);
   expect(
     await page.evaluate(() =>
-      (window as any).__mindContextPersistentPickerCalls(),
+      (window as any).__mindContextLocalPickerCalls(),
     ),
   ).toBe(1);
 
   await page.reload();
 
+  await expect(page.getByText("Recent local vaults", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Choose the folder again", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Open local vault", exact: true }).click();
+
   await expect(
     page.getByRole("textbox", { name: "Edit Existing.md" }),
   ).toBeVisible({ timeout: 10_000 });
+
+  const workspaceKeyAfter = await waitForPersistedWorkspaceUi(page);
+  expect(workspaceKeyAfter).toBe(workspaceKeyBefore);
   expect(
     await page.evaluate(() =>
-      (window as any).__mindContextPersistentPickerCalls(),
+      (window as any).__mindContextLocalPickerCalls(),
     ),
-  ).toBe(1);
+  ).toBe(2);
 });
 
 test("drops files and pastes clipboard images into the active note folder", async ({
@@ -1818,6 +1814,7 @@ async function prepareLocalVault(page: Page): Promise<void> {
     };
     type LocalDirectoryNode = {
       kind: "directory";
+      id: string;
       name: string;
       children: Map<string, LocalNode>;
     };
@@ -1935,6 +1932,7 @@ async function prepareLocalVault(page: Page): Promise<void> {
         }
         const created: LocalDirectoryNode = {
           kind: "directory",
+          id: `${this.node.id}/${name}`,
           name,
           children: new Map(),
         };
@@ -1947,10 +1945,21 @@ async function prepareLocalVault(page: Page): Promise<void> {
           throw new DOMException("Not found", "NotFoundError");
         }
       }
+
+      async isSameEntry(other: unknown): Promise<boolean> {
+        return (
+          typeof other === "object" &&
+          other !== null &&
+          "node" in other &&
+          typeof (other as { node?: unknown }).node === "object" &&
+          (other as { node?: { id?: unknown } }).node?.id === this.node.id
+        );
+      }
     }
 
     const obsidian: LocalDirectoryNode = {
       kind: "directory",
+      id: "local-test-root/.obsidian",
       name: ".obsidian",
       children: new Map([
         [
@@ -1967,6 +1976,7 @@ async function prepareLocalVault(page: Page): Promise<void> {
     };
     const root: LocalDirectoryNode = {
       kind: "directory",
+      id: "local-test-root",
       name: "Obsidian Vault",
       children: new Map([
         [
@@ -2012,70 +2022,20 @@ async function prepareLocalVault(page: Page): Promise<void> {
 
     Object.defineProperty(window, "showDirectoryPicker", {
       configurable: true,
-      value: async () => new FakeLocalDirectoryHandle(root),
+      value: async () => {
+        const key = "__mindcontextLocalPickerCalls";
+        const next = Number(window.localStorage.getItem(key) ?? "0") + 1;
+        window.localStorage.setItem(key, String(next));
+        return new FakeLocalDirectoryHandle(root);
+      },
     });
+    (window as any).__mindContextLocalPickerCalls = () =>
+      Number(window.localStorage.getItem("__mindcontextLocalPickerCalls") ?? "0");
     (window as any).__mindContextReadLocal = (path: string) => {
       const node = readNode(path);
       return node?.kind === "file" ? node.content : undefined;
     };
     (window as any).__mindContextLocalPaths = () => collectPaths(root);
-  });
-
-  await page.goto("/");
-}
-
-async function preparePersistentLocalVault(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const ensureVault = async (): Promise<FileSystemDirectoryHandle> => {
-      const storage = navigator.storage as StorageManager & {
-        getDirectory: () => Promise<FileSystemDirectoryHandle>;
-      };
-      const opfsRoot = await storage.getDirectory();
-      const vault = await opfsRoot.getDirectoryHandle("Obsidian Vault", {
-        create: true,
-      });
-      const existing = await vault.getFileHandle("Existing.md", {
-        create: true,
-      });
-      const existingFile = await existing.getFile();
-      if (existingFile.size === 0) {
-        const writable = await existing.createWritable();
-        await writable.write("# Existing\n\nPersistent local note.");
-        await writable.close();
-      }
-
-      const obsidian = await vault.getDirectoryHandle(".obsidian", {
-        create: true,
-      });
-      const config = await obsidian.getFileHandle("app.json", {
-        create: true,
-      });
-      const configFile = await config.getFile();
-      if (configFile.size === 0) {
-        const writable = await config.createWritable();
-        await writable.write("{}");
-        await writable.close();
-      }
-
-      return vault;
-    };
-
-    Object.defineProperty(window, "showDirectoryPicker", {
-      configurable: true,
-      value: async () => {
-        const key = "__mindcontextPersistentPickerCalls";
-        const next = Number(window.localStorage.getItem(key) ?? "0") + 1;
-        window.localStorage.setItem(key, String(next));
-        return ensureVault();
-      },
-    });
-
-    (window as any).__mindContextPersistentPickerCalls = () =>
-      Number(
-        window.localStorage.getItem(
-          "__mindcontextPersistentPickerCalls",
-        ) ?? "0",
-      );
   });
 
   await page.goto("/");
@@ -2105,6 +2065,30 @@ async function openFreshWorkspace(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", { name: "Welcome back" }),
   ).toBeVisible();
+}
+
+async function waitForPersistedWorkspaceUi(page: Page): Promise<string> {
+  let persistedKey = "";
+  await expect
+    .poll(async () => {
+      persistedKey = await page.evaluate(() => {
+        for (const [key, value] of Object.entries(window.localStorage)) {
+          if (!key.startsWith("mindcontext.workspace-ui.")) continue;
+          try {
+            const parsed = JSON.parse(value) as { tabs?: unknown[] };
+            if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+              return key;
+            }
+          } catch {
+            // Ignore malformed unrelated localStorage values.
+          }
+        }
+        return "";
+      });
+      return persistedKey.length > 0;
+    })
+    .toBe(true);
+  return persistedKey;
 }
 
 async function createNote(page: Page, name: string): Promise<void> {
