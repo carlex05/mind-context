@@ -413,6 +413,9 @@ export function App() {
   const currentIndexedNote = openNote
     ? getNote(knowledgeIndex, openNote.metadata.id)
     : undefined;
+  const ActivePluginView = openPluginResource
+    ? extensionHost.resolveFileView(openPluginResource.fileTypeId)
+    : undefined;
   const activeMarkdownNavigation =
     openNote && markdownNavigation?.noteId === openNote.metadata.id
       ? markdownNavigation
@@ -1590,21 +1593,24 @@ export function App() {
     );
   }
 
-  async function closeTab(noteId: string) {
-    const index = tabs.findIndex((tab) => tab.resourceId === noteId);
+  async function closeTab(resourceId: string) {
+    const index = tabs.findIndex((tab) => tab.resourceId === resourceId);
     if (index < 0) return;
 
-    const closingActive = activeTabId === noteId;
+    const closingTab = tabs[index];
+    const closingActive = activeTabId === resourceId;
     const buffer =
-      tabBuffersRef.current[noteId] ??
-      (closingActive && openNote ? { note: openNote, draft } : undefined);
+      closingTab?.resourceKind === "markdown"
+        ? tabBuffersRef.current[resourceId] ??
+          (closingActive && openNote ? { note: openNote, draft } : undefined)
+        : undefined;
     const tabDirty =
       buffer !== undefined &&
       buffer.draft !== buffer.note.originalContent;
 
     if (tabDirty) {
-      await persistPendingDraft(noteId, false);
-      const conflict = noteConflictsRef.current[noteId];
+      await persistPendingDraft(resourceId, false);
+      const conflict = noteConflictsRef.current[resourceId];
       if (conflict && provider && buffer) {
         try {
           await createRecoveryCopy(provider, {
@@ -1627,18 +1633,21 @@ export function App() {
         }
       }
     }
-    cancelLocalDraftTimer(noteId);
-    cancelDriveSyncTimer(noteId);
-    cancelConflictRecoveryTimer(noteId);
 
-    const remaining = tabs.filter((tab) => tab.resourceId !== noteId);
+    if (closingTab?.resourceKind === "markdown") {
+      cancelLocalDraftTimer(resourceId);
+      cancelDriveSyncTimer(resourceId);
+      cancelConflictRecoveryTimer(resourceId);
+      removeTabBuffer(resourceId);
+      const nextSyncStates = { ...noteSyncStatesRef.current };
+      delete nextSyncStates[resourceId];
+      noteSyncStatesRef.current = nextSyncStates;
+      setNoteSyncStates(nextSyncStates);
+      clearNoteConflict(resourceId);
+    }
+
+    const remaining = tabs.filter((tab) => tab.resourceId !== resourceId);
     setTabs(remaining);
-    removeTabBuffer(noteId);
-    const nextSyncStates = { ...noteSyncStatesRef.current };
-    delete nextSyncStates[noteId];
-    noteSyncStatesRef.current = nextSyncStates;
-    setNoteSyncStates(nextSyncStates);
-    clearNoteConflict(noteId);
 
     if (!closingActive) return;
 
@@ -1647,11 +1656,12 @@ export function App() {
       setActiveTabId(undefined);
       setOpenNote(undefined);
       setDraft("");
+      setOpenPluginResource(undefined);
       setRightSidebarOpen(false);
       return;
     }
 
-    await openNoteById(next.noteId, "push", false);
+    await activateResourceTab(next.resourceId);
   }
 
   function enableSemanticSearch() {
@@ -1912,6 +1922,123 @@ export function App() {
   function requestAttachFiles(folderId: string) {
     attachmentTargetFolderIdRef.current = folderId;
     attachmentInputRef.current?.click();
+  }
+
+  async function openPluginResourceByNode(
+    node: WorkspaceTreeNode,
+  ): Promise<boolean> {
+    if (!provider || node.metadata.kind === "directory") return false;
+
+    const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+    if (
+      !fileType ||
+      fileType.source === "core" ||
+      !extensionHost.resolveFileView(fileType.id)
+    ) {
+      return false;
+    }
+
+    if (
+      activeTabId === node.metadata.id &&
+      openPluginResource?.metadata.id === node.metadata.id
+    ) {
+      setMobileSidebarOpen(false);
+      return true;
+    }
+
+    if (activeTabId && openNote) {
+      putTabBuffer(activeTabId, {
+        note: openNote,
+        draft,
+      });
+    }
+
+    setStatus({
+      kind: "busy",
+      message: t("status.openingAttachment", {
+        name: node.metadata.name,
+      }),
+    });
+
+    try {
+      const content =
+        fileType.contentKind === "text"
+          ? await provider.readText(node.metadata.id)
+          : await provider.readBinary(node.metadata.id);
+      const resource: OpenPluginResource = {
+        metadata: node.metadata,
+        path: node.path,
+        fileTypeId: fileType.id,
+        contentKind: fileType.contentKind,
+        content,
+      };
+
+      setOpenNote(undefined);
+      setDraft("");
+      setOpenPluginResource(resource);
+
+      const existingTab = tabs.find(
+        (tab) => tab.resourceId === node.metadata.id,
+      );
+      const nextTab: WorkspaceTab = {
+        resourceId: node.metadata.id,
+        resourceKind: "plugin",
+        fileTypeId: fileType.id,
+        title: node.metadata.name,
+        path: node.path,
+        viewMode: "read",
+      };
+      setTabs((current) =>
+        current.some((tab) => tab.resourceId === node.metadata.id)
+          ? current.map((tab) =>
+              tab.resourceId === node.metadata.id
+                ? { ...tab, title: nextTab.title, path: nextTab.path }
+                : tab,
+            )
+          : [...current, nextTab],
+      );
+      setActiveTabId(node.metadata.id);
+      setViewMode(existingTab?.viewMode ?? "read");
+      setRightSidebarOpen(false);
+      setMobileSidebarOpen(false);
+      setMarkdownNavigation(undefined);
+      setStatus({ kind: "idle" });
+      return true;
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+      return false;
+    }
+  }
+
+  async function openWorkspaceFile(node: WorkspaceTreeNode) {
+    if (node.metadata.kind === "directory") return;
+
+    const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+    if (!fileType) {
+      await openAttachment(node);
+      return;
+    }
+
+    if (fileType.source === "core") {
+      await openNoteById(node.metadata.id);
+      return;
+    }
+
+    const opened = await openPluginResourceByNode(node);
+    if (!opened) await openAttachment(node);
+  }
+
+  async function activateResourceTab(resourceId: string) {
+    const tab = tabs.find((candidate) => candidate.resourceId === resourceId);
+    if (!tab) return;
+
+    if (tab.resourceKind === "markdown") {
+      await openNoteById(resourceId);
+      return;
+    }
+
+    const node = findWorkspaceNode(tree, resourceId);
+    if (node) await openPluginResourceByNode(node);
   }
 
   async function openAttachment(node: WorkspaceTreeNode) {
@@ -2823,11 +2950,10 @@ export function App() {
           tree={tree}
           loading={workspaceLoading}
           index={knowledgeIndex}
-          activeNoteId={openNote?.metadata.id}
+          activeResourceId={activeTabId}
           selectedFolderId={selectedFolderId || provider.rootId}
           onSelectedFolderIdChange={setSelectedFolderId}
-          onOpenNote={(noteId) => void openNoteById(noteId)}
-          onOpenAttachment={(node) => void openAttachment(node)}
+          onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onRequestAttachFiles={requestAttachFiles}
@@ -3041,10 +3167,10 @@ export function App() {
         <section className="workspace-main">
           <TabBar
             tabs={tabs}
-            activeNoteId={activeTabId}
-            dirtyNoteIds={dirtyNoteIds}
-            onActivate={(noteId) => void openNoteById(noteId)}
-            onClose={(noteId) => void closeTab(noteId)}
+            activeResourceId={activeTabId}
+            dirtyResourceIds={dirtyNoteIds}
+            onActivate={(resourceId) => void activateResourceTab(resourceId)}
+            onClose={(resourceId) => void closeTab(resourceId)}
             onNew={() =>
               requestNewItem("note", selectedFolderId || provider.rootId)
             }
@@ -3057,7 +3183,9 @@ export function App() {
             breadcrumb={
               currentIndexedNote
                 ? `${activeWorkspace.name} / ${currentIndexedNote.path.replace(/\.md$/i, "")}`
-                : activeWorkspace.name
+                : openPluginResource
+                  ? `${activeWorkspace.name} / ${openPluginResource.path}`
+                  : activeWorkspace.name
             }
             viewMode={viewMode}
             hasNote={openNote !== undefined}
@@ -3075,7 +3203,13 @@ export function App() {
           />
 
           <section className="editor-panel-v2" aria-label={t("editor.aria")}>
-            {openNote ? (
+            {openPluginResource && ActivePluginView ? (
+              <ActivePluginView
+                name={openPluginResource.metadata.name}
+                path={openPluginResource.path}
+                content={openPluginResource.content}
+              />
+            ) : openNote ? (
               <>
                 {openNote && activeConflict ? (
                   <section className="conflict-banner" role="alert">
