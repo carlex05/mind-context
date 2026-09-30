@@ -1169,7 +1169,13 @@ test("switches UI language and persists the locale preference", async ({
 
   await page.getByRole("button", { name: "Archivos", exact: true }).click();
   const files = page.getByRole("complementary", { name: "Archivos" });
-  await files.getByRole("button", { name: "Nueva nota", exact: true }).click();
+  await files
+    .getByRole("button", { name: "Crear nuevo", exact: true })
+    .click();
+  const createMenu = page.getByRole("menu", { name: "Crear nuevo" });
+  await createMenu
+    .getByRole("menuitem", { name: "Nueva nota", exact: true })
+    .click();
 
   const dialog = page.getByRole("dialog", { name: "Nueva nota" });
   await expect(dialog.getByText("Ubicación")).toBeVisible();
