@@ -46,6 +46,7 @@ export interface FileTypeRegistration {
   readonly id: string;
   readonly extensions: readonly string[];
   readonly contentKind: FileContentKind;
+  readonly mediaType?: string;
   readonly displayName?: string;
   readonly create?: FileTypeCreation;
   /**
