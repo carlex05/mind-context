@@ -4141,3 +4141,13 @@ function formatPropertyValue(value: unknown): string {
     return String(value);
   }
 }
+
+
+function displayFileTitle(name: string): string {
+  const registration = extensionHost.fileTypes.resolve(name);
+  const lower = name.toLocaleLowerCase();
+  const extension = registration?.extensions
+    .filter((candidate) => lower.endsWith(candidate))
+    .sort((left, right) => right.length - left.length)[0];
+  return extension ? name.slice(0, -extension.length) || name : name;
+}
