@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src/editorCommands.test.ts"
+    "test": "vitest run src/editorCommands.test.ts src/fileTypeRegistry.test.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
