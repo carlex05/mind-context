@@ -54,6 +54,7 @@ export const encryptionPlugin: WebExtensionBundle = {
             confirm: true,
             confirmLabel: String(i18n.t("encryption.confirmPassphrase")),
             cancelLabel: String(i18n.t("common.cancel")),
+            mismatchMessage: String(i18n.t("encryption.mismatch")),
           });
           if (!passphrase) return;
 
