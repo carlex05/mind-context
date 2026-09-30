@@ -282,6 +282,82 @@ test("creates edits and embeds an Excalidraw plugin document", async ({
   expect(externalAssetRequests).toEqual([]);
 });
 
+test("keeps Files actions scalable and toggles bundled add-ons", async ({
+  page,
+}, testInfo) => {
+  await prepareLocalVault(page);
+  await page.getByRole("button", { name: "Open local vault" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  const files = page.getByRole("complementary", { name: "Files" });
+  await expect(files.getByText("Files", { exact: true })).toBeVisible();
+  await expect(
+    files.getByRole("button", { name: "Create new", exact: true }),
+  ).toBeVisible();
+
+  await files
+    .getByRole("button", { name: "Create new", exact: true })
+    .click();
+  let menu = page.getByRole("menu", { name: "Create new" });
+  await expect(
+    menu.getByRole("menuitem", { name: "New note", exact: true }),
+  ).toBeVisible();
+  await expect(
+    menu.getByRole("menuitem", { name: "New canvas", exact: true }),
+  ).toBeVisible();
+  await expect(
+    menu.getByRole("menuitem", { name: "New Excalidraw", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const settings = page.getByRole("complementary", { name: "Settings" });
+  await expect(settings.getByText("Add-ons", { exact: true })).toBeVisible();
+
+  const excalidrawToggle = settings.getByRole("switch", {
+    name: "Toggle Excalidraw",
+  });
+  await expect(excalidrawToggle).toHaveAttribute("aria-checked", "true");
+  await excalidrawToggle.click();
+  await expect(excalidrawToggle).toHaveAttribute("aria-checked", "false");
+  await expect(excalidrawToggle).toBeEnabled();
+
+  const encryptionToggle = settings.getByRole("switch", {
+    name: "Toggle Encryption",
+  });
+  await encryptionToggle.click();
+  await expect(encryptionToggle).toHaveAttribute("aria-checked", "false");
+  await expect(encryptionToggle).toBeEnabled();
+
+  await page.getByRole("button", { name: "Files", exact: true }).click();
+  const filesAfter = page.getByRole("complementary", { name: "Files" });
+  await filesAfter
+    .getByRole("button", { name: "Create new", exact: true })
+    .click();
+  menu = page.getByRole("menu", { name: "Create new" });
+  await expect(
+    menu.getByRole("menuitem", { name: "New note", exact: true }),
+  ).toBeVisible();
+  await expect(
+    menu.getByRole("menuitem", { name: "New canvas", exact: true }),
+  ).toBeVisible();
+  await expect(
+    menu.getByRole("menuitem", { name: "New folder", exact: true }),
+  ).toBeVisible();
+  await expect(
+    menu.getByRole("menuitem", { name: "New Excalidraw", exact: true }),
+  ).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await createNote(page, "NoEncryption");
+  await expect(
+    page.getByRole("button", { name: "Encrypt selection", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("encrypts selected Markdown and unlocks it through the Reading View popup", async ({
   page,
 }, testInfo) => {
