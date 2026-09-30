@@ -282,6 +282,102 @@ test("creates edits and embeds an Excalidraw plugin document", async ({
   expect(externalAssetRequests).toEqual([]);
 });
 
+test("encrypts selected Markdown and unlocks it through the Reading View popup", async ({
+  page,
+}, testInfo) => {
+  await prepareLocalVault(page);
+  await page.getByRole("button", { name: "Open local vault" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Private");
+
+  const editor = page.getByRole("textbox", { name: "Edit Private.md" });
+  const secretText = "My private thought\nsecond line.";
+  await replaceEditorContent(page, editor, secretText);
+  await editor.click();
+  await page.keyboard.press("Control+A");
+
+  await page
+    .getByRole("button", { name: "Encrypt selection", exact: true })
+    .click();
+
+  const encryptDialog = page.getByRole("dialog", {
+    name: "Encrypt selection",
+  });
+  await expect(encryptDialog).toBeVisible();
+  await encryptDialog
+    .getByLabel("Passphrase", { exact: true })
+    .fill("correct horse battery staple");
+  await encryptDialog
+    .getByLabel("Confirm passphrase", { exact: true })
+    .fill("correct horse battery staple");
+  await encryptDialog
+    .getByRole("button", { name: "Encrypt selection", exact: true })
+    .click();
+  await expect(encryptDialog).toBeHidden();
+
+  await expect(page.getByText("Saved to local vault.")).toBeVisible({
+    timeout: 10_000,
+  });
+
+  const raw = await page.evaluate(() =>
+    (window as any).__mindContextReadLocal("Private.md"),
+  );
+  expect(raw).toContain("```mindcontext-encrypted");
+  expect(raw).not.toContain("My private thought");
+  expect(raw).not.toContain("second line.");
+
+  const readingViewButton = page.getByRole("button", {
+    name: "Reading view",
+    exact: true,
+  });
+  if (!(await readingViewButton.isVisible())) {
+    const collapse = page.getByRole("button", {
+      name: "Collapse sidebar",
+      exact: true,
+    });
+    if (await collapse.isVisible()) await collapse.click();
+  }
+  await readingViewButton.click();
+
+  const reading = page.getByLabel("Reading view");
+  const unlock = reading.getByRole("button", {
+    name: "Unlock encrypted content",
+    exact: true,
+  });
+  await expect(unlock).toBeVisible();
+  await expect(reading).not.toContainText("My private thought");
+  await unlock.click();
+
+  const decryptDialog = page.getByRole("dialog", {
+    name: "Encrypted content",
+  });
+  await expect(decryptDialog).toBeVisible();
+  const passphrase = decryptDialog.getByLabel("Passphrase", { exact: true });
+  await passphrase.fill("wrong passphrase");
+  await decryptDialog
+    .getByRole("button", { name: "Decrypt", exact: true })
+    .click();
+  await expect(
+    decryptDialog.getByText("Could not decrypt. Check the passphrase."),
+  ).toBeVisible();
+
+  await passphrase.fill("correct horse battery staple");
+  await decryptDialog
+    .getByRole("button", { name: "Decrypt", exact: true })
+    .click();
+  await expect(decryptDialog).toContainText("My private thought");
+  await expect(decryptDialog).toContainText("second line.");
+
+  await decryptDialog
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await expect(decryptDialog).toBeHidden();
+  await expect(reading).not.toContainText("My private thought");
+});
 test("remembers a local vault identity across reload and folder reselection", async ({
   page,
 }, testInfo) => {
