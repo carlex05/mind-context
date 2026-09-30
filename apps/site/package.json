@@ -8,7 +8,15 @@
     "build": "astro build"
   },
   "dependencies": {
+    "@astrojs/react": "^7.0.0",
     "@mind-context/design-system": "workspace:*",
-    "astro": "^6.0.0"
+    "@mind-context/workspace-ui": "workspace:*",
+    "astro": "^6.0.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
   }
 }

@@ -3228,18 +3228,12 @@ function KnowledgePanel({
   const { t } = useTranslation();
 
   return (
-    <aside className="knowledge-panel" aria-label={t("context.aria")}>
-      <button
-        className="knowledge-back"
-        type="button"
-        aria-label={t("context.close")}
-        onClick={onBackToNote}
-      >
-        ×
-      </button>
-      <span className="section-label">{t("context.label")}</span>
-      <h2>{noteTitle}</h2>
-
+    <KnowledgePanelFrame
+      label={t("context.label")}
+      title={noteTitle}
+      closeLabel={t("context.close")}
+      onClose={onBackToNote}
+    >
       <PropertiesEditor
         tags={tags}
         aliases={aliases}
@@ -3309,7 +3303,7 @@ function KnowledgePanel({
           ))}
         </KnowledgeSection>
       ) : null}
-    </aside>
+    </KnowledgePanelFrame>
   );
 }
 

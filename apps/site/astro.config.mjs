@@ -1,4 +1,5 @@
 import { defineConfig } from "astro/config";
+import react from "@astrojs/react";
 
 const configuredBaseUrl = process.env.PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
 const repositoryName = process.env.GITHUB_REPOSITORY?.split("/")[1];
@@ -26,4 +27,5 @@ export default defineConfig({
   base,
   output: "static",
   trailingSlash: "always",
+  integrations: [react()],
 });
