@@ -227,7 +227,7 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [openPluginResource, setOpenPluginResource] =
     useState<OpenPluginResource>();
-  const activePluginResourceRef = useRef<OpenPluginResource>();
+  const activePluginResourceRef = useRef<OpenPluginResource | undefined>(undefined);
   const [extensionHost] = useState(() => {
     const host = new ExtensionHost({
       readCurrentText: async () => {
@@ -1053,7 +1053,7 @@ export function App() {
       setRecentNoteIds(readRecentNotes(workspace.id));
 
       const persistedUi = readWorkspaceUi(workspace.id);
-      const restoredTabs: WorkspaceTab[] = persistedUi.tabs.flatMap((saved) => {
+      const restoredTabs: WorkspaceTab[] = persistedUi.tabs.flatMap((saved): WorkspaceTab[] => {
         const node = findWorkspaceNode(nextTree, saved.resourceId);
         if (!node || node.metadata.kind === "directory") return [];
 
