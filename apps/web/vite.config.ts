@@ -22,7 +22,7 @@ function packageRoot(specifier: string): string {
 
 const excalidrawFonts = path.join(
   packageRoot("@excalidraw/excalidraw"),
-  "dist/prod/fonts/*",
+  "dist/prod/fonts/**/*",
 );
 
 export default defineConfig({
