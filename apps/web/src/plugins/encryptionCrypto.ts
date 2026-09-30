@@ -24,9 +24,13 @@ export async function encryptText(
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const key = await deriveKey(passphrase, salt, ITERATIONS);
   const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv, additionalData: AAD },
+    {
+      name: "AES-GCM",
+      iv: asArrayBuffer(iv),
+      additionalData: asArrayBuffer(AAD),
+    },
     key,
-    new TextEncoder().encode(plaintext),
+    asArrayBuffer(new TextEncoder().encode(plaintext)),
   );
 
   return {
@@ -53,9 +57,13 @@ export async function decryptText(
   const key = await deriveKey(passphrase, salt, payload.iterations);
 
   const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv, additionalData: AAD },
+    {
+      name: "AES-GCM",
+      iv: asArrayBuffer(iv),
+      additionalData: asArrayBuffer(AAD),
+    },
     key,
-    ciphertext,
+    asArrayBuffer(ciphertext),
   );
   return new TextDecoder().decode(plaintext);
 }
@@ -84,7 +92,7 @@ async function deriveKey(
 ): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(passphrase),
+    asArrayBuffer(new TextEncoder().encode(passphrase)),
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -94,7 +102,7 @@ async function deriveKey(
     {
       name: "PBKDF2",
       hash: "SHA-256",
-      salt,
+      salt: asArrayBuffer(salt),
       iterations,
     },
     keyMaterial,
@@ -134,6 +142,12 @@ function isEncryptedPayload(value: unknown): value is EncryptedPayloadV1 {
     typeof item.iv === "string" &&
     typeof item.ciphertext === "string"
   );
+}
+
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
 }
 
 function toBase64(bytes: Uint8Array): string {
