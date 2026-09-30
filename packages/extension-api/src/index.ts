@@ -12,6 +12,9 @@ export type Capability =
   | "network.connect"
   | "ai.use"
   | "ui.register"
+  | "ui.prompt.secret"
+  | "editor.read.selection"
+  | "editor.write.selection"
   | "views.register"
   | "markdown.register"
   | "commands.register"
@@ -51,12 +54,50 @@ export interface MarkdownEmbedRegistration {
   readonly extensions: readonly string[];
 }
 
+export interface MarkdownBlockRegistration {
+  readonly id: string;
+  readonly languages: readonly string[];
+}
+
 export interface MarkdownApi {
   registerEmbedRenderer(registration: MarkdownEmbedRegistration): () => void;
+  registerBlockRenderer(registration: MarkdownBlockRegistration): () => void;
+}
+
+export interface EditorSelection {
+  readonly text: string;
+  readonly empty: boolean;
+}
+
+export interface EditorApi {
+  readSelection(): Promise<EditorSelection | undefined>;
+  replaceSelection(content: string): Promise<void>;
+}
+
+export interface CommandRegistration {
+  readonly id: string;
+  readonly title: string;
+  readonly icon?: string;
+  readonly keywords?: readonly string[];
+  readonly toolbar?: boolean;
+  readonly slash?: boolean;
+  readonly handler: () => void | Promise<void>;
 }
 
 export interface CommandsApi {
-  register(id: string, title: string, handler: () => void | Promise<void>): () => void;
+  register(registration: CommandRegistration): () => void;
+}
+
+export interface SecretPromptRequest {
+  readonly title: string;
+  readonly message?: string;
+  readonly confirm?: boolean;
+  readonly confirmLabel?: string;
+  readonly cancelLabel?: string;
+}
+
+export interface UiApi {
+  promptSecret(request: SecretPromptRequest): Promise<string | undefined>;
 }
 
 export interface EventsApi {
@@ -68,6 +109,8 @@ export interface ExtensionContext {
   readonly files: FilesApi;
   readonly views: ViewsApi;
   readonly markdown: MarkdownApi;
+  readonly editor: EditorApi;
+  readonly ui: UiApi;
   readonly commands: CommandsApi;
   readonly events: EventsApi;
 }
