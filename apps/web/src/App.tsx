@@ -1211,19 +1211,50 @@ export function App() {
             ? extensionHost.fileTypes.resolve(node.metadata.name)
             : undefined;
           if (node && fileType && extensionHost.resolveFileView(fileType.id)) {
-            const content =
+            const canonicalContent =
               fileType.contentKind === "text"
                 ? await nextProvider.readText(restoredActiveId)
                 : await nextProvider.readBinary(restoredActiveId);
-            setOpenNote(undefined);
-            setDraft("");
-            setOpenPluginResource({
-              metadata: node.metadata,
+            const pendingDraft =
+              fileType.contentKind === "text"
+                ? await pendingDraftStore.get(workspace.id, restoredActiveId)
+                : undefined;
+            const resource: OpenPluginResource = {
+              metadata: pendingDraft
+                ? {
+                    ...node.metadata,
+                    ...(pendingDraft.baseRevision
+                      ? { revision: pendingDraft.baseRevision }
+                      : {}),
+                    ...(pendingDraft.baseContentRevision
+                      ? {
+                          contentRevision:
+                            pendingDraft.baseContentRevision,
+                        }
+                      : {}),
+                  }
+                : node.metadata,
               path: node.path,
               fileTypeId: fileType.id,
               contentKind: fileType.contentKind,
-              content,
-            });
+              ...(fileType.contentKind === "text"
+                ? {
+                    originalContent:
+                      pendingDraft?.baseContent ??
+                      (canonicalContent as string),
+                  }
+                : {}),
+              content:
+                pendingDraft?.content ?? canonicalContent,
+            };
+            setOpenNote(undefined);
+            setDraft("");
+            setOpenPluginResource(resource);
+            putPluginResourceBuffer(resource);
+            setNoteSyncState(
+              restoredActiveId,
+              pendingDraft ? "local" : "synced",
+            );
             setViewMode("read");
           }
         }
@@ -1980,7 +2011,9 @@ export function App() {
   async function openPluginResourceByNode(
     node: WorkspaceTreeNode,
   ): Promise<boolean> {
-    if (!provider || node.metadata.kind === "directory") return false;
+    if (!provider || !activeWorkspace || node.metadata.kind === "directory") {
+      return false;
+    }
 
     const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
     if (
@@ -2014,20 +2047,58 @@ export function App() {
     });
 
     try {
-      const content =
-        fileType.contentKind === "text"
-          ? await provider.readText(node.metadata.id)
-          : await provider.readBinary(node.metadata.id);
-      const resource: OpenPluginResource = {
-        metadata: node.metadata,
-        path: node.path,
-        fileTypeId: fileType.id,
-        contentKind: fileType.contentKind,
-        content,
-      };
+      let resource = pluginResourceBuffersRef.current[node.metadata.id];
+
+      if (!resource) {
+        const canonicalContent =
+          fileType.contentKind === "text"
+            ? await provider.readText(node.metadata.id)
+            : await provider.readBinary(node.metadata.id);
+        const pendingDraft =
+          fileType.contentKind === "text"
+            ? await pendingDraftStore.get(
+                activeWorkspace.id,
+                node.metadata.id,
+              )
+            : undefined;
+
+        resource = {
+          metadata: pendingDraft
+            ? {
+                ...node.metadata,
+                ...(pendingDraft.baseRevision
+                  ? { revision: pendingDraft.baseRevision }
+                  : {}),
+                ...(pendingDraft.baseContentRevision
+                  ? {
+                      contentRevision:
+                        pendingDraft.baseContentRevision,
+                    }
+                  : {}),
+              }
+            : node.metadata,
+          path: node.path,
+          fileTypeId: fileType.id,
+          contentKind: fileType.contentKind,
+          ...(fileType.contentKind === "text"
+            ? {
+                originalContent:
+                  pendingDraft?.baseContent ??
+                  (canonicalContent as string),
+              }
+            : {}),
+          content: pendingDraft?.content ?? canonicalContent,
+        };
+        putPluginResourceBuffer(resource);
+        setNoteSyncState(
+          node.metadata.id,
+          pendingDraft ? "local" : "synced",
+        );
+      }
 
       setOpenNote(undefined);
       setDraft("");
+      activePluginResourceRef.current = resource;
       setOpenPluginResource(resource);
 
       const existingTab = tabs.find(
