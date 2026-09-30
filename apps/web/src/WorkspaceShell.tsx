@@ -115,7 +115,9 @@ export function WorkspaceHeader({
   canForward,
   breadcrumb,
   viewMode,
-  hasNote,
+  hasDocument,
+  supportsViewMode = true,
+  supportsContext = true,
   dirty,
   syncState,
   driveStatus,
@@ -132,7 +134,9 @@ export function WorkspaceHeader({
   readonly canForward: boolean;
   readonly breadcrumb?: string;
   readonly viewMode: NoteViewMode;
-  readonly hasNote: boolean;
+  readonly hasDocument: boolean;
+  readonly supportsViewMode?: boolean;
+  readonly supportsContext?: boolean;
   readonly dirty: boolean;
   readonly syncState: NoteSyncState;
   readonly driveStatus: DriveStatusState;
@@ -192,16 +196,24 @@ export function WorkspaceHeader({
         detail: driveLabel,
         title: driveTitle,
       }}
-      note={hasNote ? {
+      note={hasDocument ? {
         syncState,
         syncLabel,
         ...(syncState === "local"
           ? { syncTitle: t("actions.syncLocalDescription") }
           : {}),
-        viewIcon: viewMode === "edit" ? "book" : "edit",
-        viewLabel: modeLabel,
-        contextLabel: t("actions.context"),
-        contextTitle: t("actions.contextTitle"),
+        ...(supportsViewMode
+          ? {
+              viewIcon: viewMode === "edit" ? "book" : "edit",
+              viewLabel: modeLabel,
+            }
+          : {}),
+        ...(supportsContext
+          ? {
+              contextLabel: t("actions.context"),
+              contextTitle: t("actions.contextTitle"),
+            }
+          : {}),
         saveLabel: t("common.save"),
         rightSidebarOpen,
         saveDisabled: !dirty || syncState === "syncing" || syncState === "conflict",
