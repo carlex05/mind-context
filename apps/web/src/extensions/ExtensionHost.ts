@@ -3,6 +3,7 @@ import type {
   Extension,
   ExtensionContext,
   FileTypeRegistration,
+  MarkdownEmbedRegistration,
 } from "@mind-context/extension-api";
 import { FileTypeRegistry } from "./FileTypeRegistry";
 
@@ -32,13 +33,32 @@ export interface WebFileViewRegistration {
   readonly component: ComponentType<PluginFileViewProps>;
 }
 
+export interface PluginMarkdownEmbedProps {
+  readonly name: string;
+  readonly path: string;
+  readonly content: string;
+  readonly onOpen?: () => void;
+}
+
+export interface WebMarkdownEmbedRegistration {
+  readonly rendererId: string;
+  readonly component: ComponentType<PluginMarkdownEmbedProps>;
+}
+
+export interface ResolvedMarkdownEmbed {
+  readonly rendererId: string;
+  readonly component: ComponentType<PluginMarkdownEmbedProps>;
+}
+
 export interface WebExtensionBundle {
   readonly extension: Extension;
   readonly fileViews?: readonly WebFileViewRegistration[];
+  readonly markdownEmbeds?: readonly WebMarkdownEmbedRegistration[];
 }
 
 export class ExtensionHost {
   readonly fileTypes = new FileTypeRegistry();
+  readonly markdownEmbeds = new FileTypeRegistry();
   private readonly disposables = new Map<string, (() => void)[]>();
   private readonly extensions = new Map<string, Extension>();
   private readonly fileViews = new Map<
@@ -46,6 +66,14 @@ export class ExtensionHost {
     ComponentType<PluginFileViewProps>
   >();
   private readonly fileViewsByExtension = new Map<string, readonly string[]>();
+  private readonly markdownEmbedViews = new Map<
+    string,
+    ComponentType<PluginMarkdownEmbedProps>
+  >();
+  private readonly markdownEmbedViewsByExtension = new Map<
+    string,
+    readonly string[]
+  >();
 
   constructor(private readonly adapters: ExtensionHostAdapters) {}
 
@@ -56,11 +84,24 @@ export class ExtensionHost {
     });
     this.fileViewsByExtension.set(bundle.extension.manifest.id, fileViewIds);
 
+    const markdownEmbedIds = (bundle.markdownEmbeds ?? []).map((view) => {
+      this.markdownEmbedViews.set(view.rendererId, view.component);
+      return view.rendererId;
+    });
+    this.markdownEmbedViewsByExtension.set(
+      bundle.extension.manifest.id,
+      markdownEmbedIds,
+    );
+
     try {
       await this.activate(bundle.extension);
     } catch (error) {
       for (const fileTypeId of fileViewIds) this.fileViews.delete(fileTypeId);
+      for (const rendererId of markdownEmbedIds) {
+        this.markdownEmbedViews.delete(rendererId);
+      }
       this.fileViewsByExtension.delete(bundle.extension.manifest.id);
+      this.markdownEmbedViewsByExtension.delete(bundle.extension.manifest.id);
       throw error;
     }
   }
@@ -69,6 +110,15 @@ export class ExtensionHost {
     fileTypeId: string,
   ): ComponentType<PluginFileViewProps> | undefined {
     return this.fileViews.get(fileTypeId);
+  }
+
+  resolveMarkdownEmbed(fileName: string): ResolvedMarkdownEmbed | undefined {
+    const descriptor = this.markdownEmbeds.resolve(fileName);
+    if (!descriptor) return undefined;
+    const component = this.markdownEmbedViews.get(descriptor.id);
+    return component
+      ? { rendererId: descriptor.id, component }
+      : undefined;
   }
 
   async writeCurrentText(content: string): Promise<void> {
@@ -97,6 +147,18 @@ export class ExtensionHost {
           return dispose;
         },
       },
+      markdown: {
+        registerEmbedRenderer: (registration: MarkdownEmbedRegistration) => {
+          const dispose = this.markdownEmbeds.register({
+            id: registration.id,
+            extensions: registration.extensions,
+            contentKind: "text",
+            source: `plugin:${extension.manifest.id}`,
+          });
+          disposables.push(dispose);
+          return dispose;
+        },
+      },
       commands: {
         register: () => () => undefined,
       },
@@ -118,7 +180,11 @@ export class ExtensionHost {
     for (const fileTypeId of this.fileViewsByExtension.get(id) ?? []) {
       this.fileViews.delete(fileTypeId);
     }
+    for (const rendererId of this.markdownEmbedViewsByExtension.get(id) ?? []) {
+      this.markdownEmbedViews.delete(rendererId);
+    }
     this.fileViewsByExtension.delete(id);
+    this.markdownEmbedViewsByExtension.delete(id);
     this.disposables.delete(id);
     this.extensions.delete(id);
   }
