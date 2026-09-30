@@ -82,9 +82,11 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     parentId: string,
     name: string,
     content: string,
-    _options?: TextContentOptions,
+    options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeTextFileName(name);
+    const normalizedName = options?.preserveName
+      ? normalizeName(name)
+      : normalizeMarkdownFileName(name);
     const parentPath = this.pathForId(parentId);
     const directory = await this.directoryAt(parentPath);
     await assertNameAvailable(directory, normalizedName);
@@ -536,14 +538,11 @@ function fileRevision(file: File): string {
   return `${file.lastModified}:${file.size}`;
 }
 
-function normalizeTextFileName(name: string): string {
+function normalizeMarkdownFileName(name: string): string {
   const normalized = normalizeName(name);
-  return hasFileExtension(normalized) ? normalized : `${normalized}.md`;
-}
-
-function hasFileExtension(name: string): boolean {
-  const dot = name.lastIndexOf(".");
-  return dot > 0 && dot < name.length - 1;
+  return normalized.toLocaleLowerCase().endsWith(".md")
+    ? normalized
+    : `${normalized}.md`;
 }
 
 function normalizeName(name: string): string {
