@@ -18,6 +18,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useTranslation } from "react-i18next";
 
 import type { PluginFileViewProps } from "../extensions/ExtensionHost";
 
@@ -63,20 +64,21 @@ export function CanvasPluginView({
   syncState = "synced",
   onTextChange,
 }: PluginFileViewProps) {
+  const { t } = useTranslation();
   const parsed = useMemo(
     () => (typeof content === "string" ? parseCanvas(content) : undefined),
     [content],
   );
 
   if (typeof content !== "string") {
-    return <CanvasMessage title={name} body="Canvas requires text content." />;
+    return <CanvasMessage title={name} body={t("canvas.requiresText")} />;
   }
 
   if (!parsed) {
     return (
       <CanvasMessage
         title={name}
-        body="This .canvas file does not contain valid JSON Canvas data."
+        body={t("canvas.invalid")}
       />
     );
   }
@@ -252,19 +254,19 @@ function CanvasEditor({
         </div>
         <div className="canvas-plugin-status">
           <span className={`canvas-plugin-sync canvas-plugin-sync-${syncState}`}>
-            {syncLabel(syncState)}
+            {t(`canvas.sync.${syncState}`)}
           </span>
         </div>
       </header>
 
-      <div className="canvas-plugin-toolbar" role="toolbar" aria-label="Canvas tools">
-        <button type="button" onClick={() => addNode("text")}>Text</button>
-        <button type="button" onClick={() => addNode("file")}>File</button>
-        <button type="button" onClick={() => addNode("link")}>Link</button>
-        <button type="button" onClick={() => addNode("group")}>Group</button>
+      <div className="canvas-plugin-toolbar" role="toolbar" aria-label={t("canvas.tools")}>
+        <button type="button" onClick={() => addNode("text")}>{t("canvas.text")}</button>
+        <button type="button" onClick={() => addNode("file")}>{t("canvas.file")}</button>
+        <button type="button" onClick={() => addNode("link")}>{t("canvas.link")}</button>
+        <button type="button" onClick={() => addNode("group")}>{t("canvas.group")}</button>
         <span className="canvas-plugin-toolbar-spacer" />
         <button type="button" disabled={!hasSelection} onClick={removeSelection}>
-          Delete
+          {t("canvas.delete")}
         </button>
       </div>
 
@@ -550,16 +552,6 @@ function isNumber(value: unknown): value is number {
 
 function createId(): string {
   return crypto.randomUUID().replaceAll("-", "").slice(0, 16);
-}
-
-function syncLabel(
-  state: NonNullable<PluginFileViewProps["syncState"]>,
-): string {
-  if (state === "local") return "Saved locally";
-  if (state === "syncing") return "Syncing…";
-  if (state === "conflict") return "Conflict";
-  if (state === "error") return "Sync failed";
-  return "Synced";
 }
 
 function CanvasMessage({
