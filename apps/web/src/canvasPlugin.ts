@@ -17,7 +17,7 @@ export const canvasPlugin: Extension = {
       contentKind: "text",
       displayName: "Canvas",
       create: {
-        label: "New Canvas",
+        label: "Canvas",
         defaultExtension: ".canvas",
         initialText: "{\n  \"nodes\": [],\n  \"edges\": []\n}\n",
       },
