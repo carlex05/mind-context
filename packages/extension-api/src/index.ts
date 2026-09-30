@@ -94,6 +94,7 @@ export interface SecretPromptRequest {
   readonly confirm?: boolean;
   readonly confirmLabel?: string;
   readonly cancelLabel?: string;
+  readonly mismatchMessage?: string;
 }
 
 export interface UiApi {
