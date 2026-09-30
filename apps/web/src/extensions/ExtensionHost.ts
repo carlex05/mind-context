@@ -15,6 +15,8 @@ export interface PluginFileViewProps {
   readonly name: string;
   readonly path: string;
   readonly content: string | Uint8Array;
+  readonly syncState?: "synced" | "local" | "syncing" | "conflict" | "error";
+  readonly onTextChange?: (content: string) => void;
 }
 
 export interface WebFileViewRegistration {
@@ -59,6 +61,10 @@ export class ExtensionHost {
     fileTypeId: string,
   ): ComponentType<PluginFileViewProps> | undefined {
     return this.fileViews.get(fileTypeId);
+  }
+
+  async writeCurrentText(content: string): Promise<void> {
+    await this.adapters.writeCurrentText(content);
   }
 
   async activate(extension: Extension): Promise<void> {
