@@ -35,6 +35,7 @@ export function WorkspaceExplorer({
   onOpenFile,
   onRequestNewNote,
   onRequestNewCanvas,
+  onRequestNewExcalidraw,
   onRequestNewFolder,
   onRequestAttachFiles,
   onChanged,
@@ -50,6 +51,7 @@ export function WorkspaceExplorer({
   readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onRequestNewNote: (folderId: string) => void;
   readonly onRequestNewCanvas: (folderId: string) => void;
+  readonly onRequestNewExcalidraw: (folderId: string) => void;
   readonly onRequestNewFolder: (folderId: string) => void;
   readonly onRequestAttachFiles: (folderId: string) => void;
   readonly onChanged: () => Promise<void>;
@@ -225,6 +227,7 @@ export function WorkspaceExplorer({
           onMenuItem={setMenuItemId}
           onNewNote={onRequestNewNote}
           onNewCanvas={onRequestNewCanvas}
+          onNewExcalidraw={onRequestNewExcalidraw}
           onNewFolder={onRequestNewFolder}
           onAttachFiles={onRequestAttachFiles}
           onRename={(target) => void renameNode(target)}
@@ -257,6 +260,7 @@ function TreeNode({
   onMenuItem,
   onNewNote,
   onNewCanvas,
+  onNewExcalidraw,
   onNewFolder,
   onAttachFiles,
   onRename,
@@ -279,6 +283,7 @@ function TreeNode({
   readonly onMenuItem: (id: string | undefined) => void;
   readonly onNewNote: (folderId: string) => void;
   readonly onNewCanvas: (folderId: string) => void;
+  readonly onNewExcalidraw: (folderId: string) => void;
   readonly onNewFolder: (folderId: string) => void;
   readonly onAttachFiles: (folderId: string) => void;
   readonly onRename: (node: WorkspaceTreeNode) => void;
@@ -388,6 +393,14 @@ function TreeNode({
               <button
                 type="button"
                 onClick={() =>
+                  runMenuAction(() => onNewExcalidraw(node.metadata.id))
+                }
+              >
+                {t("explorer.newExcalidrawHere")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
                   runMenuAction(() => onNewFolder(node.metadata.id))
                 }
               >
@@ -466,6 +479,7 @@ function TreeNode({
                   onMenuItem={onMenuItem}
               onNewNote={onNewNote}
               onNewCanvas={onNewCanvas}
+              onNewExcalidraw={onNewExcalidraw}
               onNewFolder={onNewFolder}
               onAttachFiles={onAttachFiles}
               onRename={onRename}
