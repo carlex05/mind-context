@@ -36,10 +36,18 @@ export interface FilesApi {
 
 export type FileContentKind = "text" | "binary";
 
+export interface FileTypeCreation {
+  readonly label: string;
+  readonly defaultExtension: string;
+  readonly initialText?: string;
+}
+
 export interface FileTypeRegistration {
   readonly id: string;
   readonly extensions: readonly string[];
   readonly contentKind: FileContentKind;
+  readonly displayName?: string;
+  readonly create?: FileTypeCreation;
   /**
    * Framework-neutral view identifier. The delivery layer owns the renderer
    * registered for this view type; extensions never receive React internals.
