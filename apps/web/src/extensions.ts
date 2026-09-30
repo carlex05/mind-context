@@ -154,6 +154,7 @@ export function registerBuiltInFileTypes(registry: FileTypeRegistry): () => void
     id: "markdown",
     extensions: [".md"],
     contentKind: "text",
+    mediaType: "text/markdown",
     viewType: "markdown",
     priority: -100,
   });
