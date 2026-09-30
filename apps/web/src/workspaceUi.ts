@@ -2,7 +2,8 @@ export type WorkspacePanel = "files" | "search" | "graph" | "tags" | "settings";
 export type NoteViewMode = "edit" | "read";
 
 export interface WorkspaceTab {
-  readonly noteId: string;
+  readonly resourceId: string;
+  readonly fileTypeId: string;
   readonly title: string;
   readonly path: string;
   readonly viewMode: NoteViewMode;
@@ -10,10 +11,11 @@ export interface WorkspaceTab {
 
 export interface PersistedWorkspaceUi {
   readonly tabs: readonly {
-    readonly noteId: string;
+    readonly resourceId: string;
+    readonly fileTypeId: string;
     readonly viewMode: NoteViewMode;
   }[];
-  readonly activeNoteId?: string;
+  readonly activeResourceId?: string;
   readonly homeActive?: boolean;
   readonly leftPanel: WorkspacePanel;
   readonly leftSidebarOpen: boolean;
@@ -26,28 +28,50 @@ export function readWorkspaceUi(workspaceId: string): PersistedWorkspaceUi {
   try {
     const raw = window.localStorage.getItem(`${PREFIX}${workspaceId}`);
     if (!raw) return defaultWorkspaceUi();
-    const value = JSON.parse(raw) as Partial<PersistedWorkspaceUi>;
+    const value = JSON.parse(raw) as Partial<PersistedWorkspaceUi> & {
+      readonly activeNoteId?: unknown;
+      readonly tabs?: readonly unknown[];
+    };
     const tabs = Array.isArray(value.tabs)
-      ? value.tabs.filter(
-          (
-            tab,
-          ): tab is {
-            readonly noteId: string;
-            readonly viewMode: NoteViewMode;
-          } =>
-            typeof tab === "object" &&
-            tab !== null &&
-            typeof (tab as { noteId?: unknown }).noteId === "string" &&
-            ((tab as { viewMode?: unknown }).viewMode === "edit" ||
-              (tab as { viewMode?: unknown }).viewMode === "read"),
-        )
+      ? value.tabs.flatMap((candidate) => {
+          if (typeof candidate !== "object" || candidate === null) return [];
+          const tab = candidate as {
+            readonly resourceId?: unknown;
+            readonly noteId?: unknown;
+            readonly fileTypeId?: unknown;
+            readonly viewMode?: unknown;
+          };
+          const resourceId =
+            typeof tab.resourceId === "string"
+              ? tab.resourceId
+              : typeof tab.noteId === "string"
+                ? tab.noteId
+                : undefined;
+          if (
+            !resourceId ||
+            (tab.viewMode !== "edit" && tab.viewMode !== "read")
+          ) {
+            return [];
+          }
+          return [{
+            resourceId,
+            fileTypeId:
+              typeof tab.fileTypeId === "string" ? tab.fileTypeId : "markdown",
+            viewMode: tab.viewMode,
+          }];
+        })
       : [];
+
+    const activeResourceId =
+      typeof value.activeResourceId === "string"
+        ? value.activeResourceId
+        : typeof value.activeNoteId === "string"
+          ? value.activeNoteId
+          : undefined;
 
     return {
       tabs,
-      ...(typeof value.activeNoteId === "string"
-        ? { activeNoteId: value.activeNoteId }
-        : {}),
+      ...(activeResourceId ? { activeResourceId } : {}),
       homeActive: value.homeActive === true,
       leftPanel: isPanel(value.leftPanel) ? value.leftPanel : "files",
       leftSidebarOpen:
