@@ -63,8 +63,9 @@ The first Canvas editor slice supports:
 - opening referenced vault files where resolvable;
 - the same autosave/conflict/recovery path as other textual resources.
 
-Creation UX, node resize/connect tooling and richer file previews are additive
-Canvas slices and must use the same plugin/file-type boundary.
+Canvas creation is also plugin-driven through registered creation metadata.
+Node resize/connect tooling and richer file previews are additive Canvas slices
+and must use the same plugin/file-type boundary.
 
 ## Consequences
 
