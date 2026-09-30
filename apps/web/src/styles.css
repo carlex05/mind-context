@@ -4135,3 +4135,120 @@ h2 {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+
+.canvas-plugin-view {
+  height: 100%;
+  min-height: 0;
+  background: var(--editor-surface);
+}
+
+.canvas-plugin-header {
+  display: flex;
+  min-height: 48px;
+  padding: 8px 14px;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.canvas-plugin-header > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.canvas-plugin-header strong,
+.canvas-plugin-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-plugin-header span {
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.canvas-plugin-badge {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.canvas-plugin-scroll {
+  height: calc(100% - 48px);
+  overflow: auto;
+  background:
+    radial-gradient(circle at 1px 1px, var(--border-soft) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.canvas-plugin-board {
+  position: relative;
+}
+
+.canvas-plugin-edges {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.canvas-plugin-edges line {
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+}
+
+.canvas-plugin-node {
+  position: absolute;
+  min-width: 80px;
+  min-height: 44px;
+  padding: 12px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 8%);
+}
+
+.canvas-plugin-node pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  line-height: 1.45;
+}
+
+.canvas-plugin-node-group {
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.canvas-plugin-node-kind {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--ink-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.canvas-plugin-message {
+  display: grid;
+  place-content: center;
+  padding: 32px;
+  text-align: center;
+}
+
+.canvas-plugin-message p {
+  max-width: 520px;
+  margin: 8px 0 0;
+  color: var(--ink-muted);
+}
