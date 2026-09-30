@@ -90,7 +90,7 @@ export function CanvasPluginView({
       path={path}
       initial={parsed}
       syncState={syncState}
-      onTextChange={onTextChange}
+      {...(onTextChange ? { onTextChange } : {})}
     />
   );
 }
@@ -108,6 +108,7 @@ function CanvasEditor({
   readonly syncState: NonNullable<PluginFileViewProps["syncState"]>;
   readonly onTextChange?: (content: string) => void;
 }) {
+  const { t } = useTranslation();
   const [nodes, setNodes] = useState<CanvasFlowNode[]>(() => [
     ...initial.nodes,
   ]);
