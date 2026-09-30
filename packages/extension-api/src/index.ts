@@ -13,6 +13,7 @@ export type Capability =
   | "ai.use"
   | "ui.register"
   | "views.register"
+  | "markdown.register"
   | "commands.register"
   | "events.subscribe";
 
@@ -45,6 +46,15 @@ export interface ViewsApi {
   registerFileType(registration: FileTypeRegistration): () => void;
 }
 
+export interface MarkdownEmbedRegistration {
+  readonly id: string;
+  readonly extensions: readonly string[];
+}
+
+export interface MarkdownApi {
+  registerEmbedRenderer(registration: MarkdownEmbedRegistration): () => void;
+}
+
 export interface CommandsApi {
   register(id: string, title: string, handler: () => void | Promise<void>): () => void;
 }
@@ -57,6 +67,7 @@ export interface ExtensionContext {
   readonly notes: NotesApi;
   readonly files: FilesApi;
   readonly views: ViewsApi;
+  readonly markdown: MarkdownApi;
   readonly commands: CommandsApi;
   readonly events: EventsApi;
 }
