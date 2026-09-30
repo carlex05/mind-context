@@ -17,6 +17,10 @@ export interface WriteCondition {
   readonly expectedContentRevision?: string;
 }
 
+export interface TextContentOptions {
+  readonly mediaType?: string;
+}
+
 export class StorageConflictError extends Error {
   constructor(
     message: string,
@@ -37,11 +41,13 @@ export interface StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    options?: TextContentOptions,
   ): Promise<StorageObjectMetadata>;
   createText(
     parentId: string,
     name: string,
     content: string,
+    options?: TextContentOptions,
   ): Promise<StorageObjectMetadata>;
   readBinary(id: string): Promise<Uint8Array>;
   writeBinary(
