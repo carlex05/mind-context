@@ -226,8 +226,10 @@ export function WorkspaceExplorer({
           onOpenFile={onOpenFile}
           onMenuItem={setMenuItemId}
           onNewNote={onRequestNewNote}
-          onNewCanvas={onRequestNewCanvas}
-          onNewExcalidraw={onRequestNewExcalidraw}
+          {...(onRequestNewCanvas ? { onNewCanvas: onRequestNewCanvas } : {})}
+          {...(onRequestNewExcalidraw
+            ? { onNewExcalidraw: onRequestNewExcalidraw }
+            : {})}
           onNewFolder={onRequestNewFolder}
           onAttachFiles={onRequestAttachFiles}
           onRename={(target) => void renameNode(target)}
@@ -482,8 +484,8 @@ function TreeNode({
               onOpenFile={onOpenFile}
                   onMenuItem={onMenuItem}
               onNewNote={onNewNote}
-              onNewCanvas={onNewCanvas}
-              onNewExcalidraw={onNewExcalidraw}
+              {...(onNewCanvas ? { onNewCanvas } : {})}
+              {...(onNewExcalidraw ? { onNewExcalidraw } : {})}
               onNewFolder={onNewFolder}
               onAttachFiles={onAttachFiles}
               onRename={onRename}
