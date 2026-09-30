@@ -98,7 +98,7 @@ export function TabBar({
         path: tab.path,
         dirty: dirtyNoteIds.has(tab.noteId),
       }))}
-      activeId={activeNoteId}
+      {...(activeNoteId ? { activeId: activeNoteId } : {})}
       homeLabel={t("home.open")}
       newLabel={t("actions.newNote")}
       closeLabel={(title) => t("actions.closeTab", { title })}
@@ -183,7 +183,7 @@ export function WorkspaceHeader({
     <WorkspaceViewHeader
       canBack={canBack}
       canForward={canForward}
-      breadcrumb={breadcrumb}
+      {...(breadcrumb === undefined ? {} : { breadcrumb })}
       backLabel={t("common.back")}
       forwardLabel={t("common.forward")}
       drive={{
