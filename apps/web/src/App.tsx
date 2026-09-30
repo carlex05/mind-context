@@ -57,7 +57,11 @@ import {
   type StorageObjectMetadata,
   type StorageProvider,
 } from "@mind-context/storage";
-import { KnowledgePanelFrame } from "@mind-context/workspace-ui";
+import {
+  KnowledgeLinkView,
+  KnowledgePanelFrame,
+  KnowledgeSectionView,
+} from "@mind-context/workspace-ui";
 
 import {
   requestGoogleDriveAccess,
@@ -3279,15 +3283,12 @@ function KnowledgePanel({
             (note) => note.id === edge.sourceNoteId,
           );
           return (
-            <button
-              className="context-link"
-              type="button"
+            <KnowledgeLinkView
               key={`${edge.sourceNoteId}-${indexNumber}`}
+              title={source?.title ?? source?.name ?? edge.sourcePath}
+              subtitle={edge.sourcePath}
               onClick={() => onOpenNote({ noteId: edge.sourceNoteId })}
-            >
-              <span>{source?.title ?? source?.name ?? edge.sourcePath}</span>
-              <small>{edge.sourcePath}</small>
-            </button>
+            />
           );
         })}
       </KnowledgeSection>
@@ -3318,16 +3319,10 @@ function KnowledgeSection({
   readonly empty: string;
   readonly children: React.ReactNode;
 }) {
-  const childArray = Array.isArray(children) ? children : [children];
   return (
-    <section className="knowledge-section">
-      <h3>{title}</h3>
-      {childArray.length === 0 ? (
-        <p className="context-empty">{empty}</p>
-      ) : (
-        children
-      )}
-    </section>
+    <KnowledgeSectionView title={title} empty={empty}>
+      {children}
+    </KnowledgeSectionView>
   );
 }
 
@@ -3351,9 +3346,9 @@ function EdgeRow({
   }
 
   return (
-    <button
-      className="context-link"
-      type="button"
+    <KnowledgeLinkView
+      title={label}
+      subtitle={edge.targetPath}
       onClick={() =>
         onOpenNote({
           noteId: edge.targetNoteId!,
@@ -3361,10 +3356,7 @@ function EdgeRow({
           ...(edge.blockId ? { blockId: edge.blockId } : {}),
         })
       }
-    >
-      <span>{label}</span>
-      <small>{edge.targetPath}</small>
-    </button>
+    />
   );
 }
 
