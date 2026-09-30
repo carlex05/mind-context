@@ -109,6 +109,56 @@ test("opens and edits an existing local Markdown vault without Google Drive", as
   expect(googleRequests).toHaveLength(0);
 });
 
+test("creates and saves JSON Canvas through the bundled file-type plugin", async ({
+  page,
+}, testInfo) => {
+  const googleRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("googleapis.com")) {
+      googleRequests.push(request.url());
+    }
+  });
+
+  await prepareLocalVault(page);
+  await page.getByRole("button", { name: "Open local vault" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.type()).toBe("prompt");
+    await dialog.accept("Architecture.canvas");
+  });
+  await page.getByRole("button", { name: "Create Canvas" }).click();
+
+  await expect(
+    page.getByRole("button", { name: "+ Text" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "+ Text" }).click();
+  const textNode = page.getByRole("textbox", { name: "Canvas text node" });
+  await expect(textNode).toBeVisible();
+  await textNode.fill("MindContext Canvas node");
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved to local vault.")).toBeVisible();
+
+  const saved = await page.evaluate(() =>
+    (window as any).__mindContextReadLocal("Architecture.canvas"),
+  );
+  expect(typeof saved).toBe("string");
+  const parsed = JSON.parse(saved as string);
+  expect(parsed.nodes).toHaveLength(1);
+  expect(parsed.nodes[0]).toMatchObject({
+    type: "text",
+    text: "MindContext Canvas node",
+  });
+  expect(parsed.edges).toEqual([]);
+  expect(googleRequests).toHaveLength(0);
+});
+
 test("remembers a local vault identity across reload and folder reselection", async ({
   page,
 }, testInfo) => {
