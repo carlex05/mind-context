@@ -1188,14 +1188,21 @@ export function App() {
       setSearchIndex(derived.searchIndex);
       setTabs((current) =>
         current.flatMap((tab) => {
-          const note = getNote(rebuilt, tab.resourceId);
-          return note
-            ? [{
-                ...tab,
-                title: note.name.replace(/\.md$/i, ""),
-                path: note.path,
-              }]
-            : [];
+          const node = findWorkspaceNode(nextTree, tab.resourceId);
+          if (!node || node.metadata.kind !== "file") return [];
+          const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+          if (!fileType || fileType.contentKind !== "text") return [];
+          const note =
+            fileType.id === "markdown"
+              ? getNote(rebuilt, tab.resourceId)
+              : undefined;
+          return [{
+            ...tab,
+            fileTypeId: fileType.id,
+            title: displayFileTitle(node.metadata.name),
+            path: note?.path ?? node.path,
+            viewMode: fileType.id === "markdown" ? tab.viewMode : "edit",
+          }];
         }),
       );
 
@@ -1208,27 +1215,33 @@ export function App() {
 
       const refreshedBufferEntries = await Promise.all(
         Object.entries(sourceBuffers)
-          .filter(([noteId]) =>
-            rebuilt.notes.some((note) => note.id === noteId),
-          )
+          .filter(([resourceId]) => {
+            const node = findWorkspaceNode(nextTree, resourceId);
+            if (!node || node.metadata.kind !== "file") return false;
+            const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+            return fileType?.contentKind === "text";
+          })
           .map(async ([noteId, buffer]) => {
             if (buffer.draft !== buffer.note.originalContent) {
               // Preserve the local baseline. Deferred synchronization performs
-              // content-aware reconciliation if Drive has changed.
+              // content-aware reconciliation if canonical storage has changed.
               return [noteId, buffer] as const;
             }
 
             try {
               const metadata = await provider.metadata(noteId);
-              const cachedDocument = derived.searchSnapshot.documents.find(
-                (document) => document.noteId === noteId,
-              );
-              const content = canReuseSearchDocument(
-                cachedDocument,
-                metadata.revision,
-              )
-                ? cachedDocument.content
-                : await provider.readText(noteId);
+              const fileType = extensionHost.fileTypes.resolve(metadata.name);
+              const cachedDocument =
+                fileType?.id === "markdown"
+                  ? derived.searchSnapshot.documents.find(
+                      (document) => document.noteId === noteId,
+                    )
+                  : undefined;
+              const content =
+                cachedDocument &&
+                canReuseSearchDocument(cachedDocument, metadata.revision)
+                  ? cachedDocument.content
+                  : await provider.readText(noteId);
               const note = { metadata, originalContent: content };
               return [
                 noteId,
