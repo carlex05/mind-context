@@ -15,6 +15,7 @@ export const canvasPlugin: Extension = {
       id: "json-canvas",
       extensions: [".canvas"],
       contentKind: "text",
+      mediaType: "application/json",
       displayName: "Canvas",
       create: {
         label: "Canvas",
