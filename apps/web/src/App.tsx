@@ -3231,6 +3231,7 @@ function KnowledgePanel({
   return (
     <KnowledgePanelFrame
       label={t("context.label")}
+      ariaLabel={t("context.aria")}
       title={noteTitle}
       closeLabel={t("context.close")}
       onClose={onBackToNote}

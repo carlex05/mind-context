@@ -243,6 +243,7 @@ export interface WorkspaceNoteActionsViewModel {
   readonly viewIcon: WorkspaceIconName;
   readonly viewLabel: string;
   readonly contextLabel: string;
+  readonly contextTitle?: string;
   readonly saveLabel: string;
   readonly rightSidebarOpen: boolean;
   readonly saveDisabled: boolean;
@@ -297,7 +298,7 @@ export function WorkspaceViewHeader({
           <button type="button" aria-label={note.viewLabel} title={note.viewLabel} onClick={onViewMode}>
             <WorkspaceIcon name={note.viewIcon} />
           </button>
-          <button type="button" aria-label={note.contextLabel} title={note.contextLabel} className={note.rightSidebarOpen ? "active" : ""} onClick={onContext}>
+          <button type="button" aria-label={note.contextLabel} title={note.contextTitle ?? note.contextLabel} className={note.rightSidebarOpen ? "active" : ""} onClick={onContext}>
             <WorkspaceIcon name="panel-right" />
           </button>
           <button type="button" aria-label={note.saveLabel} title={note.saveLabel} disabled={note.saveDisabled} onClick={onSave}>
@@ -311,19 +312,21 @@ export function WorkspaceViewHeader({
 
 export function KnowledgePanelFrame({
   label,
+  ariaLabel,
   title,
   closeLabel,
   children,
   onClose,
 }: {
   readonly label: string;
+  readonly ariaLabel?: string;
   readonly title: string;
   readonly closeLabel: string;
   readonly children: ReactNode;
   readonly onClose?: () => void;
 }) {
   return (
-    <aside className="knowledge-panel" aria-label={label}>
+    <aside className="knowledge-panel" aria-label={ariaLabel ?? label}>
       <button className="knowledge-back" type="button" aria-label={closeLabel} onClick={onClose}>×</button>
       <span className="section-label">{label}</span>
       <h2>{title}</h2>
