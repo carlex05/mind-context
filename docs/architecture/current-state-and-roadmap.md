@@ -154,14 +154,30 @@ on the same model.
 - Canvas creation/edit/autosave and vault-file-node behavior have browser E2E
   coverage.
 
+Excalidraw is now the second bundled first-party plugin:
+
+- `.excalidraw` files open in the official Excalidraw editor in workspace tabs;
+- changes serialize back to the standard plaintext Excalidraw JSON format and
+  reuse the same host-managed draft/autosave/revision lifecycle as Canvas;
+- new Excalidraw files can be created from the Files toolbar or folder context
+  menu;
+- `![[drawing.excalidraw]]` in Reading View resolves through a generic
+  plugin-owned Markdown embed registry;
+- the host reads the referenced file and passes only its text content to the
+  embed renderer; the plugin does not receive `StorageProvider` or provider
+  credentials;
+- Excalidraw fonts are copied into the MindContext build and loaded from the
+  application origin rather than the default Excalidraw CDN path;
+- browser E2E covers creation, real drawing edits, autosave, Markdown embedding
+  and opening the drawing from the embed.
+
 The plugin runtime remains intentionally bundled/first-party. Do not introduce
 arbitrary third-party JavaScript loading or a marketplace before the sandbox and
 capability-isolation spike required by ADR-003.
 
-The next plugin-validation slice should add Excalidraw as a second bundled
-first-party file view. That slice should prove that file-view registration,
-workspace file access and host-managed persistence are sufficiently generic
-before expanding the public extension surface.
+The next plugin-runtime work should focus on hardening the generic contracts
+(commands/editor transforms/embed lifecycle) for the encryption plugin. Public
+third-party installation remains later work.
 
 ### Internationalization
 
