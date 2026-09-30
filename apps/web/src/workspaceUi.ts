@@ -57,7 +57,7 @@ export function readWorkspaceUi(workspaceId: string): PersistedWorkspaceUi {
             resourceId,
             fileTypeId:
               typeof tab.fileTypeId === "string" ? tab.fileTypeId : "markdown",
-            viewMode: tab.viewMode,
+            viewMode: tab.viewMode as NoteViewMode,
           }];
         })
       : [];
