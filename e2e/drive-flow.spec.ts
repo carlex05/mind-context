@@ -125,9 +125,21 @@ test("creates and edits a JSON Canvas through the plugin boundary", async ({
   await expect(canvas).toBeVisible();
 
   await canvas.getByRole("button", { name: "Text", exact: true }).click();
+  await canvas.getByRole("button", { name: "Edit", exact: true }).click();
   const textNode = canvas.getByPlaceholder("Write Markdown…");
   await expect(textNode).toBeVisible();
-  await textNode.fill("# Canvas idea");
+  await textNode.fill("# Canvas idea\n\n**Connected context**");
+  await textNode.blur();
+
+  await expect(
+    canvas.getByRole("heading", { name: "Canvas idea" }),
+  ).toBeVisible();
+  await canvas.getByRole("button", { name: "Green", exact: true }).click();
+
+  await canvas.getByRole("button", { name: "File", exact: true }).click();
+  const fileSelector = canvas.getByLabel("Choose a vault file");
+  await expect(fileSelector).toBeVisible();
+  await fileSelector.selectOption("Existing.md");
 
   await expect(page.getByText("Saved to local vault.")).toBeVisible({
     timeout: 10_000,
@@ -137,13 +149,28 @@ test("creates and edits a JSON Canvas through the plugin boundary", async ({
     (window as any).__mindContextReadLocal("Ideas.canvas"),
   );
   const saved = JSON.parse(raw) as {
-    nodes?: Array<{ type?: string; text?: string }>;
+    nodes?: Array<{
+      type?: string;
+      text?: string;
+      file?: string;
+      color?: string;
+    }>;
   };
-  expect(saved.nodes).toHaveLength(1);
-  expect(saved.nodes?.[0]).toMatchObject({
+  expect(saved.nodes).toHaveLength(2);
+  expect(saved.nodes?.find((node) => node.type === "text")).toMatchObject({
     type: "text",
-    text: "# Canvas idea",
+    text: "# Canvas idea\n\n**Connected context**",
+    color: "4",
   });
+  expect(saved.nodes?.find((node) => node.type === "file")).toMatchObject({
+    type: "file",
+    file: "Existing.md",
+  });
+
+  await canvas.getByRole("button", { name: "Open file", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Edit Existing.md" }),
+  ).toBeVisible();
 });
 
 test("remembers a local vault identity across reload and folder reselection", async ({
