@@ -11,11 +11,19 @@ export interface ExtensionHostAdapters {
   readonly writeCurrentText: (content: string) => Promise<void>;
 }
 
+export interface PluginWorkspaceFile {
+  readonly id: string;
+  readonly name: string;
+  readonly path: string;
+}
+
 export interface PluginFileViewProps {
   readonly name: string;
   readonly path: string;
   readonly content: string | Uint8Array;
   readonly syncState?: "synced" | "local" | "syncing" | "conflict" | "error";
+  readonly workspaceFiles?: readonly PluginWorkspaceFile[];
+  readonly onOpenWorkspaceFile?: (path: string) => void;
   readonly onTextChange?: (content: string) => void;
 }
 
