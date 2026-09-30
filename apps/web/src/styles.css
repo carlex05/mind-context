@@ -4703,3 +4703,179 @@ h2 {
     max-height: 360px;
   }
 }
+
+
+.encrypted-block {
+  display: flex;
+  width: 100%;
+  max-width: 620px;
+  margin: 18px 0;
+  padding: 14px 16px;
+  gap: 12px;
+  align-items: center;
+  color: var(--ink);
+  text-align: left;
+  background: color-mix(in srgb, var(--surface) 92%, var(--subtle));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+button.encrypted-block:hover,
+button.encrypted-block:focus-visible {
+  background: var(--subtle);
+}
+
+.encrypted-block-lock,
+.encrypted-dialog-lock {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  background: var(--subtle);
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  font-size: 1rem;
+}
+
+.encrypted-block-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.encrypted-block-copy small {
+  color: var(--ink-muted);
+}
+
+.encrypted-block-invalid {
+  color: var(--danger);
+}
+
+.encrypted-dialog-backdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  place-items: center;
+  background: rgb(0 0 0 / 46%);
+  backdrop-filter: blur(4px);
+}
+
+.encrypted-dialog {
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100vh - 40px));
+  padding: 0;
+  overflow: auto;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 26%);
+}
+
+.encrypted-dialog > header {
+  display: flex;
+  padding: 14px 16px;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.encrypted-dialog > header > div {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  align-items: center;
+}
+
+.encrypted-dialog > header > div > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.encrypted-dialog > header span {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+}
+
+.encrypted-dialog-close {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font-size: 1.3rem;
+}
+
+.encrypted-dialog-close:hover,
+.encrypted-dialog-close:focus-visible {
+  background: var(--subtle);
+}
+
+.encrypted-dialog form,
+.encrypted-dialog-plaintext {
+  margin: 0;
+  padding: 18px;
+}
+
+.encrypted-dialog form label {
+  display: grid;
+  gap: 7px;
+}
+
+.encrypted-dialog form input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.encrypted-dialog-error {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.encrypted-dialog-plaintext {
+  max-height: 460px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.encrypted-dialog-actions {
+  display: flex;
+  padding: 0 18px 18px;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.markdown-extension-command span {
+  font-size: 0.92rem;
+}
+
+@media (max-width: 760px) {
+  .encrypted-dialog-backdrop {
+    padding: 10px;
+    align-items: end;
+  }
+
+  .encrypted-dialog {
+    width: 100%;
+    max-height: min(78vh, 720px);
+    border-radius: 14px 14px 0 0;
+  }
+}
