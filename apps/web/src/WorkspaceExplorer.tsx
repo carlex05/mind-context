@@ -34,6 +34,7 @@ export function WorkspaceExplorer({
   onSelectedFolderIdChange,
   onOpenFile,
   onRequestNewNote,
+  onRequestNewCanvas,
   onRequestNewFolder,
   onRequestAttachFiles,
   onChanged,
@@ -48,6 +49,7 @@ export function WorkspaceExplorer({
   readonly onSelectedFolderIdChange: (id: string) => void;
   readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onRequestNewNote: (folderId: string) => void;
+  readonly onRequestNewCanvas: (folderId: string) => void;
   readonly onRequestNewFolder: (folderId: string) => void;
   readonly onRequestAttachFiles: (folderId: string) => void;
   readonly onChanged: () => Promise<void>;
@@ -222,6 +224,7 @@ export function WorkspaceExplorer({
           onOpenFile={onOpenFile}
           onMenuItem={setMenuItemId}
           onNewNote={onRequestNewNote}
+          onNewCanvas={onRequestNewCanvas}
           onNewFolder={onRequestNewFolder}
           onAttachFiles={onRequestAttachFiles}
           onRename={(target) => void renameNode(target)}
@@ -253,6 +256,7 @@ function TreeNode({
   onOpenFile,
   onMenuItem,
   onNewNote,
+  onNewCanvas,
   onNewFolder,
   onAttachFiles,
   onRename,
@@ -274,6 +278,7 @@ function TreeNode({
   readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onMenuItem: (id: string | undefined) => void;
   readonly onNewNote: (folderId: string) => void;
+  readonly onNewCanvas: (folderId: string) => void;
   readonly onNewFolder: (folderId: string) => void;
   readonly onAttachFiles: (folderId: string) => void;
   readonly onRename: (node: WorkspaceTreeNode) => void;
@@ -375,6 +380,14 @@ function TreeNode({
               <button
                 type="button"
                 onClick={() =>
+                  runMenuAction(() => onNewCanvas(node.metadata.id))
+                }
+              >
+                {t("explorer.newCanvasHere")}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
                   runMenuAction(() => onNewFolder(node.metadata.id))
                 }
               >
@@ -452,6 +465,7 @@ function TreeNode({
               onOpenFile={onOpenFile}
                   onMenuItem={onMenuItem}
               onNewNote={onNewNote}
+              onNewCanvas={onNewCanvas}
               onNewFolder={onNewFolder}
               onAttachFiles={onAttachFiles}
               onRename={onRename}
