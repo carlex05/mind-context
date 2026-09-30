@@ -240,9 +240,9 @@ export interface WorkspaceNoteActionsViewModel {
   readonly syncState: string;
   readonly syncLabel: string;
   readonly syncTitle?: string;
-  readonly viewIcon: WorkspaceIconName;
-  readonly viewLabel: string;
-  readonly contextLabel: string;
+  readonly viewIcon?: WorkspaceIconName;
+  readonly viewLabel?: string;
+  readonly contextLabel?: string;
   readonly contextTitle?: string;
   readonly saveLabel: string;
   readonly rightSidebarOpen: boolean;
@@ -295,12 +295,16 @@ export function WorkspaceViewHeader({
       {note ? (
         <div className="workspace-note-actions">
           <span className={`note-sync-state ${note.syncState}`} title={note.syncTitle}>{note.syncLabel}</span>
-          <button type="button" aria-label={note.viewLabel} title={note.viewLabel} onClick={onViewMode}>
-            <WorkspaceIcon name={note.viewIcon} />
-          </button>
-          <button type="button" aria-label={note.contextLabel} title={note.contextTitle ?? note.contextLabel} className={note.rightSidebarOpen ? "active" : ""} onClick={onContext}>
-            <WorkspaceIcon name="panel-right" />
-          </button>
+          {note.viewIcon && note.viewLabel ? (
+            <button type="button" aria-label={note.viewLabel} title={note.viewLabel} onClick={onViewMode}>
+              <WorkspaceIcon name={note.viewIcon} />
+            </button>
+          ) : null}
+          {note.contextLabel ? (
+            <button type="button" aria-label={note.contextLabel} title={note.contextTitle ?? note.contextLabel} className={note.rightSidebarOpen ? "active" : ""} onClick={onContext}>
+              <WorkspaceIcon name="panel-right" />
+            </button>
+          ) : null}
           <button type="button" aria-label={note.saveLabel} title={note.saveLabel} disabled={note.saveDisabled} onClick={onSave}>
             <WorkspaceIcon name="save" />
           </button>
