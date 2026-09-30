@@ -131,6 +131,7 @@ import {
 import {
   childPath,
   findWorkspaceNode,
+  flattenWorkspaceTree,
   inferMediaType,
   isImageFile,
   loadWorkspaceTree,
@@ -492,6 +493,19 @@ export function App() {
       [...new Set((knowledgeIndex?.notes ?? []).flatMap((note) => note.tags))]
         .sort((left, right) => left.localeCompare(right)),
     [knowledgeIndex],
+  );
+
+  const pluginWorkspaceFiles = useMemo(
+    () =>
+      flattenWorkspaceTree(tree)
+        .filter((node) => node.metadata.kind === "file")
+        .map((node) => ({
+          id: node.metadata.id,
+          name: node.metadata.name,
+          path: node.path,
+        }))
+        .sort((left, right) => left.path.localeCompare(right.path)),
+    [tree],
   );
 
   const searchService = useMemo<SearchService | undefined>(() => {
@@ -2209,6 +2223,14 @@ export function App() {
     if (!opened) await openAttachment(node);
   }
 
+  async function openWorkspaceFileByPath(path: string) {
+    const node = flattenWorkspaceTree(tree).find(
+      (candidate) =>
+        candidate.metadata.kind === "file" && candidate.path === path,
+    );
+    if (node) await openWorkspaceFile(node);
+  }
+
   async function activateResourceTab(resourceId: string) {
     const tab = tabs.find((candidate) => candidate.resourceId === resourceId);
     if (!tab) return;
@@ -3713,6 +3735,10 @@ export function App() {
                 path={openPluginResource.path}
                 content={openPluginResource.content}
                 syncState={activeSyncState}
+                workspaceFiles={pluginWorkspaceFiles}
+                onOpenWorkspaceFile={(path) => {
+                  void openWorkspaceFileByPath(path);
+                }}
                 onTextChange={(content) => {
                   void extensionHost.writeCurrentText(content);
                 }}
