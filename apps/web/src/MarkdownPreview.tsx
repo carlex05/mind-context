@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import Markdown from "react-markdown";
 import rehypeMathjax from "rehype-mathjax";
 import rehypePrism from "rehype-prism-plus";
@@ -14,6 +20,7 @@ import {
 } from "@mind-context/markdown";
 import { useTranslation } from "react-i18next";
 import { MermaidDiagram } from "./MermaidDiagram";
+import type { PluginMarkdownEmbedProps } from "./extensions/ExtensionHost";
 import {
   inferMediaType,
   isImageFile,
@@ -35,6 +42,8 @@ export function MarkdownPreview({
   outgoingLinks,
   navigationTarget,
   navigationKey = 0,
+  resolvePluginEmbed,
+  onOpenWorkspaceFile,
   onOpenNote,
 }: {
   readonly content: string;
@@ -44,6 +53,10 @@ export function MarkdownPreview({
   readonly outgoingLinks: readonly KnowledgeEdge[];
   readonly navigationTarget?: MarkdownNavigationTarget | undefined;
   readonly navigationKey?: number | undefined;
+  readonly resolvePluginEmbed?: (
+    fileName: string,
+  ) => ComponentType<PluginMarkdownEmbedProps> | undefined;
+  readonly onOpenWorkspaceFile?: (path: string) => void;
   readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
@@ -65,6 +78,7 @@ export function MarkdownPreview({
     return {
       href: wikiAssetHref(rawTarget),
       image: isImageFile(node.metadata),
+      pluginEmbed: resolvePluginEmbed?.(node.metadata.name) !== undefined,
     };
   };
 
@@ -159,6 +173,29 @@ export function MarkdownPreview({
             return <img src={src} alt={alt ?? ""} {...props} />;
           },
           a({ href, children }) {
+            const pluginTarget = parsePluginEmbedHref(href);
+            if (pluginTarget && resolvePluginEmbed) {
+              const node = resolveWorkspaceFile(
+                tree,
+                currentNotePath,
+                pluginTarget,
+                "wikilink",
+              );
+              const Embed = node
+                ? resolvePluginEmbed(node.metadata.name)
+                : undefined;
+              if (node && Embed) {
+                return (
+                  <VaultPluginEmbed
+                    provider={provider}
+                    node={node}
+                    component={Embed}
+                    onOpenWorkspaceFile={onOpenWorkspaceFile}
+                  />
+                );
+              }
+            }
+
             const target = resolveHref(href, outgoingLinks);
             if (target) {
               return (
@@ -200,10 +237,12 @@ export function MarkdownPreview({
 }
 
 const WIKI_ASSET_PREFIX = "#mindcontext-asset=";
+const PLUGIN_EMBED_PREFIX = "#mindcontext-plugin-embed=";
 
 interface ResolvedWikiAsset {
   readonly href: string;
   readonly image: boolean;
+  readonly pluginEmbed: boolean;
 }
 
 function wikiAssetHref(target: string): string {
@@ -213,6 +252,20 @@ function wikiAssetHref(target: string): string {
 function parseWikiAssetHref(href: string): string | undefined {
   if (!href.startsWith(WIKI_ASSET_PREFIX)) return undefined;
   const encoded = href.slice(WIKI_ASSET_PREFIX.length);
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+}
+
+function pluginEmbedHref(target: string): string {
+  return `${PLUGIN_EMBED_PREFIX}${encodeURIComponent(target)}`;
+}
+
+function parsePluginEmbedHref(href: string | undefined): string | undefined {
+  if (!href?.startsWith(PLUGIN_EMBED_PREFIX)) return undefined;
+  const encoded = href.slice(PLUGIN_EMBED_PREFIX.length);
   try {
     return decodeURIComponent(encoded);
   } catch {
@@ -234,6 +287,71 @@ function resolvePreviewAttachment(
     wikiTarget ? "wikilink" : "markdown",
   );
   return node && !isMarkdownFile(node.metadata) ? node : undefined;
+}
+
+function VaultPluginEmbed({
+  provider,
+  node,
+  component: Embed,
+  onOpenWorkspaceFile,
+}: {
+  readonly provider: StorageProvider;
+  readonly node: WorkspaceTreeNode;
+  readonly component: ComponentType<PluginMarkdownEmbedProps>;
+  readonly onOpenWorkspaceFile?: (path: string) => void;
+}) {
+  const [content, setContent] = useState<string>();
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    setContent(undefined);
+    setFailed(false);
+
+    void provider
+      .readText(node.metadata.id)
+      .then((value) => {
+        if (!disposed) setContent(value);
+      })
+      .catch(() => {
+        if (!disposed) setFailed(true);
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [
+    provider,
+    node.metadata.id,
+    node.metadata.revision,
+    node.metadata.contentRevision,
+  ]);
+
+  if (failed) {
+    return (
+      <span className="attachment-load-error">
+        {node.metadata.name}
+      </span>
+    );
+  }
+  if (content === undefined) {
+    return (
+      <span className="attachment-loading" aria-busy="true">
+        {node.metadata.name}
+      </span>
+    );
+  }
+
+  return (
+    <Embed
+      name={node.metadata.name}
+      path={node.path}
+      content={content}
+      {...(onOpenWorkspaceFile
+        ? { onOpen: () => onOpenWorkspaceFile(node.path) }
+        : {})}
+    />
+  );
 }
 
 function VaultImage({
@@ -564,6 +682,12 @@ function splitWikilinks(
           type: "image",
           url: asset.href,
           alt: label,
+        });
+      } else if (embed && asset.pluginEmbed) {
+        nodes.push({
+          type: "link",
+          url: pluginEmbedHref(rawTarget),
+          children: [{ type: "text", value: label }],
         });
       } else {
         nodes.push({
