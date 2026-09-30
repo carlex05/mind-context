@@ -126,6 +126,43 @@ remains canonical. Pending drafts retain their base revision/content so
 conflicts can be detected and future provider-specific reconciliation can build
 on the same model.
 
+### Canvas and first-party extension runtime
+
+- bundled first-party extension host with registered file types and file views;
+- Canvas is registered as a plugin-owned `.canvas` text resource rather than a
+  Markdown note;
+- `.canvas` files remain ordinary JSON Canvas files in canonical storage with
+  `application/json` media type;
+- local-folder and Drive providers preserve the `.canvas` filename instead of
+  coercing generic text resources to `.md`;
+- Canvas resources reuse browser-local pending drafts, deferred provider sync,
+  revision checks and visible sync states without entering Markdown
+  knowledge/search/RAG projections;
+- JSON Canvas text/file/link/group nodes and edges round-trip without a
+  proprietary canonical format;
+- text nodes render Markdown and expose edit-on-selection/double-click authoring;
+- file nodes select from host-provided vault file references and open the target
+  through the host workspace navigation boundary, never through storage
+  credentials exposed to the plugin;
+- link nodes support explicit safe HTTP(S) opening;
+- node/edge colors use the JSON Canvas `color` field, including presets 1–6;
+- edges use loose side handles, arrow endpoints and editable standard `label`
+  fields;
+- unknown top-level/node/edge JSON properties are preserved where practical
+  through parse/edit/serialize cycles;
+- Canvas creation is available from the Files toolbar and folder context menus;
+- Canvas creation/edit/autosave and vault-file-node behavior have browser E2E
+  coverage.
+
+The plugin runtime remains intentionally bundled/first-party. Do not introduce
+arbitrary third-party JavaScript loading or a marketplace before the sandbox and
+capability-isolation spike required by ADR-003.
+
+The next plugin-validation slice should add Excalidraw as a second bundled
+first-party file view. That slice should prove that file-view registration,
+workspace file access and host-managed persistence are sufficiently generic
+before expanding the public extension surface.
+
 ### Internationalization
 
 UI locales:
