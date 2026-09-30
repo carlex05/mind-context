@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import ConstellationVisual from "./ConstellationVisual.astro";
+import ProductDemo from "./ProductDemo.astro";
 import { siteCopy, sitePath, type SiteLocale } from "../i18n/site";
 const { locale = "en" } = Astro.props as { locale?: SiteLocale };
 const t = siteCopy[locale].home;
@@ -15,12 +16,47 @@ const page = (route: any) => sitePath(base, locale, route);
       <h1>{t.titleBefore} <span>{t.titleAccent}</span></h1>
       <p class="hero-lede">{t.lede}</p>
       <div class="hero-actions">
-        <a class="button primary large" href={`${base}app/`}>{siteCopy[locale].layout.open} <span aria-hidden="true">→</span></a>
+        <a class="button primary large" href={`${base}app/`} data-analytics-event="open_app">{siteCopy[locale].layout.open} <span aria-hidden="true">→</span></a>
         <a class="button secondary large" href="#how-it-works"><span aria-hidden="true">◎</span> {t.how}</a>
       </div>
       <div class="trust-row" aria-label={t.trustAria}>{t.trust.map((item) => <span>✓ {item}</span>)}</div>
     </div>
     <ConstellationVisual locale={locale} />
+  </section>
+
+  <section class="section product-story-section" id="how-it-works">
+    <div class="section-heading product-story-heading">
+      <span class="eyebrow">{t.demo.eyebrow}</span>
+      <h2>{t.demo.title}</h2>
+      <p>{t.demo.body}</p>
+    </div>
+    <ProductDemo locale={locale} />
+  </section>
+
+  <section class="section compare-section">
+    <div class="section-heading compare-heading">
+      <span class="eyebrow">{t.compare.eyebrow}</span>
+      <h2>{t.compare.title}</h2>
+      <p>{t.compare.body}</p>
+    </div>
+    <div class="compare-card">
+      <div class="compare-head">
+        <span>{t.compare.leftLabel}</span>
+        <span>{t.compare.rightLabel}</span>
+      </div>
+      <div class="compare-rows">
+        {t.compare.rows.map(([left, right]) => (
+          <div class="compare-row">
+            <span>{left}</span>
+            <strong><i aria-hidden="true">→</i>{right}</strong>
+          </div>
+        ))}
+      </div>
+      <div class="compare-punchline">
+        <span>✦</span>
+        <div><strong>{t.compare.punchline}</strong><small>{t.compare.punchlineBody}</small></div>
+      </div>
+    </div>
   </section>
 
   <section class="section feature-section" id="features">
@@ -33,11 +69,6 @@ const page = (route: any) => sitePath(base, locale, route);
         </article>
       ))}
     </div>
-  </section>
-
-  <section class="section how-section" id="how-it-works">
-    <div class="section-heading narrow"><span class="eyebrow">{t.howEyebrow}</span><h2>{t.howTitle}</h2></div>
-    <div class="steps">{t.steps.map((step) => <article><span>{step.n}</span><h3>{step.title}</h3><p>{step.body}</p></article>)}</div>
   </section>
 
   <section class="section pricing-section" id="pricing">
@@ -54,6 +85,6 @@ const page = (route: any) => sitePath(base, locale, route);
 
   <section class="section final-cta">
     <span class="eyebrow">{t.finalEyebrow}</span><h2>{t.finalTitle}</h2><p>{t.finalBody}</p>
-    <div class="hero-actions"><a class="button primary large" href={`${base}app/`}>{siteCopy[locale].layout.open} →</a><a class="button secondary large" href={page("feedback")}>{t.sendFeedback}</a></div>
+    <div class="hero-actions"><a class="button primary large" href={`${base}app/`} data-analytics-event="open_app">{siteCopy[locale].layout.open} →</a><a class="button secondary large" href={page("feedback")}>{t.sendFeedback}</a></div>
   </section>
 </BaseLayout>
