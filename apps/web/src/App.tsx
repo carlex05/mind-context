@@ -101,6 +101,7 @@ import {
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
 import { ExtensionHost } from "./extensions/ExtensionHost";
 import { canvasPlugin } from "./plugins/canvasPlugin";
+import { excalidrawPlugin } from "./plugins/excalidrawPlugin";
 import { WorkspaceHome } from "./WorkspaceHome";
 import {
   WorkspaceOnboardingDialog,
@@ -255,6 +256,7 @@ export function App() {
       source: "core",
     });
     void host.activateBundle(canvasPlugin);
+    void host.activateBundle(excalidrawPlugin);
     return host;
   });
   const [workspaceName, setWorkspaceName] = useState(
@@ -3819,6 +3821,12 @@ export function App() {
                     outgoingLinks={outgoingLinks}
                     navigationTarget={activeMarkdownNavigation}
                     navigationKey={activeMarkdownNavigation?.key}
+                    resolvePluginEmbed={(fileName) =>
+                      extensionHost.resolveMarkdownEmbed(fileName)?.component
+                    }
+                    onOpenWorkspaceFile={(path) => {
+                      void openWorkspaceFileByPath(path);
+                    }}
                     onOpenNote={(target) => void openMarkdownTarget(target)}
                   />
                 )}
