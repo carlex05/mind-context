@@ -1,15 +1,24 @@
 import type { ComponentType } from "react";
 import type {
+  CommandRegistration,
+  EditorSelection,
   Extension,
   ExtensionContext,
   FileTypeRegistration,
+  MarkdownBlockRegistration,
   MarkdownEmbedRegistration,
+  SecretPromptRequest,
 } from "@mind-context/extension-api";
 import { FileTypeRegistry } from "./FileTypeRegistry";
 
 export interface ExtensionHostAdapters {
   readonly readCurrentText: () => Promise<string | undefined>;
   readonly writeCurrentText: (content: string) => Promise<void>;
+  readonly readEditorSelection: () => Promise<EditorSelection | undefined>;
+  readonly replaceEditorSelection: (content: string) => Promise<void>;
+  readonly promptSecret: (
+    request: SecretPromptRequest,
+  ) => Promise<string | undefined>;
 }
 
 export interface PluginWorkspaceFile {
@@ -45,15 +54,36 @@ export interface WebMarkdownEmbedRegistration {
   readonly component: ComponentType<PluginMarkdownEmbedProps>;
 }
 
+export interface PluginMarkdownBlockProps {
+  readonly content: string;
+}
+
+export interface WebMarkdownBlockRegistration {
+  readonly rendererId: string;
+  readonly component: ComponentType<PluginMarkdownBlockProps>;
+}
+
 export interface ResolvedMarkdownEmbed {
   readonly rendererId: string;
   readonly component: ComponentType<PluginMarkdownEmbedProps>;
+}
+
+export interface ResolvedMarkdownBlock {
+  readonly rendererId: string;
+  readonly component: ComponentType<PluginMarkdownBlockProps>;
+}
+
+export interface RegisteredExtensionCommand
+  extends Omit<CommandRegistration, "handler"> {
+  readonly source: `plugin:${string}`;
+  readonly handler: () => void | Promise<void>;
 }
 
 export interface WebExtensionBundle {
   readonly extension: Extension;
   readonly fileViews?: readonly WebFileViewRegistration[];
   readonly markdownEmbeds?: readonly WebMarkdownEmbedRegistration[];
+  readonly markdownBlocks?: readonly WebMarkdownBlockRegistration[];
 }
 
 export class ExtensionHost {
@@ -74,6 +104,17 @@ export class ExtensionHost {
     string,
     readonly string[]
   >();
+  private readonly markdownBlockLanguages = new Map<string, string>();
+  private readonly markdownBlockViews = new Map<
+    string,
+    ComponentType<PluginMarkdownBlockProps>
+  >();
+  private readonly markdownBlockViewsByExtension = new Map<
+    string,
+    readonly string[]
+  >();
+  private readonly commands = new Map<string, RegisteredExtensionCommand>();
+  private readonly commandsByExtension = new Map<string, readonly string[]>();
 
   constructor(private readonly adapters: ExtensionHostAdapters) {}
 
@@ -93,6 +134,15 @@ export class ExtensionHost {
       markdownEmbedIds,
     );
 
+    const markdownBlockIds = (bundle.markdownBlocks ?? []).map((view) => {
+      this.markdownBlockViews.set(view.rendererId, view.component);
+      return view.rendererId;
+    });
+    this.markdownBlockViewsByExtension.set(
+      bundle.extension.manifest.id,
+      markdownBlockIds,
+    );
+
     try {
       await this.activate(bundle.extension);
     } catch (error) {
@@ -100,8 +150,12 @@ export class ExtensionHost {
       for (const rendererId of markdownEmbedIds) {
         this.markdownEmbedViews.delete(rendererId);
       }
+      for (const rendererId of markdownBlockIds) {
+        this.markdownBlockViews.delete(rendererId);
+      }
       this.fileViewsByExtension.delete(bundle.extension.manifest.id);
       this.markdownEmbedViewsByExtension.delete(bundle.extension.manifest.id);
+      this.markdownBlockViewsByExtension.delete(bundle.extension.manifest.id);
       throw error;
     }
   }
@@ -121,6 +175,19 @@ export class ExtensionHost {
       : undefined;
   }
 
+  resolveMarkdownBlock(language: string): ResolvedMarkdownBlock | undefined {
+    const rendererId = this.markdownBlockLanguages.get(
+      language.toLocaleLowerCase(),
+    );
+    if (!rendererId) return undefined;
+    const component = this.markdownBlockViews.get(rendererId);
+    return component ? { rendererId, component } : undefined;
+  }
+
+  listCommands(): readonly RegisteredExtensionCommand[] {
+    return [...this.commands.values()];
+  }
+
   async writeCurrentText(content: string): Promise<void> {
     await this.adapters.writeCurrentText(content);
   }
@@ -129,6 +196,7 @@ export class ExtensionHost {
     if (this.extensions.has(extension.manifest.id)) return;
 
     const disposables: (() => void)[] = [];
+    const registeredCommandIds: string[] = [];
     const context: ExtensionContext = {
       notes: {
         readCurrent: this.adapters.readCurrentText,
@@ -158,9 +226,56 @@ export class ExtensionHost {
           disposables.push(dispose);
           return dispose;
         },
+        registerBlockRenderer: (registration: MarkdownBlockRegistration) => {
+          for (const language of registration.languages) {
+            const normalized = language.trim().toLocaleLowerCase();
+            if (!normalized) continue;
+            const existing = this.markdownBlockLanguages.get(normalized);
+            if (existing && existing !== registration.id) {
+              throw new Error(
+                `Markdown block language already registered: ${normalized}`,
+              );
+            }
+            this.markdownBlockLanguages.set(normalized, registration.id);
+          }
+          const dispose = () => {
+            for (const language of registration.languages) {
+              const normalized = language.trim().toLocaleLowerCase();
+              if (
+                this.markdownBlockLanguages.get(normalized) === registration.id
+              ) {
+                this.markdownBlockLanguages.delete(normalized);
+              }
+            }
+          };
+          disposables.push(dispose);
+          return dispose;
+        },
+      },
+      editor: {
+        readSelection: this.adapters.readEditorSelection,
+        replaceSelection: this.adapters.replaceEditorSelection,
+      },
+      ui: {
+        promptSecret: this.adapters.promptSecret,
       },
       commands: {
-        register: () => () => undefined,
+        register: (registration: CommandRegistration) => {
+          if (this.commands.has(registration.id)) {
+            throw new Error(
+              `Extension command already registered: ${registration.id}`,
+            );
+          }
+          const command: RegisteredExtensionCommand = {
+            ...registration,
+            source: `plugin:${extension.manifest.id}`,
+          };
+          this.commands.set(registration.id, command);
+          registeredCommandIds.push(registration.id);
+          const dispose = () => this.commands.delete(registration.id);
+          disposables.push(dispose);
+          return dispose;
+        },
       },
       events: {
         subscribe: () => () => undefined,
@@ -170,6 +285,7 @@ export class ExtensionHost {
     await extension.activate(context);
     this.extensions.set(extension.manifest.id, extension);
     this.disposables.set(extension.manifest.id, disposables);
+    this.commandsByExtension.set(extension.manifest.id, registeredCommandIds);
   }
 
   async deactivate(id: string): Promise<void> {
@@ -183,8 +299,16 @@ export class ExtensionHost {
     for (const rendererId of this.markdownEmbedViewsByExtension.get(id) ?? []) {
       this.markdownEmbedViews.delete(rendererId);
     }
+    for (const rendererId of this.markdownBlockViewsByExtension.get(id) ?? []) {
+      this.markdownBlockViews.delete(rendererId);
+    }
+    for (const commandId of this.commandsByExtension.get(id) ?? []) {
+      this.commands.delete(commandId);
+    }
     this.fileViewsByExtension.delete(id);
     this.markdownEmbedViewsByExtension.delete(id);
+    this.markdownBlockViewsByExtension.delete(id);
+    this.commandsByExtension.delete(id);
     this.disposables.delete(id);
     this.extensions.delete(id);
   }
