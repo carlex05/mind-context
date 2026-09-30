@@ -173,6 +173,98 @@ test("creates and edits a JSON Canvas through the plugin boundary", async ({
   ).toBeVisible();
 });
 
+test("creates edits and embeds an Excalidraw plugin document", async ({
+  page,
+}, testInfo) => {
+  await prepareLocalVault(page);
+  await page.getByRole("button", { name: "Open local vault" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createExcalidraw(page, "Sketch");
+
+  const drawing = page.getByRole("region", { name: "Sketch.excalidraw" });
+  await expect(drawing).toBeVisible();
+
+  const excalidrawCanvas = drawing.locator("canvas.excalidraw__canvas").first();
+  await expect(excalidrawCanvas).toBeVisible();
+  const box = await excalidrawCanvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) throw new Error("Excalidraw canvas has no bounding box.");
+
+  await excalidrawCanvas.click({
+    position: {
+      x: Math.max(20, Math.min(box.width - 20, box.width / 2)),
+      y: Math.max(20, Math.min(box.height - 20, box.height / 2)),
+    },
+  });
+  await page.keyboard.press("2");
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.35);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.62, {
+    steps: 8,
+  });
+  await page.mouse.up();
+
+  await expect(page.getByText("Saved to local vault.")).toBeVisible({
+    timeout: 12_000,
+  });
+
+  const rawDrawing = await page.evaluate(() =>
+    (window as any).__mindContextReadLocal("Sketch.excalidraw"),
+  );
+  const savedDrawing = JSON.parse(rawDrawing) as {
+    type?: string;
+    elements?: Array<{ type?: string; isDeleted?: boolean }>;
+  };
+  expect(savedDrawing.type).toBe("excalidraw");
+  expect(
+    savedDrawing.elements?.some(
+      (element) => element.type === "rectangle" && element.isDeleted !== true,
+    ),
+  ).toBe(true);
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createNote(page, "Drawing Embed");
+  const noteEditor = page.getByRole("textbox", {
+    name: "Edit Drawing Embed.md",
+  });
+  await replaceEditorContent(
+    page,
+    noteEditor,
+    "# Drawing Embed\n\n![[Sketch.excalidraw]]",
+  );
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+
+  const readingViewButton = page.getByRole("button", {
+    name: "Reading view",
+    exact: true,
+  });
+  if (!(await readingViewButton.isVisible())) {
+    const collapse = page.getByRole("button", {
+      name: "Collapse sidebar",
+      exact: true,
+    });
+    if (await collapse.isVisible()) await collapse.click();
+  }
+  await readingViewButton.click();
+
+  const reading = page.getByLabel("Reading view");
+  const embed = reading.locator(".excalidraw-markdown-embed");
+  await expect(embed).toBeVisible({ timeout: 10_000 });
+  await expect(
+    embed.getByRole("img", { name: "Sketch.excalidraw" }),
+  ).toBeVisible();
+  await embed
+    .getByRole("button", { name: "Open Sketch.excalidraw", exact: true })
+    .click();
+  await expect(
+    page.getByRole("region", { name: "Sketch.excalidraw" }),
+  ).toBeVisible();
+});
+
 test("remembers a local vault identity across reload and folder reselection", async ({
   page,
 }, testInfo) => {
@@ -2183,6 +2275,26 @@ async function createCanvas(page: Page, name: string): Promise<void> {
   await expect(
     page.getByRole("region", { name: `${name}.canvas` }),
   ).toBeVisible();
+}
+
+async function createExcalidraw(
+  page: Page,
+  name: string,
+): Promise<void> {
+  const files = page.getByRole("complementary", { name: "Files" });
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
+  await files
+    .getByRole("button", { name: "New Excalidraw", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "New Excalidraw" });
+  await dialog.getByLabel("Name").fill(name);
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: `${name}.excalidraw` }),
+  ).toBeVisible({ timeout: 10_000 });
 }
 
 async function createFolder(page: Page, name: string): Promise<void> {
