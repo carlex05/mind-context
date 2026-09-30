@@ -214,7 +214,7 @@ export function App() {
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const attachmentTargetFolderIdRef = useRef<string | undefined>(undefined);
-  const [openFile, setOpenTextFile] = useState<OpenTextFile>();
+  const [openFile, setOpenFile] = useState<OpenTextFile>();
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState(
     () => t("chooser.defaultName"),
@@ -330,6 +330,18 @@ export function App() {
     [],
   );
 
+  const activeFileType = openFile
+    ? extensionHost.fileTypes.resolve(openFile.metadata.name)
+    : undefined;
+  const activeIsMarkdown = activeFileType?.id === "markdown";
+  const ActivePluginTextView =
+    activeFileType && activeFileType.viewType !== "markdown"
+      ? fileViewRenderers.resolveText(activeFileType.viewType)
+      : undefined;
+  const activeFilePath = openFile
+    ? findWorkspaceNode(tree, openFile.metadata.id)?.path ?? openFile.metadata.name
+    : "";
+
   const activeBufferedNote = openFile
     ? tabBuffers[openFile.metadata.id]?.note ?? openFile
     : undefined;
@@ -368,7 +380,7 @@ export function App() {
                 ? "pending"
                 : "synced";
 
-  const dirtyNoteIds = useMemo(() => {
+  const dirtyResourceIds = useMemo(() => {
     const result = new Set<string>();
     for (const [noteId, buffer] of Object.entries(tabBuffers)) {
       if (buffer.draft !== buffer.note.originalContent) result.add(noteId);
@@ -377,24 +389,33 @@ export function App() {
     return result;
   }, [tabBuffers, activeTabId, dirty, draft, openFile]);
 
-  const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
+  const parsedDraft = useMemo(
+    () => markdownParser.parse(activeIsMarkdown ? draft : ""),
+    [activeIsMarkdown, draft],
+  );
 
-  const currentIndexedNote = openFile
-    ? getNote(knowledgeIndex, openFile.metadata.id)
-    : undefined;
+  const currentIndexedNote =
+    activeIsMarkdown && openFile
+      ? getNote(knowledgeIndex, openFile.metadata.id)
+      : undefined;
   const activeMarkdownNavigation =
-    openFile && markdownNavigation?.noteId === openFile.metadata.id
+    activeIsMarkdown &&
+    openFile &&
+    markdownNavigation?.noteId === openFile.metadata.id
       ? markdownNavigation
       : undefined;
-  const outgoingLinks = openFile
-    ? getOutgoingLinks(knowledgeIndex, openFile.metadata.id)
-    : [];
-  const backlinks = openFile
-    ? getBacklinks(knowledgeIndex, openFile.metadata.id)
-    : [];
-  const brokenLinks = openFile
-    ? getBrokenLinks(knowledgeIndex, openFile.metadata.id)
-    : [];
+  const outgoingLinks =
+    activeIsMarkdown && openFile
+      ? getOutgoingLinks(knowledgeIndex, openFile.metadata.id)
+      : [];
+  const backlinks =
+    activeIsMarkdown && openFile
+      ? getBacklinks(knowledgeIndex, openFile.metadata.id)
+      : [];
+  const brokenLinks =
+    activeIsMarkdown && openFile
+      ? getBrokenLinks(knowledgeIndex, openFile.metadata.id)
+      : [];
   const frontmatterTags = stringListProperty(parsedDraft.frontmatter.tags);
   const frontmatterAliases = stringListProperty(parsedDraft.frontmatter.aliases);
   const canNavigateBack = navigation.index > 0;
@@ -567,10 +588,11 @@ export function App() {
     if (!activeWorkspace || !workspaceUiReady) return;
     writeWorkspaceUi(activeWorkspace.id, {
       tabs: tabs.map((tab) => ({
-        noteId: tab.resourceId,
+        resourceId: tab.resourceId,
+        fileTypeId: tab.fileTypeId,
         viewMode: tab.viewMode,
       })),
-      ...(activeTabId ? { activeNoteId: activeTabId } : {}),
+      ...(activeTabId ? { activeResourceId: activeTabId } : {}),
       homeActive: activeTabId === undefined,
       leftPanel: activeLeftPanel,
       leftSidebarOpen,
@@ -973,7 +995,7 @@ export function App() {
       setProvider(nextProvider);
       setActiveWorkspace(workspace);
       setSelectedFolderId(nextProvider.rootId);
-      setOpenTextFile(undefined);
+      setOpenFile(undefined);
       setDraft("");
       setTabs([]);
       replaceTabBuffers({});
@@ -1070,7 +1092,7 @@ export function App() {
             }
           : { metadata, originalContent: content };
         const restoredDraft = pendingDraft?.content ?? content;
-        setOpenTextFile(restoredNote);
+        setOpenFile(restoredNote);
         setDraft(restoredDraft);
         putTabBuffer(restoredActiveId, {
           note: restoredNote,
@@ -1209,7 +1231,7 @@ export function App() {
       if (activeTabId) {
         const activeBuffer = refreshedBuffers[activeTabId];
         if (activeBuffer) {
-          setOpenTextFile(activeBuffer.note);
+          setOpenFile(activeBuffer.note);
           setDraft(activeBuffer.draft);
         }
       }
@@ -1310,7 +1332,7 @@ export function App() {
         setNoteSyncState(id, pendingDraft ? "local" : "synced");
       }
 
-      setOpenTextFile(nextNote);
+      setOpenFile(nextNote);
       setDraft(nextDraft);
 
       const existingTab = tabs.find((tab) => tab.resourceId === id);
@@ -1393,7 +1415,7 @@ export function App() {
     }
     activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
-    setOpenTextFile(undefined);
+    setOpenFile(undefined);
     setDraft("");
     setRightSidebarOpen(false);
     setMobileSidebarOpen(false);
@@ -1540,7 +1562,7 @@ export function App() {
     const next = remaining[Math.min(index, remaining.length - 1)];
     if (!next) {
       setActiveTabId(undefined);
-      setOpenTextFile(undefined);
+      setOpenFile(undefined);
       setDraft("");
       setRightSidebarOpen(false);
       return;
@@ -2086,7 +2108,7 @@ export function App() {
     const note: OpenTextFile = { metadata, originalContent: content };
     putTabBuffer(noteId, { note, draft: content });
     if (activeTabIdRef.current === noteId) {
-      setOpenTextFile(note);
+      setOpenFile(note);
       setDraft(content);
     }
     await pendingDraftStore.delete(activeWorkspace.id, noteId);
@@ -2130,7 +2152,7 @@ export function App() {
       };
       putTabBuffer(noteId, { note: rebasedNote, draft: localContent });
       if (activeTabIdRef.current === noteId) {
-        setOpenTextFile(rebasedNote);
+        setOpenFile(rebasedNote);
         setDraft(localContent);
       }
       await pendingDraftStore.put({
@@ -2247,7 +2269,7 @@ export function App() {
       };
       putTabBuffer(noteId, { note: savedNote, draft: latest.draft });
       if (activeTabIdRef.current === noteId) {
-        setOpenTextFile(savedNote);
+        setOpenFile(savedNote);
         setDraft(latest.draft);
       }
       clearNoteConflict(noteId);
@@ -2385,7 +2407,7 @@ export function App() {
       putTabBuffer(noteId, nextBuffer);
 
       if (activeTabIdRef.current === noteId) {
-        setOpenTextFile(savedNote);
+        setOpenFile(savedNote);
         setDraft(latest.draft);
       }
 
@@ -2502,7 +2524,7 @@ export function App() {
     setProvider(undefined);
     setTree([]);
     setSelectedFolderId("");
-    setOpenTextFile(undefined);
+    setOpenFile(undefined);
     setDraft("");
     setTabs([]);
     replaceTabBuffers({});
@@ -2539,7 +2561,7 @@ export function App() {
     setProvider(undefined);
     setTree([]);
     setSelectedFolderId("");
-    setOpenTextFile(undefined);
+    setOpenFile(undefined);
     setDraft("");
     setTabs([]);
     replaceTabBuffers({});
@@ -2937,7 +2959,7 @@ export function App() {
           <TabBar
             tabs={tabs}
             activeNoteId={activeTabId}
-            dirtyNoteIds={dirtyNoteIds}
+            dirtyResourceIds={dirtyResourceIds}
             onActivate={(noteId) => void openFileById(noteId)}
             onClose={(noteId) => void closeTab(noteId)}
             onNew={() =>
