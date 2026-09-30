@@ -109,7 +109,7 @@ export function WorkspaceRailView({
 }: {
   readonly brand?: ReactNode;
   readonly items: readonly WorkspaceRailItem[];
-  readonly activeId?: string;
+  readonly activeId?: string | undefined;
   readonly sidebarOpen?: boolean;
   readonly onItem?: (id: string) => void;
 }) {
@@ -264,11 +264,11 @@ export function WorkspaceViewHeader({
 }: {
   readonly canBack: boolean;
   readonly canForward: boolean;
-  readonly breadcrumb?: string;
+  readonly breadcrumb?: string | undefined;
   readonly backLabel: string;
   readonly forwardLabel: string;
   readonly drive: WorkspaceDriveViewModel;
-  readonly note?: WorkspaceNoteActionsViewModel;
+  readonly note?: WorkspaceNoteActionsViewModel | undefined;
   readonly onBack?: () => void;
   readonly onForward?: () => void;
   readonly onViewMode?: () => void;
