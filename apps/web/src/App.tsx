@@ -1750,6 +1750,47 @@ export function App() {
     }
   }
 
+  async function createRegisteredTextFile(
+    fileTypeId: string,
+    parentId: string,
+  ) {
+    if (!provider) return;
+    const fileType = extensionHost.fileTypes
+      .list()
+      .find((candidate) => candidate.id === fileTypeId);
+    const creation = fileType?.create;
+    if (!fileType || fileType.contentKind !== "text" || !creation) return;
+
+    const defaultName = `Untitled${creation.defaultExtension}`;
+    const requested = window.prompt(creation.label, defaultName);
+    if (requested === null || !requested.trim()) return;
+
+    const trimmed = requested.trim();
+    const hasKnownExtension = fileType.extensions.some((extension) =>
+      trimmed.toLocaleLowerCase().endsWith(extension),
+    );
+    const name = hasKnownExtension
+      ? trimmed
+      : `${trimmed}${creation.defaultExtension}`;
+
+    setStatus({ kind: "busy", message: creation.label });
+    try {
+      const metadata = await provider.createText(
+        parentId,
+        name,
+        creation.initialText ?? "",
+      );
+      await refreshWorkspaceState();
+      await openFileById(metadata.id);
+      setStatus({
+        kind: "success",
+        message: `${fileType.displayName ?? fileType.id} created`,
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
   async function createWorkspaceItem(
     kind: CreateItemKind,
     name: string,
@@ -2731,6 +2772,13 @@ export function App() {
     );
   }
 
+  const creatableFileTypes = extensionHost.fileTypes
+    .list()
+    .filter(
+      (fileType) =>
+        fileType.contentKind === "text" && fileType.create !== undefined,
+    );
+
   const leftSidebar =
     activeLeftPanel === "files" ? (
       <SidebarFrame
@@ -2748,6 +2796,23 @@ export function App() {
             >
               <Icon name="file-plus" />
             </button>
+            {creatableFileTypes.map((fileType) => (
+              <button
+                type="button"
+                key={fileType.id}
+                aria-label={fileType.create!.label}
+                title={fileType.create!.label}
+                disabled={workspaceLoading}
+                onClick={() =>
+                  void createRegisteredTextFile(
+                    fileType.id,
+                    selectedFolderId || provider.rootId,
+                  )
+                }
+              >
+                <span aria-hidden="true">◇+</span>
+              </button>
+            ))}
             <button
               type="button"
               aria-label={t("actions.newFolder")}
