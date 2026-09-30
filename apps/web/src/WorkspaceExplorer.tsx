@@ -50,8 +50,8 @@ export function WorkspaceExplorer({
   readonly onSelectedFolderIdChange: (id: string) => void;
   readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onRequestNewNote: (folderId: string) => void;
-  readonly onRequestNewCanvas: (folderId: string) => void;
-  readonly onRequestNewExcalidraw: (folderId: string) => void;
+  readonly onRequestNewCanvas?: (folderId: string) => void;
+  readonly onRequestNewExcalidraw?: (folderId: string) => void;
   readonly onRequestNewFolder: (folderId: string) => void;
   readonly onRequestAttachFiles: (folderId: string) => void;
   readonly onChanged: () => Promise<void>;
@@ -282,8 +282,8 @@ function TreeNode({
   readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onMenuItem: (id: string | undefined) => void;
   readonly onNewNote: (folderId: string) => void;
-  readonly onNewCanvas: (folderId: string) => void;
-  readonly onNewExcalidraw: (folderId: string) => void;
+  readonly onNewCanvas?: (folderId: string) => void;
+  readonly onNewExcalidraw?: (folderId: string) => void;
   readonly onNewFolder: (folderId: string) => void;
   readonly onAttachFiles: (folderId: string) => void;
   readonly onRename: (node: WorkspaceTreeNode) => void;
@@ -382,22 +382,26 @@ function TreeNode({
               >
                 {t("explorer.newNoteHere")}
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  runMenuAction(() => onNewCanvas(node.metadata.id))
-                }
-              >
-                {t("explorer.newCanvasHere")}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  runMenuAction(() => onNewExcalidraw(node.metadata.id))
-                }
-              >
-                {t("explorer.newExcalidrawHere")}
-              </button>
+              {onNewCanvas ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    runMenuAction(() => onNewCanvas(node.metadata.id))
+                  }
+                >
+                  {t("explorer.newCanvasHere")}
+                </button>
+              ) : null}
+              {onNewExcalidraw ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    runMenuAction(() => onNewExcalidraw(node.metadata.id))
+                  }
+                >
+                  {t("explorer.newExcalidrawHere")}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() =>
