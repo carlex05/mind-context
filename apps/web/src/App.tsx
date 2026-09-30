@@ -1928,7 +1928,9 @@ export function App() {
           ? t("status.creatingNote")
           : kind === "canvas"
             ? t("status.creatingCanvas")
-            : t("status.creatingFolder"),
+            : kind === "excalidraw"
+              ? t("status.creatingExcalidraw")
+              : t("status.creatingFolder"),
     });
 
     try {
@@ -1967,6 +1969,34 @@ export function App() {
         setStatus({
           kind: "success",
           message: t("status.canvasCreated", { name: metadata.name }),
+        });
+        return;
+      }
+
+      if (kind === "excalidraw") {
+        const drawingName = name.toLocaleLowerCase().endsWith(".excalidraw")
+          ? name
+          : `${name}.excalidraw`;
+        const metadata = await provider.createText(
+          parentId,
+          drawingName,
+          '{\n  "type": "excalidraw",\n  "version": 2,\n  "source": "https://excalidraw.com",\n  "elements": [],\n  "appState": {\n    "gridSize": null,\n    "viewBackgroundColor": "#ffffff"\n  },\n  "files": {}\n}\n',
+          "application/json",
+        );
+        const parentNode =
+          parentId === provider.rootId
+            ? undefined
+            : findWorkspaceNode(tree, parentId);
+        const node: WorkspaceTreeNode = {
+          metadata,
+          path: childPath(parentNode?.path ?? "", metadata.name),
+          children: [],
+        };
+        await refreshWorkspaceState();
+        await openPluginResourceByNode(node);
+        setStatus({
+          kind: "success",
+          message: t("status.excalidrawCreated", { name: metadata.name }),
         });
         return;
       }
@@ -3413,6 +3443,17 @@ export function App() {
             </button>
             <button
               type="button"
+              aria-label={t("actions.newExcalidraw")}
+              title={t("actions.newExcalidraw")}
+              disabled={workspaceLoading}
+              onClick={() =>
+                requestNewItem("excalidraw", selectedFolderId || provider.rootId)
+              }
+            >
+              <Icon name="drawing" />
+            </button>
+            <button
+              type="button"
               aria-label={t("actions.newFolder")}
               title={t("actions.newFolder")}
               disabled={workspaceLoading}
@@ -3483,6 +3524,9 @@ export function App() {
           onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
           onRequestNewCanvas={(folderId) => requestNewItem("canvas", folderId)}
+          onRequestNewExcalidraw={(folderId) =>
+            requestNewItem("excalidraw", folderId)
+          }
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onRequestAttachFiles={requestAttachFiles}
           onChanged={refreshWorkspaceState}
