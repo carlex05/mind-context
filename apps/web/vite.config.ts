@@ -16,7 +16,7 @@ export default defineConfig({
           src: normalizePath(
             path.resolve(
               dirname,
-              "../../node_modules/@excalidraw/excalidraw/dist/prod/fonts/*",
+              "node_modules/@excalidraw/excalidraw/dist/prod/fonts/*",
             ),
           ),
           dest: "excalidraw-assets/fonts",
