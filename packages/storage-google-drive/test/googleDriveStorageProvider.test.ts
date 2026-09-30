@@ -147,6 +147,67 @@ describe("GoogleDriveStorageProvider", () => {
     }
   });
 
+  it("preserves explicit plugin text extensions and media types", async () => {
+    const requests: CapturedRequest[] = [];
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse({
+          id: "canvas-1",
+          name: "Architecture.canvas",
+          mimeType: "application/json",
+          version: "1",
+          parents: ["workspace-1"],
+        }),
+        jsonResponse({
+          id: "canvas-1",
+          name: "Architecture.canvas",
+          mimeType: "application/json",
+          version: "2",
+          headRevisionId: "content-2",
+          parents: ["workspace-1"],
+        }),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: tokenProvider,
+      fetchImplementation,
+    });
+
+    const created = await provider.createText(
+      provider.rootId,
+      "Architecture.canvas",
+      "{\"nodes\":[],\"edges\":[]}",
+      { mediaType: "application/json" },
+    );
+
+    expect(created.name).toBe("Architecture.canvas");
+    expect(created.mediaType).toBe("application/json");
+    expect(String(requests[0]!.body)).toContain(
+      '"name":"Architecture.canvas"',
+    );
+    expect(String(requests[0]!.body)).toContain(
+      '"mimeType":"application/json"',
+    );
+    expect(String(requests[0]!.body)).toContain(
+      "Content-Type: application/json; charset=UTF-8",
+    );
+
+    await provider.writeText(
+      "canvas-1",
+      "{\"nodes\":[{\"id\":\"n1\"}],\"edges\":[]}",
+      undefined,
+      { mediaType: "application/json" },
+    );
+
+    expect(requests[1]!.method).toBe("PATCH");
+    expect(requests[1]!.headers.get("Content-Type")).toBe(
+      "application/json; charset=UTF-8",
+    );
+  });
+
   it("creates and reads arbitrary binary files without routing content through MindContext", async () => {
     const requests: CapturedRequest[] = [];
     const bytes = Uint8Array.from([0, 1, 2, 127, 255]);
