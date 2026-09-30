@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src/editorCommands.test.ts src/fileTypeRegistry.test.ts"
+    "test": "vitest run src/editorCommands.test.ts src/fileTypeRegistry.test.ts src/encryptionCrypto.test.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -48,4 +48,4 @@
     "vite": "^8.3.0",
     "vite-plugin-static-copy": "^4.1.1"
   }
-}
+}\n
