@@ -2814,11 +2814,10 @@ export function App() {
           tree={tree}
           loading={workspaceLoading}
           index={knowledgeIndex}
-          activeNoteId={openFile?.metadata.id}
+          activeResourceId={openFile?.metadata.id}
           selectedFolderId={selectedFolderId || provider.rootId}
           onSelectedFolderIdChange={setSelectedFolderId}
-          onOpenTextFile={(noteId) => void openFileById(noteId)}
-          onOpenAttachment={(node) => void openAttachment(node)}
+          onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onRequestAttachFiles={requestAttachFiles}
@@ -2849,7 +2848,7 @@ export function App() {
           service={searchService}
           semantic={semanticUi}
           onEnableSemantic={enableSemanticSearch}
-          onOpenTextFile={(noteId) => void openFileById(noteId)}
+          onOpenNote={(noteId) => void openFileById(noteId)}
         />
       </SidebarFrame>
     ) : activeLeftPanel === "graph" ? (
@@ -2882,7 +2881,7 @@ export function App() {
         <LocalGraphPanel
           index={knowledgeIndex}
           activeNoteId={openFile?.metadata.id}
-          onOpenTextFile={(noteId) => void openFileById(noteId)}
+          onOpenNote={(noteId) => void openFileById(noteId)}
         />
       </SidebarFrame>
     ) : activeLeftPanel === "tags" ? (
@@ -2906,7 +2905,7 @@ export function App() {
           index={knowledgeIndex}
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
-          onOpenTextFile={(noteId) => void openFileById(noteId)}
+          onOpenNote={(noteId) => void openFileById(noteId)}
         />
       </SidebarFrame>
     ) : (
@@ -3032,10 +3031,10 @@ export function App() {
         <section className="workspace-main">
           <TabBar
             tabs={tabs}
-            activeNoteId={activeTabId}
+            activeResourceId={activeTabId}
             dirtyResourceIds={dirtyResourceIds}
-            onActivate={(noteId) => void openFileById(noteId)}
-            onClose={(noteId) => void closeTab(noteId)}
+            onActivate={(resourceId) => void openFileById(resourceId)}
+            onClose={(resourceId) => void closeTab(resourceId)}
             onNew={() =>
               requestNewItem("note", selectedFolderId || provider.rootId)
             }
@@ -3046,12 +3045,14 @@ export function App() {
             canBack={canNavigateBack}
             canForward={canNavigateForward}
             breadcrumb={
-              currentIndexedNote
-                ? `${activeWorkspace.name} / ${currentIndexedNote.path.replace(/\.md$/i, "")}`
+              openFile
+                ? `${activeWorkspace.name} / ${activeFilePath}`
                 : activeWorkspace.name
             }
             viewMode={viewMode}
-            hasNote={openFile !== undefined}
+            hasDocument={openFile !== undefined}
+            supportsViewMode={activeIsMarkdown}
+            supportsContext={activeIsMarkdown}
             dirty={dirty}
             syncState={activeSyncState}
             driveStatus={globalDriveStatus}
@@ -3142,7 +3143,7 @@ export function App() {
                     outgoingLinks={outgoingLinks}
                     navigationTarget={activeMarkdownNavigation}
                     navigationKey={activeMarkdownNavigation?.key}
-                    onOpenTextFile={(target) => void openMarkdownTarget(target)}
+                    onOpenNote={(target) => void openMarkdownTarget(target)}
                   />
                 )}
               </>
@@ -3157,7 +3158,7 @@ export function App() {
                 workspaceName={activeWorkspace.name}
                 notes={knowledgeIndex?.notes ?? []}
                 recentNoteIds={recentNoteIds}
-                onOpenTextFile={(noteId) => void openFileById(noteId)}
+                onOpenNote={(noteId) => void openFileById(noteId)}
                 onOpenLauncher={() => setQuickSwitcherOpen(true)}
                 onCreateNote={() =>
                   requestNewItem("note", selectedFolderId || provider.rootId)
@@ -3167,7 +3168,7 @@ export function App() {
           </section>
         </section>
 
-        {rightSidebarOpen && openFile ? (
+        {rightSidebarOpen && openFile && activeIsMarkdown ? (
           <KnowledgePanel
             noteTitle={currentIndexedNote?.title ?? openFile.metadata.name}
             outgoing={outgoingLinks}
@@ -3180,7 +3181,7 @@ export function App() {
             knownTags={knownTags}
             onTagsChange={updateTags}
             onAliasesChange={updateAliases}
-            onOpenTextFile={(target) => void openMarkdownTarget(target)}
+            onOpenNote={(target) => void openMarkdownTarget(target)}
             onBackToNote={() => setRightSidebarOpen(false)}
           />
         ) : null}
@@ -3191,7 +3192,7 @@ export function App() {
         notes={knowledgeIndex?.notes ?? []}
         recentNoteIds={recentNoteIds}
         onClose={() => setQuickSwitcherOpen(false)}
-        onOpenTextFile={(noteId) => void openFileById(noteId)}
+        onOpenNote={(noteId) => void openFileById(noteId)}
         onCreateNote={(name) =>
           requestNewItem(
             "note",
@@ -3235,12 +3236,12 @@ function TagsPanel({
   index,
   selectedTag,
   onSelectTag,
-  onOpenTextFile,
+  onOpenNote,
 }: {
   readonly index: KnowledgeIndexSnapshot | undefined;
   readonly selectedTag: string | undefined;
   readonly onSelectTag: (tag: string | undefined) => void;
-  readonly onOpenTextFile: (noteId: string) => void;
+  readonly onOpenNote: (noteId: string) => void;
 }) {
   const { t } = useTranslation();
   const counts = new Map<string, number>();
@@ -3274,7 +3275,7 @@ function TagsPanel({
               <button
                 type="button"
                 key={note.id}
-                onClick={() => onOpenTextFile(note.id)}
+                onClick={() => onOpenNote(note.id)}
               >
                 <span>{note.title}</span>
                 <small>{note.path}</small>
@@ -3310,7 +3311,7 @@ function KnowledgePanel({
   knownTags,
   onTagsChange,
   onAliasesChange,
-  onOpenTextFile,
+  onOpenNote,
   onBackToNote,
 }: {
   readonly noteTitle: string;
@@ -3324,7 +3325,7 @@ function KnowledgePanel({
   readonly knownTags: readonly string[];
   readonly onTagsChange: (tags: readonly string[]) => void;
   readonly onAliasesChange: (aliases: readonly string[]) => void;
-  readonly onOpenTextFile: (target: InternalMarkdownNavigationTarget) => void;
+  readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
   readonly onBackToNote: () => void;
 }) {
   const { t } = useTranslation();
@@ -3369,7 +3370,7 @@ function KnowledgePanel({
             edge={edge}
             label={edge.alias ?? edge.target}
             key={`${edge.target}-${edge.heading ?? ""}-${indexNumber}`}
-            onOpenTextFile={onOpenTextFile}
+            onOpenNote={onOpenNote}
           />
         ))}
       </KnowledgeSection>
@@ -3384,7 +3385,7 @@ function KnowledgePanel({
               key={`${edge.sourceNoteId}-${indexNumber}`}
               title={source?.title ?? source?.name ?? edge.sourcePath}
               subtitle={edge.sourcePath}
-              onClick={() => onOpenTextFile({ noteId: edge.sourceNoteId })}
+              onClick={() => onOpenNote({ noteId: edge.sourceNoteId })}
             />
           );
         })}
@@ -3426,11 +3427,11 @@ function KnowledgeSection({
 function EdgeRow({
   edge,
   label,
-  onOpenTextFile,
+  onOpenNote,
 }: {
   readonly edge: KnowledgeEdge;
   readonly label: string;
-  readonly onOpenTextFile: (target: InternalMarkdownNavigationTarget) => void;
+  readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
   if (edge.resolution !== "resolved" || !edge.targetNoteId) {
@@ -3447,7 +3448,7 @@ function EdgeRow({
       title={label}
       {...(edge.targetPath ? { subtitle: edge.targetPath } : {})}
       onClick={() =>
-        onOpenTextFile({
+        onOpenNote({
           noteId: edge.targetNoteId!,
           ...(edge.heading ? { heading: edge.heading } : {}),
           ...(edge.blockId ? { blockId: edge.blockId } : {}),
