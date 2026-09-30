@@ -3348,7 +3348,7 @@ function EdgeRow({
   return (
     <KnowledgeLinkView
       title={label}
-      subtitle={edge.targetPath}
+      {...(edge.targetPath ? { subtitle: edge.targetPath } : {})}
       onClick={() =>
         onOpenNote({
           noteId: edge.targetNoteId!,
