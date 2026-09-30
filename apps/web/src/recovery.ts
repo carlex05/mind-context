@@ -60,7 +60,14 @@ export async function listRecoveryCopies(
   if (!folder) return [];
 
   const entries = (await provider.list(folder.id))
-    .filter((item) => item.kind === "file" && item.name.endsWith(".md"))
+    .filter(
+      (item) =>
+        item.kind === "file" &&
+        (item.name.endsWith(".recovery") ||
+          /\.(local-conflict|remote-before-overwrite)\.base-.*\.md$/i.test(
+            item.name,
+          )),
+    )
     .map(toRecoveryEntry)
     .sort((left, right) => {
       const leftTime = recoveryTimestamp(left);
@@ -91,7 +98,8 @@ export async function restoreRecoveryCopy(
 ): Promise<StorageObjectMetadata> {
   const content = await readRecoveryCopy(provider, entry);
   const suffix = new Date().toISOString().replace(/[:.]/g, "-");
-  const name = `${entry.sourceName} (Recovered ${suffix})`;
+  const { stem, extension } = splitFileName(entry.sourceName);
+  const name = `${stem} (Recovered ${suffix})${extension}`;
   return provider.createText(provider.rootId, name, content);
 }
 
@@ -170,7 +178,19 @@ function toRecoveryEntry(metadata: StorageObjectMetadata): RecoveryEntry {
   const rawName = resolvedMatch?.[2] ?? metadata.name;
   const kindMatch =
     /^(.*)\.(local-conflict|remote-before-overwrite)\.base-/.exec(rawName);
-  const sourceName = (kindMatch?.[1] ?? rawName.replace(/\.md$/i, "")).trim();
+  let sourceName = (
+    kindMatch?.[1] ?? rawName.replace(/\.recovery$/i, "").replace(/\.md$/i, "")
+  ).trim();
+  // Legacy recovery files were always stored as .md and omitted the source
+  // extension from the encoded stem.
+  if (
+    kindMatch &&
+    rawName.toLocaleLowerCase().endsWith(".md") &&
+    !rawName.toLocaleLowerCase().endsWith(".recovery") &&
+    !sourceName.toLocaleLowerCase().endsWith(".md")
+  ) {
+    sourceName += ".md";
+  }
 
   return {
     metadata,
@@ -188,10 +208,10 @@ function recoveryFileName(
   request: RecoveryCopyRequest,
   fingerprint: string,
 ): string {
-  const stem = sanitizeStem(request.source.name.replace(/\.md$/i, ""));
+  const stem = sanitizeStem(request.source.name);
   const base = safeRevision(request.baseRevision);
   const remote = safeRevision(request.remoteRevision);
-  return `${stem}.${request.kind}.base-${base}.remote-${remote}.${fingerprint.slice(0, 12)}.md`;
+  return `${stem}.${request.kind}.base-${base}.remote-${remote}.${fingerprint.slice(0, 12)}.recovery`;
 }
 
 function sanitizeStem(value: string): string {
@@ -212,4 +232,19 @@ async function contentFingerprint(content: string): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+
+function splitFileName(name: string): {
+  readonly stem: string;
+  readonly extension: string;
+} {
+  const slash = Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\"));
+  const fileName = slash >= 0 ? name.slice(slash + 1) : name;
+  const dot = fileName.lastIndexOf(".");
+  if (dot <= 0) return { stem: fileName || "Recovered", extension: "" };
+  return {
+    stem: fileName.slice(0, dot),
+    extension: fileName.slice(dot),
+  };
 }
