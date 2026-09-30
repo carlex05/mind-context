@@ -1,7 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Background,
+  BaseEdge,
+  ConnectionMode,
   Controls,
+  EdgeLabelRenderer,
   Handle,
   MarkerType,
   NodeResizer,
@@ -9,9 +23,11 @@ import {
   ReactFlow,
   applyEdgeChanges,
   applyNodeChanges,
+  getBezierPath,
   type Connection,
   type Edge,
   type EdgeChange,
+  type EdgeProps,
   type Node,
   type NodeChange,
   type NodeProps,
@@ -20,10 +36,14 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useTranslation } from "react-i18next";
 
-import type { PluginFileViewProps } from "../extensions/ExtensionHost";
+import type {
+  PluginFileViewProps,
+  PluginWorkspaceFile,
+} from "../extensions/ExtensionHost";
 
 type CanvasNodeKind = "text" | "file" | "link" | "group";
 type CanvasSide = "top" | "right" | "bottom" | "left";
+type CanvasColorPreset = "1" | "2" | "3" | "4" | "5" | "6";
 
 interface CanvasNodeData extends Record<string, unknown> {
   readonly canvasType: CanvasNodeKind;
@@ -31,17 +51,16 @@ interface CanvasNodeData extends Record<string, unknown> {
   readonly file?: string;
   readonly url?: string;
   readonly label?: string;
+  readonly color?: string;
   readonly original: Record<string, unknown>;
   readonly initialWidth: number;
   readonly initialHeight: number;
-  readonly onPatch: (
-    id: string,
-    patch: Partial<Pick<CanvasNodeData, "text" | "file" | "url" | "label">>,
-  ) => void;
 }
 
 interface CanvasEdgeData extends Record<string, unknown> {
   readonly original: Record<string, unknown>;
+  readonly label?: string;
+  readonly color?: string;
 }
 
 type CanvasFlowNode = Node<CanvasNodeData>;
@@ -53,15 +72,47 @@ interface ParsedCanvas {
   readonly edges: readonly CanvasFlowEdge[];
 }
 
+interface CanvasRuntime {
+  readonly workspaceFiles: readonly PluginWorkspaceFile[];
+  readonly patchNode: (
+    id: string,
+    patch: Partial<
+      Pick<CanvasNodeData, "text" | "file" | "url" | "label" | "color">
+    >,
+  ) => void;
+  readonly patchEdge: (
+    id: string,
+    patch: Partial<Pick<CanvasEdgeData, "label" | "color">>,
+  ) => void;
+  readonly openWorkspaceFile?: (path: string) => void;
+}
+
+const CanvasRuntimeContext = createContext<CanvasRuntime | undefined>(undefined);
+
 const nodeTypes = {
   canvas: CanvasNode,
 };
+
+const edgeTypes = {
+  canvas: CanvasEdge,
+};
+
+const COLOR_PRESETS: readonly CanvasColorPreset[] = [
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+];
 
 export function CanvasPluginView({
   name,
   path,
   content,
   syncState = "synced",
+  workspaceFiles = [],
+  onOpenWorkspaceFile,
   onTextChange,
 }: PluginFileViewProps) {
   const { t } = useTranslation();
@@ -90,6 +141,8 @@ export function CanvasPluginView({
       path={path}
       initial={parsed}
       syncState={syncState}
+      workspaceFiles={workspaceFiles}
+      {...(onOpenWorkspaceFile ? { onOpenWorkspaceFile } : {})}
       {...(onTextChange ? { onTextChange } : {})}
     />
   );
@@ -100,12 +153,16 @@ function CanvasEditor({
   path,
   initial,
   syncState,
+  workspaceFiles,
+  onOpenWorkspaceFile,
   onTextChange,
 }: {
   readonly name: string;
   readonly path: string;
   readonly initial: ParsedCanvas;
   readonly syncState: NonNullable<PluginFileViewProps["syncState"]>;
+  readonly workspaceFiles: readonly PluginWorkspaceFile[];
+  readonly onOpenWorkspaceFile?: (path: string) => void;
   readonly onTextChange?: (content: string) => void;
 }) {
   const { t } = useTranslation();
@@ -133,7 +190,7 @@ function CanvasEditor({
     (
       id: string,
       patch: Partial<
-        Pick<CanvasNodeData, "text" | "file" | "url" | "label">
+        Pick<CanvasNodeData, "text" | "file" | "url" | "label" | "color">
       >,
     ) => {
       setNodes((current) =>
@@ -147,14 +204,44 @@ function CanvasEditor({
     [],
   );
 
-  useEffect(() => {
-    setNodes((current) =>
-      current.map((node) => ({
-        ...node,
-        data: { ...node.data, onPatch: patchNode },
-      })),
-    );
-  }, [patchNode]);
+  const patchEdge = useCallback(
+    (
+      id: string,
+      patch: Partial<Pick<CanvasEdgeData, "label" | "color">>,
+    ) => {
+      setEdges((current) =>
+        current.map((edge) => {
+          if (edge.id !== id) return edge;
+          const color = patch.color ?? edge.data?.color;
+          return {
+            ...edge,
+            data: {
+              original: edge.data?.original ?? {},
+              ...edge.data,
+              ...patch,
+            },
+            ...(edge.markerStart
+              ? { markerStart: arrowMarker(color) }
+              : {}),
+            ...(edge.markerEnd ? { markerEnd: arrowMarker(color) } : {}),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const runtime = useMemo<CanvasRuntime>(
+    () => ({
+      workspaceFiles,
+      patchNode,
+      patchEdge,
+      ...(onOpenWorkspaceFile
+        ? { openWorkspaceFile: onOpenWorkspaceFile }
+        : {}),
+    }),
+    [workspaceFiles, patchNode, patchEdge, onOpenWorkspaceFile],
+  );
 
   useEffect(() => {
     if (firstEmissionRef.current) {
@@ -175,9 +262,17 @@ function CanvasEditor({
   }, []);
 
   const onConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target) return;
+    if (
+      !connection.source ||
+      !connection.target ||
+      connection.source === connection.target
+    ) {
+      return;
+    }
+
     const edge: CanvasFlowEdge = {
       id: createId(),
+      type: "canvas",
       source: connection.source,
       target: connection.target,
       ...(connection.sourceHandle
@@ -186,10 +281,14 @@ function CanvasEditor({
       ...(connection.targetHandle
         ? { targetHandle: connection.targetHandle }
         : {}),
-      markerEnd: { type: MarkerType.ArrowClosed },
-      data: { original: {} },
+      markerEnd: arrowMarker(),
+      selected: true,
+      data: { original: {}, label: "" },
     };
-    setEdges((current) => [...current, edge]);
+    setEdges((current) => [
+      ...current.map((candidate) => ({ ...candidate, selected: false })),
+      edge,
+    ]);
   }, []);
 
   function addNode(kind: CanvasNodeKind) {
@@ -210,14 +309,13 @@ function CanvasEditor({
       original,
       initialWidth: width,
       initialHeight: height,
-      onPatch: patchNode,
       ...(kind === "text"
         ? { text: "" }
         : kind === "file"
           ? { file: "" }
           : kind === "link"
             ? { url: "" }
-            : { label: "Group" }),
+            : { label: t("canvas.groupDefault") }),
     };
 
     setNodes((current) => [
@@ -234,6 +332,9 @@ function CanvasEditor({
         data,
       },
     ]);
+    setEdges((current) =>
+      current.map((edge) => ({ ...edge, selected: false })),
+    );
   }
 
   function removeSelection() {
@@ -251,58 +352,149 @@ function CanvasEditor({
     );
   }
 
+  function applyColor(color: string | undefined) {
+    setNodes((current) =>
+      current.map((node) =>
+        node.selected
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                ...(color ? { color } : { color: undefined }),
+              },
+            }
+          : node,
+      ),
+    );
+    setEdges((current) =>
+      current.map((edge) => {
+        if (!edge.selected) return edge;
+        const data: CanvasEdgeData = {
+          original: edge.data?.original ?? {},
+          ...edge.data,
+          ...(color ? { color } : { color: undefined }),
+        };
+        return {
+          ...edge,
+          data,
+          ...(edge.markerStart
+            ? { markerStart: arrowMarker(color) }
+            : {}),
+          ...(edge.markerEnd ? { markerEnd: arrowMarker(color) } : {}),
+        };
+      }),
+    );
+  }
+
   const hasSelection =
     nodes.some((node) => node.selected) || edges.some((edge) => edge.selected);
 
   return (
-    <section className="canvas-plugin-view" aria-label={name}>
-      <header className="canvas-plugin-header">
-        <div className="canvas-plugin-title">
-          <strong>{name}</strong>
-          <span>{path}</span>
-        </div>
-        <div className="canvas-plugin-status">
-          <span className={`canvas-plugin-sync canvas-plugin-sync-${syncState}`}>
-            {t(`canvas.sync.${syncState}`)}
-          </span>
-        </div>
-      </header>
+    <CanvasRuntimeContext.Provider value={runtime}>
+      <section className="canvas-plugin-view" aria-label={name}>
+        <header className="canvas-plugin-header">
+          <div className="canvas-plugin-title">
+            <strong>{name}</strong>
+            <span>{path}</span>
+          </div>
+          <div className="canvas-plugin-status">
+            <span
+              className={`canvas-plugin-sync canvas-plugin-sync-${syncState}`}
+            >
+              {t(`canvas.sync.${syncState}`)}
+            </span>
+          </div>
+        </header>
 
-      <div className="canvas-plugin-toolbar" role="toolbar" aria-label={t("canvas.tools")}>
-        <button type="button" onClick={() => addNode("text")}>{t("canvas.text")}</button>
-        <button type="button" onClick={() => addNode("file")}>{t("canvas.file")}</button>
-        <button type="button" onClick={() => addNode("link")}>{t("canvas.link")}</button>
-        <button type="button" onClick={() => addNode("group")}>{t("canvas.group")}</button>
-        <span className="canvas-plugin-toolbar-spacer" />
-        <button type="button" disabled={!hasSelection} onClick={removeSelection}>
-          {t("canvas.delete")}
-        </button>
-      </div>
-
-      <div ref={boardRef} className="canvas-plugin-board">
-        <ReactFlow<CanvasFlowNode, CanvasFlowEdge>
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onMove={(_, nextViewport) => setViewport(nextViewport)}
-          fitView
-          fitViewOptions={{ padding: 0.18 }}
-          minZoom={0.1}
-          maxZoom={3}
-          deleteKeyCode={["Backspace", "Delete"]}
-          selectionOnDrag
-          panOnScroll
-          snapToGrid
-          snapGrid={[10, 10]}
+        <div
+          className="canvas-plugin-toolbar"
+          role="toolbar"
+          aria-label={t("canvas.tools")}
         >
-          <Background gap={20} size={1} />
-          <Controls />
-        </ReactFlow>
-      </div>
-    </section>
+          <button type="button" onClick={() => addNode("text")}>
+            {t("canvas.text")}
+          </button>
+          <button type="button" onClick={() => addNode("file")}>
+            {t("canvas.file")}
+          </button>
+          <button type="button" onClick={() => addNode("link")}>
+            {t("canvas.link")}
+          </button>
+          <button type="button" onClick={() => addNode("group")}>
+            {t("canvas.group")}
+          </button>
+
+          <span className="canvas-plugin-toolbar-divider" />
+
+          <div
+            className="canvas-color-tools"
+            aria-label={t("canvas.color")}
+          >
+            <button
+              type="button"
+              className="canvas-color-reset"
+              disabled={!hasSelection}
+              title={t("canvas.colorDefault")}
+              aria-label={t("canvas.colorDefault")}
+              onClick={() => applyColor(undefined)}
+            >
+              ×
+            </button>
+            {COLOR_PRESETS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className="canvas-color-swatch"
+                data-canvas-color={color}
+                disabled={!hasSelection}
+                title={t(`canvas.colors.${color}`)}
+                aria-label={t(`canvas.colors.${color}`)}
+                onClick={() => applyColor(color)}
+              />
+            ))}
+          </div>
+
+          <span className="canvas-plugin-toolbar-spacer" />
+          <span className="canvas-connect-hint">
+            {t("canvas.connectHint")}
+          </span>
+          <button
+            type="button"
+            disabled={!hasSelection}
+            onClick={removeSelection}
+          >
+            {t("canvas.delete")}
+          </button>
+        </div>
+
+        <div ref={boardRef} className="canvas-plugin-board">
+          <ReactFlow<CanvasFlowNode, CanvasFlowEdge>
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onMove={(_, nextViewport) => setViewport(nextViewport)}
+            connectionMode={ConnectionMode.Loose}
+            connectionRadius={28}
+            fitView
+            fitViewOptions={{ padding: 0.18 }}
+            minZoom={0.1}
+            maxZoom={3}
+            deleteKeyCode={["Backspace", "Delete"]}
+            selectionOnDrag
+            panOnScroll
+            snapToGrid
+            snapGrid={[10, 10]}
+          >
+            <Background gap={20} size={1} />
+            <Controls />
+          </ReactFlow>
+        </div>
+      </section>
+    </CanvasRuntimeContext.Provider>
   );
 }
 
@@ -311,9 +503,21 @@ function CanvasNode({
   data,
   selected,
 }: NodeProps<CanvasFlowNode>) {
+  const { t } = useTranslation();
+  const runtime = useCanvasRuntime();
+  const [editingText, setEditingText] = useState(false);
   const kind = data.canvasType;
+  const style = canvasNodeStyle(data.color, kind);
+
+  useEffect(() => {
+    if (!selected) setEditingText(false);
+  }, [selected]);
+
   return (
-    <div className={`canvas-flow-node canvas-flow-node-${kind}`}>
+    <div
+      className={`canvas-flow-node canvas-flow-node-${kind}`}
+      style={style}
+    >
       <NodeResizer
         isVisible={selected}
         minWidth={120}
@@ -322,40 +526,153 @@ function CanvasNode({
       <CanvasHandles />
 
       {kind === "text" ? (
-        <textarea
-          className="nodrag nopan"
-          value={data.text ?? ""}
-          placeholder="Write Markdown…"
-          onChange={(event) => data.onPatch(id, { text: event.target.value })}
-        />
+        editingText ? (
+          <textarea
+            autoFocus
+            className="canvas-text-editor nodrag nopan"
+            value={data.text ?? ""}
+            placeholder={t("canvas.markdownPlaceholder")}
+            onBlur={() => setEditingText(false)}
+            onChange={(event) =>
+              runtime.patchNode(id, { text: event.target.value })
+            }
+          />
+        ) : (
+          <div
+            className="canvas-text-preview nodrag nopan"
+            onDoubleClick={() => setEditingText(true)}
+          >
+            {(data.text ?? "").trim() ? (
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ href, children, ...props }) => (
+                    <a
+                      {...props}
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {children}
+                    </a>
+                  ),
+                }}
+              >
+                {data.text ?? ""}
+              </Markdown>
+            ) : (
+              <span className="canvas-empty-text">
+                {t("canvas.doubleClickText")}
+              </span>
+            )}
+            {selected ? (
+              <button
+                type="button"
+                className="canvas-inline-action nodrag nopan"
+                onClick={() => setEditingText(true)}
+              >
+                {t("canvas.edit")}
+              </button>
+            ) : null}
+          </div>
+        )
       ) : kind === "file" ? (
-        <>
-          <span className="canvas-flow-node-kind">File</span>
-          <input
-            className="nodrag nopan"
-            value={data.file ?? ""}
-            placeholder="path/to/file.md"
-            onChange={(event) => data.onPatch(id, { file: event.target.value })}
-          />
-        </>
+        <CanvasFileNode
+          id={id}
+          file={data.file ?? ""}
+        />
       ) : kind === "link" ? (
-        <>
-          <span className="canvas-flow-node-kind">Link</span>
-          <input
-            className="nodrag nopan"
-            value={data.url ?? ""}
-            placeholder="https://…"
-            onChange={(event) => data.onPatch(id, { url: event.target.value })}
-          />
-        </>
+        <CanvasLinkNode
+          id={id}
+          url={data.url ?? ""}
+        />
       ) : (
         <input
           className="canvas-flow-group-label nodrag nopan"
           value={data.label ?? ""}
-          placeholder="Group"
-          onChange={(event) => data.onPatch(id, { label: event.target.value })}
+          placeholder={t("canvas.group")}
+          onChange={(event) =>
+            runtime.patchNode(id, { label: event.target.value })
+          }
         />
       )}
+    </div>
+  );
+}
+
+function CanvasFileNode({
+  id,
+  file,
+}: {
+  readonly id: string;
+  readonly file: string;
+}) {
+  const { t } = useTranslation();
+  const runtime = useCanvasRuntime();
+  const known = runtime.workspaceFiles.some(
+    (candidate) => candidate.path === file,
+  );
+
+  return (
+    <div className="canvas-file-node">
+      <span className="canvas-flow-node-kind">{t("canvas.file")}</span>
+      <select
+        className="nodrag nopan"
+        value={file}
+        aria-label={t("canvas.chooseFile")}
+        onChange={(event) =>
+          runtime.patchNode(id, { file: event.target.value })
+        }
+      >
+        <option value="">{t("canvas.chooseFile")}</option>
+        {file && !known ? <option value={file}>{file}</option> : null}
+        {runtime.workspaceFiles.map((candidate) => (
+          <option key={candidate.id} value={candidate.path}>
+            {candidate.path}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="canvas-node-open nodrag nopan"
+        disabled={!file || !runtime.openWorkspaceFile}
+        onClick={() => runtime.openWorkspaceFile?.(file)}
+      >
+        {t("canvas.openFile")}
+      </button>
+    </div>
+  );
+}
+
+function CanvasLinkNode({
+  id,
+  url,
+}: {
+  readonly id: string;
+  readonly url: string;
+}) {
+  const { t } = useTranslation();
+  const runtime = useCanvasRuntime();
+
+  return (
+    <div className="canvas-link-node">
+      <span className="canvas-flow-node-kind">{t("canvas.link")}</span>
+      <input
+        className="nodrag nopan"
+        value={url}
+        placeholder="https://…"
+        onChange={(event) =>
+          runtime.patchNode(id, { url: event.target.value })
+        }
+      />
+      <button
+        type="button"
+        className="canvas-node-open nodrag nopan"
+        disabled={!isSafeExternalUrl(url)}
+        onClick={() => openExternalUrl(url)}
+      >
+        {t("canvas.openLink")}
+      </button>
     </div>
   );
 }
@@ -363,14 +680,71 @@ function CanvasNode({
 function CanvasHandles() {
   return (
     <>
-      <Handle id="target-top" type="target" position={Position.Top} />
-      <Handle id="source-top" type="source" position={Position.Top} />
-      <Handle id="target-right" type="target" position={Position.Right} />
-      <Handle id="source-right" type="source" position={Position.Right} />
-      <Handle id="target-bottom" type="target" position={Position.Bottom} />
-      <Handle id="source-bottom" type="source" position={Position.Bottom} />
-      <Handle id="target-left" type="target" position={Position.Left} />
-      <Handle id="source-left" type="source" position={Position.Left} />
+      <Handle id="top" type="source" position={Position.Top} />
+      <Handle id="right" type="source" position={Position.Right} />
+      <Handle id="bottom" type="source" position={Position.Bottom} />
+      <Handle id="left" type="source" position={Position.Left} />
+    </>
+  );
+}
+
+function CanvasEdge({
+  id,
+  data,
+  selected,
+  markerStart,
+  markerEnd,
+  sourceX,
+  sourceY,
+  sourcePosition,
+  targetX,
+  targetY,
+  targetPosition,
+}: EdgeProps<CanvasFlowEdge>) {
+  const { t } = useTranslation();
+  const runtime = useCanvasRuntime();
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+  const color = resolveCanvasColor(data?.color);
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        interactionWidth={28}
+        {...(color ? { style: { stroke: color } } : {})}
+      />
+      <EdgeLabelRenderer>
+        <div
+          className={`canvas-edge-label nodrag nopan${selected ? " is-selected" : ""}`}
+          style={{
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            pointerEvents: "all",
+          }}
+        >
+          {selected ? (
+            <input
+              value={data?.label ?? ""}
+              aria-label={t("canvas.edgeLabel")}
+              placeholder={t("canvas.edgeLabel")}
+              onChange={(event) =>
+                runtime.patchEdge(id, { label: event.target.value })
+              }
+            />
+          ) : data?.label ? (
+            <span>{data.label}</span>
+          ) : null}
+        </div>
+      </EdgeLabelRenderer>
     </>
   );
 }
@@ -413,7 +787,7 @@ function parseCanvas(content: string): ParsedCanvas | undefined {
         original: { ...value },
         initialWidth: width,
         initialHeight: height,
-        onPatch: () => undefined,
+        ...(typeof value.color === "string" ? { color: value.color } : {}),
         ...(kind === "text" && typeof value.text === "string"
           ? { text: value.text }
           : {}),
@@ -449,20 +823,25 @@ function parseCanvas(content: string): ParsedCanvas | undefined {
       }
       const fromSide = isCanvasSide(value.fromSide) ? value.fromSide : undefined;
       const toSide = isCanvasSide(value.toSide) ? value.toSide : undefined;
+      const color = typeof value.color === "string" ? value.color : undefined;
       return [{
         id: value.id,
+        type: "canvas",
         source: value.fromNode,
         target: value.toNode,
-        ...(fromSide ? { sourceHandle: `source-${fromSide}` } : {}),
-        ...(toSide ? { targetHandle: `target-${toSide}` } : {}),
-        ...(typeof value.label === "string" ? { label: value.label } : {}),
+        ...(fromSide ? { sourceHandle: fromSide } : {}),
+        ...(toSide ? { targetHandle: toSide } : {}),
         ...(value.toEnd !== "none"
-          ? { markerEnd: { type: MarkerType.ArrowClosed } }
+          ? { markerEnd: arrowMarker(color) }
           : {}),
         ...(value.fromEnd === "arrow"
-          ? { markerStart: { type: MarkerType.ArrowClosed } }
+          ? { markerStart: arrowMarker(color) }
           : {}),
-        data: { original: { ...value } },
+        data: {
+          original: { ...value },
+          ...(typeof value.label === "string" ? { label: value.label } : {}),
+          ...(color ? { color } : {}),
+        },
       }];
     });
 
@@ -480,8 +859,16 @@ function serializeCanvas(
   const payload = {
     ...extras,
     nodes: nodes.map((node) => {
-      const width = dimension(node.width, node.measured?.width, node.data.initialWidth);
-      const height = dimension(node.height, node.measured?.height, node.data.initialHeight);
+      const width = dimension(
+        node.width,
+        node.measured?.width,
+        node.data.initialWidth,
+      );
+      const height = dimension(
+        node.height,
+        node.measured?.height,
+        node.data.initialHeight,
+      );
       const base = {
         ...node.data.original,
         id: node.id,
@@ -491,6 +878,9 @@ function serializeCanvas(
         width: Math.round(width),
         height: Math.round(height),
       } as Record<string, unknown>;
+
+      if (node.data.color) base.color = node.data.color;
+      else delete base.color;
 
       if (node.data.canvasType === "text") base.text = node.data.text ?? "";
       if (node.data.canvasType === "file") base.file = node.data.file ?? "";
@@ -510,8 +900,8 @@ function serializeCanvas(
         toNode: edge.target,
       } as Record<string, unknown>;
 
-      const fromSide = handleSide(edge.sourceHandle, "source");
-      const toSide = handleSide(edge.targetHandle, "target");
+      const fromSide = handleSide(edge.sourceHandle);
+      const toSide = handleSide(edge.targetHandle);
       if (fromSide) base.fromSide = fromSide;
       else delete base.fromSide;
       if (toSide) base.toSide = toSide;
@@ -520,8 +910,10 @@ function serializeCanvas(
       base.fromEnd = edge.markerStart ? "arrow" : "none";
       base.toEnd = edge.markerEnd ? "arrow" : "none";
 
-      if (typeof edge.label === "string" && edge.label) base.label = edge.label;
+      if (edge.data?.label) base.label = edge.data.label;
       else delete base.label;
+      if (edge.data?.color) base.color = edge.data.color;
+      else delete base.color;
 
       return base;
     }),
@@ -530,13 +922,50 @@ function serializeCanvas(
   return `${JSON.stringify(payload, null, 2)}\n`;
 }
 
-function handleSide(
-  handleId: string | null | undefined,
-  type: "source" | "target",
-): CanvasSide | undefined {
-  if (!handleId?.startsWith(`${type}-`)) return undefined;
-  const side = handleId.slice(type.length + 1);
-  return isCanvasSide(side) ? side : undefined;
+function useCanvasRuntime(): CanvasRuntime {
+  const context = useContext(CanvasRuntimeContext);
+  if (!context) {
+    throw new Error("Canvas runtime is unavailable.");
+  }
+  return context;
+}
+
+function canvasNodeStyle(
+  color: string | undefined,
+  kind: CanvasNodeKind,
+): CSSProperties | undefined {
+  const resolved = resolveCanvasColor(color);
+  if (!resolved) return undefined;
+
+  return {
+    borderColor: resolved,
+    background:
+      kind === "group"
+        ? `color-mix(in srgb, ${resolved} 7%, transparent)`
+        : `color-mix(in srgb, ${resolved} 10%, var(--surface))`,
+  };
+}
+
+function resolveCanvasColor(color: string | undefined): string | undefined {
+  if (!color) return undefined;
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+
+  const preset = color as CanvasColorPreset;
+  return COLOR_PRESETS.includes(preset)
+    ? `var(--canvas-color-${preset})`
+    : undefined;
+}
+
+function arrowMarker(color?: string) {
+  const resolved = resolveCanvasColor(color);
+  return {
+    type: MarkerType.ArrowClosed,
+    ...(resolved ? { color: resolved } : {}),
+  };
+}
+
+function handleSide(handleId: string | null | undefined): CanvasSide | undefined {
+  return isCanvasSide(handleId) ? handleId : undefined;
 }
 
 function dimension(
@@ -548,7 +977,12 @@ function dimension(
 }
 
 function isCanvasSide(value: unknown): value is CanvasSide {
-  return value === "top" || value === "right" || value === "bottom" || value === "left";
+  return (
+    value === "top" ||
+    value === "right" ||
+    value === "bottom" ||
+    value === "left"
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -561,6 +995,20 @@ function isNumber(value: unknown): value is number {
 
 function createId(): string {
   return crypto.randomUUID().replaceAll("-", "").slice(0, 16);
+}
+
+function isSafeExternalUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function openExternalUrl(value: string) {
+  if (!isSafeExternalUrl(value)) return;
+  window.open(value, "_blank", "noopener,noreferrer");
 }
 
 function CanvasMessage({
