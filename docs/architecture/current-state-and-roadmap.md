@@ -171,13 +171,33 @@ Excalidraw is now the second bundled first-party plugin:
 - browser E2E covers creation, real drawing edits, autosave, Markdown embedding
   and opening the drawing from the embed.
 
+Encryption is now the third bundled first-party plugin:
+
+- a plugin command can read and replace only the active editor selection through
+  the host editor capability boundary;
+- "Encrypt selection" is available from the Markdown toolbar and slash-command
+  surface;
+- the host owns the masked passphrase/confirmation dialog and never persists the
+  secret;
+- selected plaintext is replaced by a portable `mindcontext-encrypted` fenced
+  block containing a versioned AES-GCM/PBKDF2 payload;
+- Reading View resolves the fence through the generic plugin Markdown-block
+  registry and shows a lock control instead of ciphertext or plaintext;
+- clicking the lock opens a decrypt popup; plaintext exists only in transient
+  component state and is cleared when the popup closes;
+- the encryption plugin has no storage-provider or network capability;
+- browser E2E covers encryption, canonical ciphertext persistence, wrong-password
+  handling, successful unlock and re-hiding on close.
+
+See ADR-014 for the cryptographic format and its explicit non-erasure scope.
+
 The plugin runtime remains intentionally bundled/first-party. Do not introduce
 arbitrary third-party JavaScript loading or a marketplace before the sandbox and
 capability-isolation spike required by ADR-003.
 
-The next plugin-runtime work should focus on hardening the generic contracts
-(commands/editor transforms/embed lifecycle) for the encryption plugin. Public
-third-party installation remains later work.
+The next plugin-runtime work should focus on capability enforcement/sandboxing,
+extension lifecycle UX and deciding which bundled APIs are stable enough for a
+public third-party surface.
 
 ### Internationalization
 
