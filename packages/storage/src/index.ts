@@ -37,11 +37,13 @@ export interface StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    mediaType?: string,
   ): Promise<StorageObjectMetadata>;
   createText(
     parentId: string,
     name: string,
     content: string,
+    mediaType?: string,
   ): Promise<StorageObjectMetadata>;
   readBinary(id: string): Promise<Uint8Array>;
   writeBinary(
