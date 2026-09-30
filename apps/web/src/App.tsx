@@ -1785,6 +1785,7 @@ export function App() {
         parentId,
         name,
         creation.initialText ?? "",
+        fileType.mediaType ? { mediaType: fileType.mediaType } : undefined,
       );
       await refreshWorkspaceState();
       await openFileById(metadata.id);
@@ -2391,7 +2392,12 @@ export function App() {
             : {}),
       });
 
-      const metadata = await provider.writeText(noteId, localToSave);
+      const metadata = await provider.writeText(
+        noteId,
+        localToSave,
+        undefined,
+        textContentOptionsFor(buffer.note.metadata.name),
+      );
       const latest = tabBuffersRef.current[noteId] ?? buffer;
       const savedNote: OpenTextFile = {
         metadata,
@@ -2523,6 +2529,7 @@ export function App() {
           : noteAtStart.metadata.revision
             ? { expectedRevision: noteAtStart.metadata.revision }
             : undefined,
+        textContentOptionsFor(noteAtStart.metadata.name),
       );
 
       const latest = tabBuffersRef.current[noteId] ?? buffer;
@@ -4230,4 +4237,12 @@ function displayFileTitle(name: string): string {
     .filter((candidate) => lower.endsWith(candidate))
     .sort((left, right) => right.length - left.length)[0];
   return extension ? name.slice(0, -extension.length) || name : name;
+}
+
+
+function textContentOptionsFor(
+  fileName: string,
+): { readonly mediaType: string } | undefined {
+  const mediaType = extensionHost.fileTypes.resolve(fileName)?.mediaType;
+  return mediaType ? { mediaType } : undefined;
 }
