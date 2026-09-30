@@ -4,37 +4,16 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import {
+  appendJsonCanvasTextNode,
+  parseJsonCanvas,
+  serializeJsonCanvas,
+  updateJsonCanvasNode,
+  type JsonCanvasNode,
+} from "@mind-context/json-canvas";
 import type { TextFileViewProps } from "./fileViewRenderers";
 import { flattenWorkspaceTree } from "./workspaceTree";
 import "./CanvasEditor.css";
-
-interface JsonCanvas {
-  readonly nodes?: readonly CanvasNode[];
-  readonly edges?: readonly CanvasEdge[];
-  readonly [key: string]: unknown;
-}
-
-interface CanvasNode {
-  readonly id: string;
-  readonly type: string;
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly text?: string;
-  readonly file?: string;
-  readonly url?: string;
-  readonly label?: string;
-  readonly [key: string]: unknown;
-}
-
-interface CanvasEdge {
-  readonly id: string;
-  readonly fromNode: string;
-  readonly toNode: string;
-  readonly label?: string;
-  readonly [key: string]: unknown;
-}
 
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.25;
@@ -45,7 +24,7 @@ export function CanvasEditor({
   onChange,
   onOpenFile,
 }: TextFileViewProps) {
-  const parsed = useMemo(() => parseCanvas(value), [value]);
+  const parsed = useMemo(() => parseJsonCanvas(value), [value]);
   const [viewport, setViewport] = useState({ x: 40, y: 40, scale: 1 });
   const panRef = useRef<
     | {
@@ -86,25 +65,24 @@ export function CanvasEditor({
   const nodes = canvas.nodes ?? [];
   const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
 
-  function updateNode(id: string, patch: Partial<CanvasNode>) {
-    const nextNodes = nodes.map((node) =>
-      node.id === id ? { ...node, ...patch } : node,
+  function updateNode(id: string, patch: Partial<JsonCanvasNode>) {
+    onChange(
+      serializeJsonCanvas(updateJsonCanvasNode(canvas, id, patch)),
     );
-    onChange(serializeCanvas({ ...canvas, nodes: nextNodes }));
   }
 
   function addTextNode() {
     const id = crypto.randomUUID();
-    const next: CanvasNode = {
-      id,
-      type: "text",
-      x: Math.round((-viewport.x + 120) / viewport.scale),
-      y: Math.round((-viewport.y + 100) / viewport.scale),
-      width: 280,
-      height: 160,
-      text: "New note",
-    };
-    onChange(serializeCanvas({ ...canvas, nodes: [...nodes, next] }));
+    onChange(
+      serializeJsonCanvas(
+        appendJsonCanvasTextNode(canvas, {
+          id,
+          x: Math.round((-viewport.x + 120) / viewport.scale),
+          y: Math.round((-viewport.y + 100) / viewport.scale),
+          text: "New note",
+        }),
+      ),
+    );
   }
 
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
@@ -195,6 +173,7 @@ export function CanvasEditor({
             <CanvasNodeView
               key={node.id}
               node={node}
+              scale={viewport.scale}
               onMove={(x, y) => updateNode(node.id, { x, y })}
               onText={(text) => updateNode(node.id, { text })}
               onOpenFile={() => {
@@ -212,11 +191,13 @@ export function CanvasEditor({
 
 function CanvasNodeView({
   node,
+  scale,
   onMove,
   onText,
   onOpenFile,
 }: {
-  readonly node: CanvasNode;
+  readonly node: JsonCanvasNode;
+  readonly scale: number;
   readonly onMove: (x: number, y: number) => void;
   readonly onText: (text: string) => void;
   readonly onOpenFile: () => void;
@@ -259,8 +240,12 @@ function CanvasNodeView({
           const drag = dragRef.current;
           if (!drag || drag.pointerId !== event.pointerId) return;
           onMove(
-            Math.round(drag.originX + event.clientX - drag.startX),
-            Math.round(drag.originY + event.clientY - drag.startY),
+            Math.round(
+              drag.originX + (event.clientX - drag.startX) / scale,
+            ),
+            Math.round(
+              drag.originY + (event.clientY - drag.startY) / scale,
+            ),
           );
         }}
         onPointerUp={(event) => {
@@ -291,33 +276,6 @@ function CanvasNodeView({
       )}
     </article>
   );
-}
-
-function parseCanvas(
-  value: string,
-): { readonly ok: true; readonly canvas: JsonCanvas } | { readonly ok: false; readonly error: string } {
-  try {
-    const parsed = JSON.parse(value || "{}") as JsonCanvas;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { ok: false, error: "The top level must be a JSON object." };
-    }
-    if (parsed.nodes !== undefined && !Array.isArray(parsed.nodes)) {
-      return { ok: false, error: "nodes must be an array." };
-    }
-    if (parsed.edges !== undefined && !Array.isArray(parsed.edges)) {
-      return { ok: false, error: "edges must be an array." };
-    }
-    return { ok: true, canvas: parsed };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Unable to parse canvas.",
-    };
-  }
-}
-
-function serializeCanvas(canvas: JsonCanvas): string {
-  return `${JSON.stringify(canvas, null, 2)}\n`;
 }
 
 function normalizePath(value: string): string {
