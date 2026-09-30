@@ -226,6 +226,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    mediaType = MARKDOWN_MIME_TYPE,
   ): Promise<StorageObjectMetadata> {
     await this.assertRevision(id, condition);
 
@@ -239,7 +240,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
       {
         method: "PATCH",
         headers: {
-          "Content-Type": "text/markdown; charset=UTF-8",
+          "Content-Type": `${mediaType}; charset=UTF-8`,
         },
         body: content,
       },
@@ -262,12 +263,16 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     parentId: string,
     name: string,
     content: string,
+    mediaType = MARKDOWN_MIME_TYPE,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeFileName(name);
+    const normalizedName =
+      mediaType === MARKDOWN_MIME_TYPE
+        ? normalizeFileName(name)
+        : normalizeObjectName(name);
     const boundary = `mindcontext-${crypto.randomUUID()}`;
     const metadata = {
       name: normalizedName,
-      mimeType: MARKDOWN_MIME_TYPE,
+      mimeType: mediaType,
       parents: [parentId],
     };
 
@@ -277,7 +282,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
       JSON.stringify(metadata),
       "\r\n",
       `--${boundary}\r\n`,
-      "Content-Type: text/markdown; charset=UTF-8\r\n\r\n",
+      `Content-Type: ${mediaType}; charset=UTF-8\r\n\r\n`,
       content,
       "\r\n",
       `--${boundary}--`,
