@@ -1,4 +1,5 @@
-@import "@mind-context/design-system/tokens.css";\n@import "@mind-context/workspace-ui/chrome.css";
+@import "@mind-context/design-system/tokens.css";
+@import "@mind-context/workspace-ui/chrome.css";
 
 :root {
   --site-max: 1180px;

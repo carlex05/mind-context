@@ -57,6 +57,7 @@ import {
   type StorageObjectMetadata,
   type StorageProvider,
 } from "@mind-context/storage";
+import { KnowledgePanelFrame } from "@mind-context/workspace-ui";
 
 import {
   requestGoogleDriveAccess,
