@@ -102,9 +102,17 @@ import {
 } from "./theme";
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
 import { ExtensionHost } from "./extensions/ExtensionHost";
-import { canvasPlugin } from "./plugins/canvasPlugin";
-import { excalidrawPlugin } from "./plugins/excalidrawPlugin";
-import { encryptionPlugin } from "./plugins/encryptionPlugin";
+import { FilesCreateMenu } from "./FilesCreateMenu";
+import { AddonSettings } from "./AddonSettings";
+import {
+  ADDONS,
+  addonEnabled,
+  loadAddonBundle,
+  readAddonPreferences,
+  writeAddonPreferences,
+  type AddonId,
+  type AddonPreferences,
+} from "./addons";
 import { WorkspaceHome } from "./WorkspaceHome";
 import {
   WorkspaceOnboardingDialog,
@@ -250,6 +258,12 @@ export function App() {
   const secretPromptResolverRef = useRef<
     ((value: string | undefined) => void) | undefined
   >(undefined);
+  const [addonPreferences, setAddonPreferences] =
+    useState<AddonPreferences>(() => readAddonPreferences());
+  const [addonLoadingIds, setAddonLoadingIds] = useState<ReadonlySet<AddonId>>(
+    () => new Set(),
+  );
+  const [addonRuntimeVersion, setAddonRuntimeVersion] = useState(0);
   const [extensionHost] = useState(() => {
     const host = new ExtensionHost({
       readCurrentText: async () => {
@@ -272,11 +286,9 @@ export function App() {
       contentKind: "text",
       source: "core",
     });
-    void host.activateBundle(canvasPlugin);
-    void host.activateBundle(excalidrawPlugin);
-    void host.activateBundle(encryptionPlugin);
     return host;
   });
+  const addonSyncPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const [workspaceName, setWorkspaceName] = useState(
     () => t("chooser.defaultName"),
   );
@@ -368,6 +380,41 @@ export function App() {
     readonly index: number;
   }>({ entries: [], index: -1 });
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
+
+  useEffect(() => {
+    let cancelled = false;
+    const loading = new Set<AddonId>(ADDONS.map((addon) => addon.id));
+    setAddonLoadingIds(loading);
+
+    const next = addonSyncPromiseRef.current.then(async () => {
+      for (const addon of ADDONS) {
+        if (addonPreferences[addon.id]) {
+          const bundle = await loadAddonBundle(addon.id);
+          await extensionHost.activateBundle(bundle);
+        } else {
+          await extensionHost.deactivate(addon.id);
+        }
+      }
+    });
+    addonSyncPromiseRef.current = next;
+
+    void next
+      .catch((error) => {
+        if (!cancelled) {
+          setStatus({ kind: "error", message: errorMessage(error, t) });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAddonLoadingIds(new Set());
+          setAddonRuntimeVersion((current) => current + 1);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addonPreferences, extensionHost, t]);
 
   const embeddingProvider = useMemo(
     () =>
@@ -475,6 +522,7 @@ export function App() {
   const currentIndexedNote = openNote
     ? getNote(knowledgeIndex, openNote.metadata.id)
     : undefined;
+  void addonRuntimeVersion;
   const ActivePluginView = openPluginResource
     ? extensionHost.resolveFileView(openPluginResource.fileTypeId)
     : undefined;
@@ -1101,6 +1149,7 @@ export function App() {
     setMobileSidebarOpen(true);
     setStatus({ kind: "busy", message: t("status.openingWorkspace") });
     try {
+      await addonSyncPromiseRef.current;
       const [cached, cachedSearch] = await Promise.all([
         knowledgeStore.get(workspace.id),
         searchStore.get(workspace.id),
