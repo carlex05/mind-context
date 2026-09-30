@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { SecretPromptRequest } from "@mind-context/extension-api";
 import { useTranslation } from "react-i18next";
 import {
   getBacklinks,
@@ -78,6 +79,7 @@ import {
   markRecoveryCopiesResolvedForSource,
 } from "./recovery";
 import { RecoverySettings } from "./RecoverySettings";
+import { SecretPromptDialog } from "./SecretPromptDialog";
 import { MarkdownEditor, type MarkdownEditorBridge } from "./MarkdownEditor";
 import {
   MarkdownPreview,
@@ -243,6 +245,11 @@ export function App() {
   const markdownEditorBridgeRef = useRef<MarkdownEditorBridge | undefined>(
     undefined,
   );
+  const [secretPromptRequest, setSecretPromptRequest] =
+    useState<SecretPromptRequest>();
+  const secretPromptResolverRef = useRef<
+    ((value: string | undefined) => void) | undefined
+  >(undefined);
   const [extensionHost] = useState(() => {
     const host = new ExtensionHost({
       readCurrentText: async () => {
@@ -257,27 +264,7 @@ export function App() {
       replaceEditorSelection: async (content) => {
         markdownEditorBridgeRef.current?.replaceSelection(content);
       },
-      promptSecret: async (request) => {
-        const first = window.prompt(
-          [request.title, request.message].filter(Boolean).join("\n\n"),
-        );
-        if (!first) return undefined;
-
-        if (request.confirm) {
-          const second = window.prompt(
-            request.confirmLabel ?? request.title,
-          );
-          if (second === null) return undefined;
-          if (first !== second) {
-            window.alert(
-              request.mismatchMessage ?? "The passphrases do not match.",
-            );
-            return undefined;
-          }
-        }
-
-        return first;
-      },
+      promptSecret: requestSecret,
     });
     host.fileTypes.register({
       id: "markdown",
@@ -3993,9 +3980,30 @@ export function App() {
         }}
         onSubmit={completeExistingOnboarding}
       />
+      <SecretPromptDialog
+        request={secretPromptRequest}
+        onResolve={resolveSecretPrompt}
+      />
       <StatusBar status={status} />
     </main>
   );
+
+  function requestSecret(
+    request: SecretPromptRequest,
+  ): Promise<string | undefined> {
+    secretPromptResolverRef.current?.(undefined);
+    return new Promise((resolve) => {
+      secretPromptResolverRef.current = resolve;
+      setSecretPromptRequest(request);
+    });
+  }
+
+  function resolveSecretPrompt(value: string | undefined) {
+    const resolve = secretPromptResolverRef.current;
+    secretPromptResolverRef.current = undefined;
+    setSecretPromptRequest(undefined);
+    resolve?.(value);
+  }
 }
 
 function TagsPanel({
