@@ -176,6 +176,19 @@ test("creates and edits a JSON Canvas through the plugin boundary", async ({
 test("creates edits and embeds an Excalidraw plugin document", async ({
   page,
 }, testInfo) => {
+  const externalAssetRequests: string[] = [];
+  page.on("request", (request) => {
+    const hostname = new URL(request.url()).hostname;
+    if (
+      hostname === "esm.sh" ||
+      hostname === "esm.run" ||
+      hostname === "unpkg.com" ||
+      hostname === "cdn.jsdelivr.net"
+    ) {
+      externalAssetRequests.push(request.url());
+    }
+  });
+
   await prepareLocalVault(page);
   await page.getByRole("button", { name: "Open local vault" }).click();
   await expect(
@@ -265,6 +278,8 @@ test("creates edits and embeds an Excalidraw plugin document", async ({
   await expect(
     page.getByRole("region", { name: "Sketch.excalidraw" }),
   ).toBeVisible();
+
+  expect(externalAssetRequests).toEqual([]);
 });
 
 test("remembers a local vault identity across reload and folder reselection", async ({
