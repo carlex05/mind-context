@@ -1785,7 +1785,10 @@ export function App() {
         parentId,
         name,
         creation.initialText ?? "",
-        fileType.mediaType ? { mediaType: fileType.mediaType } : undefined,
+        {
+          ...(fileType.mediaType ? { mediaType: fileType.mediaType } : {}),
+          preserveName: true,
+        },
       );
       await refreshWorkspaceState();
       await openFileById(metadata.id);
