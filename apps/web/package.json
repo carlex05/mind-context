@@ -37,7 +37,8 @@
     "rehype-prism-plus": "^2.0.2",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
-    "@mind-context/extension-api": "workspace:*"
+    "@mind-context/extension-api": "workspace:*",
+    "@xyflow/react": "^12.11.6"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
