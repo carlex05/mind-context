@@ -20,7 +20,10 @@ import {
 } from "@mind-context/markdown";
 import { useTranslation } from "react-i18next";
 import { MermaidDiagram } from "./MermaidDiagram";
-import type { PluginMarkdownEmbedProps } from "./extensions/ExtensionHost";
+import type {
+  PluginMarkdownBlockProps,
+  PluginMarkdownEmbedProps,
+} from "./extensions/ExtensionHost";
 import {
   inferMediaType,
   isImageFile,
@@ -43,6 +46,7 @@ export function MarkdownPreview({
   navigationTarget,
   navigationKey = 0,
   resolvePluginEmbed,
+  resolvePluginBlock,
   onOpenWorkspaceFile,
   onOpenNote,
 }: {
@@ -56,6 +60,9 @@ export function MarkdownPreview({
   readonly resolvePluginEmbed?: (
     fileName: string,
   ) => ComponentType<PluginMarkdownEmbedProps> | undefined;
+  readonly resolvePluginBlock?: (
+    language: string,
+  ) => ComponentType<PluginMarkdownBlockProps> | undefined;
   readonly onOpenWorkspaceFile?: (path: string) => void;
   readonly onOpenNote: (target: InternalMarkdownNavigationTarget) => void;
 }) {
@@ -134,10 +141,26 @@ export function MarkdownPreview({
         rehypePlugins={[
           rehypeMathjax,
           rehypeMermaidBlocks,
+          [rehypePluginBlocks, { resolvePluginBlock }],
           [rehypePrism, { ignoreMissing: true }],
         ]}
         components={{
           div({ node: _node, className, children, ...props }) {
+            const pluginLanguage = (
+              props as Readonly<Record<string, unknown>>
+            )["data-plugin-block-language"];
+            const pluginSource = (
+              props as Readonly<Record<string, unknown>>
+            )["data-plugin-block-source"];
+            if (
+              typeof pluginLanguage === "string" &&
+              typeof pluginSource === "string" &&
+              resolvePluginBlock
+            ) {
+              const Block = resolvePluginBlock(pluginLanguage);
+              if (Block) return <Block content={pluginSource} />;
+            }
+
             const source = (
               props as Readonly<Record<string, unknown>>
             )["data-mermaid-source"];
@@ -558,6 +581,60 @@ interface HastNode {
   value?: string;
   properties?: Record<string, unknown>;
   children?: HastNode[];
+}
+
+function rehypePluginBlocks(options: {
+  readonly resolvePluginBlock?: (
+    language: string,
+  ) => ComponentType<PluginMarkdownBlockProps> | undefined;
+}) {
+  return (tree: HastNode) => {
+    transformPluginBlocks(tree, options.resolvePluginBlock);
+  };
+}
+
+function transformPluginBlocks(
+  parent: HastNode,
+  resolvePluginBlock:
+    | ((language: string) => ComponentType<PluginMarkdownBlockProps> | undefined)
+    | undefined,
+): void {
+  if (!parent.children || !resolvePluginBlock) return;
+
+  parent.children = parent.children.map((child) => {
+    if (child.type === "element" && child.tagName === "pre") {
+      const code = child.children?.find(
+        (candidate) =>
+          candidate.type === "element" && candidate.tagName === "code",
+      );
+      const classNames = Array.isArray(code?.properties?.className)
+        ? code.properties.className.filter(
+            (value): value is string => typeof value === "string",
+          )
+        : typeof code?.properties?.className === "string"
+          ? code.properties.className.split(/\s+/)
+          : [];
+      const languageClass = classNames.find((value) =>
+        value.startsWith("language-"),
+      );
+      const language = languageClass?.slice("language-".length);
+      if (code && language && resolvePluginBlock(language)) {
+        return {
+          type: "element",
+          tagName: "div",
+          properties: {
+            className: ["mindcontext-plugin-block"],
+            "data-plugin-block-language": language,
+            "data-plugin-block-source": hastText(code).replace(/\n$/, ""),
+          },
+          children: [],
+        };
+      }
+    }
+
+    transformPluginBlocks(child, resolvePluginBlock);
+    return child;
+  });
 }
 
 function rehypeMermaidBlocks() {
