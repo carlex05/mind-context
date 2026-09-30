@@ -354,26 +354,25 @@ function CanvasEditor({
 
   function applyColor(color: string | undefined) {
     setNodes((current) =>
-      current.map((node) =>
-        node.selected
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                ...(color ? { color } : { color: undefined }),
-              },
-            }
-          : node,
-      ),
+      current.map((node) => {
+        if (!node.selected) return node;
+        const { color: _currentColor, ...rest } = node.data;
+        const data: CanvasNodeData = color
+          ? { ...rest, color }
+          : rest;
+        return { ...node, data };
+      }),
     );
     setEdges((current) =>
       current.map((edge) => {
         if (!edge.selected) return edge;
-        const data: CanvasEdgeData = {
-          original: edge.data?.original ?? {},
-          ...edge.data,
-          ...(color ? { color } : { color: undefined }),
-        };
+        const {
+          color: _currentColor,
+          ...rest
+        } = edge.data ?? { original: {} };
+        const data: CanvasEdgeData = color
+          ? { ...rest, original: rest.original ?? {}, color }
+          : { ...rest, original: rest.original ?? {} };
         return {
           ...edge,
           data,
@@ -718,9 +717,9 @@ function CanvasEdge({
       <BaseEdge
         id={id}
         path={edgePath}
-        markerStart={markerStart}
-        markerEnd={markerEnd}
         interactionWidth={28}
+        {...(markerStart ? { markerStart } : {})}
+        {...(markerEnd ? { markerEnd } : {})}
         {...(color ? { style: { stroke: color } } : {})}
       />
       <EdgeLabelRenderer>
