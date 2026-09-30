@@ -397,19 +397,21 @@ export function App() {
     previousAddonPreferencesRef.current = addonPreferences;
     setAddonLoadingIds(loading);
 
-    const next = addonSyncPromiseRef.current.then(async () => {
-      for (const addon of ADDONS) {
-        if (addonPreferences[addon.id]) {
-          const bundle = await loadAddonBundle(addon.id);
-          await extensionHost.activateBundle(bundle);
-        } else {
-          await extensionHost.deactivate(addon.id);
+    const operation = addonSyncPromiseRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        for (const addon of ADDONS) {
+          if (addonPreferences[addon.id]) {
+            const bundle = await loadAddonBundle(addon.id);
+            await extensionHost.activateBundle(bundle);
+          } else {
+            await extensionHost.deactivate(addon.id);
+          }
         }
-      }
-    });
-    addonSyncPromiseRef.current = next;
+      });
+    addonSyncPromiseRef.current = operation.catch(() => undefined);
 
-    void next
+    void operation
       .catch((error) => {
         if (!cancelled) {
           setStatus({ kind: "error", message: errorMessage(error, t) });
