@@ -374,6 +374,7 @@ test("encrypts selected Markdown and unlocks it through the Reading View popup",
 
   await decryptDialog
     .getByRole("button", { name: "Close", exact: true })
+    .last()
     .click();
   await expect(decryptDialog).toBeHidden();
   await expect(reading).not.toContainText("My private thought");
