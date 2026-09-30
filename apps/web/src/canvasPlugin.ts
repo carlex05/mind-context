@@ -15,6 +15,12 @@ export const canvasPlugin: Extension = {
       id: "json-canvas",
       extensions: [".canvas"],
       contentKind: "text",
+      displayName: "Canvas",
+      create: {
+        label: "New Canvas",
+        defaultExtension: ".canvas",
+        initialText: "{\n  \"nodes\": [],\n  \"edges\": []\n}\n",
+      },
       viewType: "json-canvas",
       priority: 100,
     });
