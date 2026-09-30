@@ -2,6 +2,7 @@ import {
   StorageConflictError,
   type StorageObjectMetadata,
   type StorageProvider,
+  type TextContentOptions,
   type WriteCondition,
 } from "@mind-context/storage";
 
@@ -69,6 +70,7 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    _options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
     await this.assertCondition(id, condition);
     const handle = await this.fileHandleForId(id);
@@ -80,8 +82,9 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     parentId: string,
     name: string,
     content: string,
+    _options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeMarkdownFileName(name);
+    const normalizedName = normalizeTextFileName(name);
     const parentPath = this.pathForId(parentId);
     const directory = await this.directoryAt(parentPath);
     await assertNameAvailable(directory, normalizedName);
@@ -533,11 +536,14 @@ function fileRevision(file: File): string {
   return `${file.lastModified}:${file.size}`;
 }
 
-function normalizeMarkdownFileName(name: string): string {
+function normalizeTextFileName(name: string): string {
   const normalized = normalizeName(name);
-  return normalized.toLocaleLowerCase().endsWith(".md")
-    ? normalized
-    : `${normalized}.md`;
+  return hasFileExtension(normalized) ? normalized : `${normalized}.md`;
+}
+
+function hasFileExtension(name: string): boolean {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 && dot < name.length - 1;
 }
 
 function normalizeName(name: string): string {
@@ -571,7 +577,11 @@ function inferMediaType(name: string): string {
   const lower = name.toLocaleLowerCase();
   if (lower.endsWith(".md")) return "text/markdown";
   if (lower.endsWith(".txt")) return "text/plain";
-  if (lower.endsWith(".json")) return "application/json";
+  if (
+    lower.endsWith(".json") ||
+    lower.endsWith(".canvas") ||
+    lower.endsWith(".excalidraw")
+  ) return "application/json";
   if (lower.endsWith(".yaml") || lower.endsWith(".yml")) {
     return "application/yaml";
   }
