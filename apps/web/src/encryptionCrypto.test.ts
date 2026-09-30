@@ -1,1 +1,32 @@
-import { describe, expect, it } from "vitest";\n\nimport {\n  decryptText,\n  encryptText,\n  parseEncryptedPayload,\n  serializeEncryptedBlock,\n} from "./plugins/encryptionCrypto";\n\ndescribe("encryptionCrypto", () => {\n  it("round-trips encrypted text without storing plaintext in the payload", async () => {\n    const plaintext = "Secret line\\nwith more context.";\n    const payload = await encryptText(plaintext, "correct horse battery staple");\n\n    expect(JSON.stringify(payload)).not.toContain(plaintext);\n    expect(\n      await decryptText(payload, "correct horse battery staple"),\n    ).toBe(plaintext);\n\n    const block = serializeEncryptedBlock(payload);\n    expect(block).toContain("```mindcontext-encrypted");\n    const encoded = block\n      .replace(/^```mindcontext-encrypted\\n/, "")\n      .replace(/\\n```$/, "");\n    expect(parseEncryptedPayload(encoded)).toEqual(payload);\n  });\n\n  it("rejects a wrong passphrase", async () => {\n    const payload = await encryptText("classified", "right-passphrase");\n    await expect(decryptText(payload, "wrong-passphrase")).rejects.toThrow();\n  });\n});\n
+import { describe, expect, it } from "vitest";
+
+import {
+  decryptText,
+  encryptText,
+  parseEncryptedPayload,
+  serializeEncryptedBlock,
+} from "./plugins/encryptionCrypto";
+
+describe("encryptionCrypto", () => {
+  it("round-trips encrypted text without storing plaintext in the payload", async () => {
+    const plaintext = "Secret line\\nwith more context.";
+    const payload = await encryptText(plaintext, "correct horse battery staple");
+
+    expect(JSON.stringify(payload)).not.toContain(plaintext);
+    expect(
+      await decryptText(payload, "correct horse battery staple"),
+    ).toBe(plaintext);
+
+    const block = serializeEncryptedBlock(payload);
+    expect(block).toContain("```mindcontext-encrypted");
+    const encoded = block
+      .replace(/^```mindcontext-encrypted\\n/, "")
+      .replace(/\\n```$/, "");
+    expect(parseEncryptedPayload(encoded)).toEqual(payload);
+  });
+
+  it("rejects a wrong passphrase", async () => {
+    const payload = await encryptText("classified", "right-passphrase");
+    await expect(decryptText(payload, "wrong-passphrase")).rejects.toThrow();
+  });
+});
