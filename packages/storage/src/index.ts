@@ -19,6 +19,11 @@ export interface WriteCondition {
 
 export interface TextContentOptions {
   readonly mediaType?: string;
+  /**
+   * Preserve the supplied filename exactly instead of applying the provider's
+   * legacy Markdown default for extensionless note creation.
+   */
+  readonly preserveName?: boolean;
 }
 
 export class StorageConflictError extends Error {
