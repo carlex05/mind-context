@@ -99,6 +99,8 @@ import {
   type ThemePreference,
 } from "./theme";
 import { WorkspaceExplorer } from "./WorkspaceExplorer";
+import { ExtensionHost } from "./extensions/ExtensionHost";
+import { canvasPlugin } from "./plugins/canvasPlugin";
 import { WorkspaceHome } from "./WorkspaceHome";
 import {
   WorkspaceOnboardingDialog,
@@ -176,6 +178,14 @@ interface NoteBuffer {
   readonly draft: string;
 }
 
+interface OpenPluginResource {
+  readonly metadata: StorageObjectMetadata;
+  readonly path: string;
+  readonly fileTypeId: string;
+  readonly contentKind: "text" | "binary";
+  readonly content: string | Uint8Array;
+}
+
 interface NoteConflict {
   readonly remoteMetadata: StorageObjectMetadata;
   readonly remoteContent: string;
@@ -215,6 +225,28 @@ export function App() {
   const attachmentTargetFolderIdRef = useRef<string | undefined>(undefined);
   const [openNote, setOpenNote] = useState<OpenNote>();
   const [draft, setDraft] = useState("");
+  const [openPluginResource, setOpenPluginResource] =
+    useState<OpenPluginResource>();
+  const activePluginResourceRef = useRef<OpenPluginResource>();
+  const [extensionHost] = useState(() => {
+    const host = new ExtensionHost({
+      readCurrentText: async () => {
+        const content = activePluginResourceRef.current?.content;
+        return typeof content === "string" ? content : undefined;
+      },
+      writeCurrentText: async () => {
+        throw new Error("Plugin file editing is not enabled yet.");
+      },
+    });
+    host.fileTypes.register({
+      id: "markdown",
+      extensions: [".md", ".markdown"],
+      contentKind: "text",
+      source: "core",
+    });
+    void host.activateBundle(canvasPlugin);
+    return host;
+  });
   const [workspaceName, setWorkspaceName] = useState(
     () => t("chooser.defaultName"),
   );
@@ -464,6 +496,10 @@ export function App() {
   }, [tabBuffers]);
 
   useEffect(() => {
+    activePluginResourceRef.current = openPluginResource;
+  }, [openPluginResource]);
+
+  useEffect(() => {
     activeTabIdRef.current = activeTabId;
   }, [activeTabId]);
 
@@ -566,10 +602,12 @@ export function App() {
     if (!activeWorkspace || !workspaceUiReady) return;
     writeWorkspaceUi(activeWorkspace.id, {
       tabs: tabs.map((tab) => ({
-        noteId: tab.noteId,
+        resourceId: tab.resourceId,
+        resourceKind: tab.resourceKind,
+        fileTypeId: tab.fileTypeId,
         viewMode: tab.viewMode,
       })),
-      ...(activeTabId ? { activeNoteId: activeTabId } : {}),
+      ...(activeTabId ? { activeResourceId: activeTabId } : {}),
       homeActive: activeTabId === undefined,
       leftPanel: activeLeftPanel,
       leftSidebarOpen,
@@ -974,6 +1012,7 @@ export function App() {
       setSelectedFolderId(nextProvider.rootId);
       setOpenNote(undefined);
       setDraft("");
+      setOpenPluginResource(undefined);
       setTabs([]);
       replaceTabBuffers({});
       noteSyncStatesRef.current = {};
@@ -1012,7 +1051,7 @@ export function App() {
 
       const persistedUi = readWorkspaceUi(workspace.id);
       const restoredTabs = persistedUi.tabs.flatMap((saved) => {
-        const note = getNote(rebuilt, saved.noteId);
+        const note = getNote(rebuilt, saved.resourceId);
         return note
           ? [{
               noteId: note.id,
@@ -1024,7 +1063,7 @@ export function App() {
       });
       const restoredActiveId = persistedUi.homeActive
         ? undefined
-        : restoredTabs.some((tab) => tab.noteId === persistedUi.activeNoteId)
+        : restoredTabs.some((tab) => tab.resourceId === persistedUi.activeNoteId)
           ? persistedUi.activeNoteId
           : restoredTabs[0]?.noteId;
 
@@ -1080,7 +1119,7 @@ export function App() {
           pendingDraft ? "local" : "synced",
         );
         setViewMode(
-          restoredTabs.find((tab) => tab.noteId === restoredActiveId)?.viewMode ??
+          restoredTabs.find((tab) => tab.resourceId === restoredActiveId)?.viewMode ??
             "edit",
         );
         setNavigation({ entries: [restoredActiveId], index: 0 });
@@ -1145,7 +1184,7 @@ export function App() {
       setSearchIndex(derived.searchIndex);
       setTabs((current) =>
         current.flatMap((tab) => {
-          const note = getNote(rebuilt, tab.noteId);
+          const note = getNote(rebuilt, tab.resourceId);
           return note
             ? [{
                 ...tab,
@@ -1312,7 +1351,7 @@ export function App() {
       setOpenNote(nextNote);
       setDraft(nextDraft);
 
-      const existingTab = tabs.find((tab) => tab.noteId === id);
+      const existingTab = tabs.find((tab) => tab.resourceId === id);
       const note = getNote(knowledgeIndex, id);
       const nextTab: WorkspaceTab = {
         noteId: id,
@@ -1321,9 +1360,9 @@ export function App() {
         viewMode: existingTab?.viewMode ?? "edit",
       };
       setTabs((current) =>
-        current.some((tab) => tab.noteId === id)
+        current.some((tab) => tab.resourceId === id)
           ? current.map((tab) =>
-              tab.noteId === id
+              tab.resourceId === id
                 ? { ...tab, title: nextTab.title, path: nextTab.path }
                 : tab,
             )
@@ -1479,13 +1518,13 @@ export function App() {
     if (!activeTabId) return;
     setTabs((current) =>
       current.map((tab) =>
-        tab.noteId === activeTabId ? { ...tab, viewMode: mode } : tab,
+        tab.resourceId === activeTabId ? { ...tab, viewMode: mode } : tab,
       ),
     );
   }
 
   async function closeTab(noteId: string) {
-    const index = tabs.findIndex((tab) => tab.noteId === noteId);
+    const index = tabs.findIndex((tab) => tab.resourceId === noteId);
     if (index < 0) return;
 
     const closingActive = activeTabId === noteId;
@@ -1525,7 +1564,7 @@ export function App() {
     cancelDriveSyncTimer(noteId);
     cancelConflictRecoveryTimer(noteId);
 
-    const remaining = tabs.filter((tab) => tab.noteId !== noteId);
+    const remaining = tabs.filter((tab) => tab.resourceId !== noteId);
     setTabs(remaining);
     removeTabBuffer(noteId);
     const nextSyncStates = { ...noteSyncStatesRef.current };
