@@ -126,6 +126,19 @@ remains canonical. Pending drafts retain their base revision/content so
 conflicts can be detected and future provider-specific reconciliation can build
 on the same model.
 
+### Plugin-driven file views and JSON Canvas
+
+- workspace tabs are file-resource based rather than Markdown-ID based;
+- `@mind-context/extension-api` exposes capability-gated file-type view registration;
+- the web delivery layer owns an `ExtensionHost`, file-type registry and renderer registry;
+- Markdown is the built-in text handler and remains the only automatic knowledge/search/embedding projection;
+- Canvas ships as a bundled first-party plugin registered for `.canvas`;
+- `@mind-context/json-canvas` owns framework-independent JSON Canvas parsing, serialization and mutations;
+- Canvas text files reuse the same pending-draft, autosave, provider conflict and recovery pipeline as Markdown;
+- recovery artifacts preserve plugin source file types;
+- the current Canvas editor opens/creates canvases, pans/zooms, edits/adds text nodes, moves nodes, displays file/link/group nodes and edges, and opens referenced vault files;
+- arbitrary third-party plugin loading, sandboxing and marketplace distribution remain future work.
+
 ### Internationalization
 
 UI locales:
