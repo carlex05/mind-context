@@ -22,6 +22,7 @@ describe("encryptionCrypto", () => {
     const prefix = "```mindcontext-encrypted\n";
     const suffix = "\n```";
     const encoded = block.slice(prefix.length, -suffix.length);
+    expect(parseEncryptedPayload(encoded)).toEqual(payload);
   });
 
   it("rejects a wrong passphrase", async () => {
