@@ -56,7 +56,7 @@ export function CanvasEditor({
         readonly originY: number;
       }
     | undefined
-  >();
+  >(undefined);
 
   const filesByPath = useMemo(
     () =>
@@ -230,7 +230,7 @@ function CanvasNodeView({
         readonly originY: number;
       }
     | undefined
-  >();
+  >(undefined);
 
   return (
     <article
