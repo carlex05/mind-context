@@ -266,7 +266,9 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     content: string,
     options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeTextFileName(name);
+    const normalizedName = options?.preserveName
+      ? normalizeObjectName(name)
+      : normalizeMarkdownFileName(name);
     const mediaType = inferTextMediaType(
       normalizedName,
       options?.mediaType,
@@ -495,14 +497,11 @@ export class GoogleDriveStorageProvider implements StorageProvider {
   }
 }
 
-function normalizeTextFileName(name: string): string {
+function normalizeMarkdownFileName(name: string): string {
   const normalized = normalizeObjectName(name);
-  return hasFileExtension(normalized) ? normalized : `${normalized}.md`;
-}
-
-function hasFileExtension(name: string): boolean {
-  const dot = name.lastIndexOf(".");
-  return dot > 0 && dot < name.length - 1;
+  return normalized.toLowerCase().endsWith(".md")
+    ? normalized
+    : `${normalized}.md`;
 }
 
 function inferTextMediaType(
