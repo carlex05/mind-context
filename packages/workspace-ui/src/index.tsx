@@ -320,7 +320,7 @@ export function KnowledgePanelFrame({
 }: {
   readonly label: string;
   readonly ariaLabel?: string;
-  readonly title: string;
+  readonly title?: string;
   readonly closeLabel: string;
   readonly children: ReactNode;
   readonly onClose?: () => void;
@@ -329,8 +329,55 @@ export function KnowledgePanelFrame({
     <aside className="knowledge-panel" aria-label={ariaLabel ?? label}>
       <button className="knowledge-back" type="button" aria-label={closeLabel} onClick={onClose}>×</button>
       <span className="section-label">{label}</span>
-      <h2>{title}</h2>
+      {title ? <h2>{title}</h2> : null}
       {children}
     </aside>
+  );
+}
+
+
+export function KnowledgeSectionView({
+  title,
+  empty,
+  children,
+}: {
+  readonly title: string;
+  readonly empty?: string;
+  readonly children?: ReactNode;
+}) {
+  const hasChildren = Array.isArray(children)
+    ? children.length > 0
+    : children !== undefined && children !== null;
+
+  return (
+    <section className="knowledge-section">
+      <h3>{title}</h3>
+      {hasChildren ? children : empty ? <p className="context-empty">{empty}</p> : null}
+    </section>
+  );
+}
+
+export function KnowledgeLinkView({
+  title,
+  subtitle,
+  onClick,
+}: {
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span>{title}</span>
+      {subtitle ? <small>{subtitle}</small> : null}
+    </>
+  );
+
+  return onClick ? (
+    <button className="context-link" type="button" onClick={onClick}>
+      {content}
+    </button>
+  ) : (
+    <div className="context-link">{content}</div>
   );
 }
