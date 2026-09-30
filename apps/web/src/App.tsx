@@ -381,7 +381,7 @@ export function App() {
   }>({ entries: [], index: -1 });
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
 
-  const previousAddonPreferencesRef = useRef<AddonPreferences>();
+  const previousAddonPreferencesRef = useRef<AddonPreferences | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
