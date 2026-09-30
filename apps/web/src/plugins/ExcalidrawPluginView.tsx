@@ -30,7 +30,7 @@ export function ExcalidrawPluginView({
   onTextChange,
 }: PluginFileViewProps) {
   const { t } = useTranslation();
-  const readyRef = useRef(false);
+  const firstChangeRef = useRef(true);
   const lastSerializedRef = useRef(
     typeof content === "string" ? content.trimEnd() : "",
   );
@@ -75,11 +75,12 @@ export function ExcalidrawPluginView({
       <div className="excalidraw-plugin-editor">
         <Excalidraw
           initialData={initialData}
-          onInitialize={() => {
-            readyRef.current = true;
-          }}
           onChange={(elements, appState, files) => {
-            if (!readyRef.current || !onTextChange) return;
+            if (firstChangeRef.current) {
+              firstChangeRef.current = false;
+              return;
+            }
+            if (!onTextChange) return;
             const serialized = serializeAsJSON(
               elements,
               appState,
@@ -128,7 +129,7 @@ export function ExcalidrawMarkdownEmbed({
       },
       files: document.files ?? {},
     } as unknown as Parameters<typeof exportToSvg>[0])
-      .then((svg) => {
+      .then((svg: SVGSVGElement) => {
         if (disposed) return;
         svg.setAttribute("role", "img");
         svg.setAttribute("aria-label", name);
