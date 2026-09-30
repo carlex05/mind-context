@@ -2132,6 +2132,277 @@ export function App() {
     });
   }
 
+  function replacePluginResourceBuffers(
+    next: Readonly<Record<string, OpenPluginResource>>,
+  ) {
+    pluginResourceBuffersRef.current = next;
+    setPluginResourceBuffers(next);
+  }
+
+  function putPluginResourceBuffer(resource: OpenPluginResource) {
+    replacePluginResourceBuffers({
+      ...pluginResourceBuffersRef.current,
+      [resource.metadata.id]: resource,
+    });
+  }
+
+  function removePluginResourceBuffer(resourceId: string) {
+    const next = { ...pluginResourceBuffersRef.current };
+    delete next[resourceId];
+    replacePluginResourceBuffers(next);
+  }
+
+  function cancelPluginLocalDraftTimer(resourceId: string) {
+    const timer = pluginLocalDraftTimersRef.current.get(resourceId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      pluginLocalDraftTimersRef.current.delete(resourceId);
+    }
+  }
+
+  function cancelPluginDriveSyncTimer(resourceId: string) {
+    const timer = pluginDriveSyncTimersRef.current.get(resourceId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      pluginDriveSyncTimersRef.current.delete(resourceId);
+    }
+  }
+
+  async function persistPluginTextDraft(
+    resourceId: string,
+  ): Promise<boolean> {
+    const workspace = activeWorkspaceRef.current;
+    const resource = pluginResourceBuffersRef.current[resourceId];
+    if (
+      !workspace ||
+      !resource ||
+      resource.contentKind !== "text" ||
+      typeof resource.content !== "string" ||
+      resource.originalContent === undefined
+    ) {
+      return false;
+    }
+
+    cancelPluginLocalDraftTimer(resourceId);
+
+    if (resource.content === resource.originalContent) {
+      await pendingDraftStore.delete(workspace.id, resourceId);
+      return false;
+    }
+
+    await pendingDraftStore.put({
+      workspaceId: workspace.id,
+      noteId: resourceId,
+      content: resource.content,
+      baseContent: resource.originalContent,
+      ...(resource.metadata.revision
+        ? { baseRevision: resource.metadata.revision }
+        : {}),
+      ...(resource.metadata.contentRevision
+        ? { baseContentRevision: resource.metadata.contentRevision }
+        : {}),
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  }
+
+  function schedulePluginLocalDraftPersist(resourceId: string) {
+    cancelPluginLocalDraftTimer(resourceId);
+    const timer = setTimeout(() => {
+      pluginLocalDraftTimersRef.current.delete(resourceId);
+      void persistPluginTextDraft(resourceId).catch((error) => {
+        setNoteSyncState(resourceId, "error");
+        setStatus({ kind: "error", message: errorMessage(error, t) });
+      });
+    }, LOCAL_DRAFT_DEBOUNCE_MS);
+    pluginLocalDraftTimersRef.current.set(resourceId, timer);
+  }
+
+  function pluginStorageCanSync(): boolean {
+    const workspace = activeWorkspaceRef.current;
+    return workspace?.kind === "local" || driveSessionCanSync();
+  }
+
+  function schedulePluginDriveSync(
+    resourceId: string,
+    delay = DRIVE_SYNC_DEBOUNCE_MS,
+  ) {
+    if (noteSyncStatesRef.current[resourceId] === "conflict") return;
+    if (!pluginStorageCanSync()) return;
+    cancelPluginDriveSyncTimer(resourceId);
+    const timer = setTimeout(() => {
+      pluginDriveSyncTimersRef.current.delete(resourceId);
+      void syncPluginTextResource(resourceId);
+    }, delay);
+    pluginDriveSyncTimersRef.current.set(resourceId, timer);
+  }
+
+  async function handlePluginTextChange(content: string): Promise<void> {
+    const current = activePluginResourceRef.current;
+    const workspace = activeWorkspaceRef.current;
+    if (
+      !current ||
+      current.contentKind !== "text" ||
+      current.originalContent === undefined ||
+      !workspace
+    ) {
+      return;
+    }
+
+    const next: OpenPluginResource = {
+      ...current,
+      content,
+    };
+    activePluginResourceRef.current = next;
+    setOpenPluginResource(next);
+    putPluginResourceBuffer(next);
+
+    if (content === next.originalContent) {
+      cancelPluginLocalDraftTimer(next.metadata.id);
+      cancelPluginDriveSyncTimer(next.metadata.id);
+      await pendingDraftStore.delete(workspace.id, next.metadata.id);
+      setNoteSyncState(next.metadata.id, "synced");
+      return;
+    }
+
+    if (noteSyncStatesRef.current[next.metadata.id] !== "conflict") {
+      setNoteSyncState(next.metadata.id, "local");
+    }
+    schedulePluginLocalDraftPersist(next.metadata.id);
+    schedulePluginDriveSync(next.metadata.id);
+  }
+
+  async function syncPluginTextResource(resourceId: string) {
+    const nextProvider = providerRef.current;
+    const workspace = activeWorkspaceRef.current;
+    const resource = pluginResourceBuffersRef.current[resourceId];
+    if (
+      !nextProvider ||
+      !workspace ||
+      !resource ||
+      resource.contentKind !== "text" ||
+      typeof resource.content !== "string" ||
+      resource.originalContent === undefined
+    ) {
+      return;
+    }
+
+    if (noteSyncStatesRef.current[resourceId] === "conflict") return;
+
+    cancelPluginDriveSyncTimer(resourceId);
+    if (!pluginStorageCanSync()) {
+      await persistPluginTextDraft(resourceId);
+      setNoteSyncState(resourceId, "local");
+      return;
+    }
+    if (pluginSyncInFlightRef.current.has(resourceId)) return;
+
+    try {
+      await persistPluginTextDraft(resourceId);
+    } catch (error) {
+      setNoteSyncState(resourceId, "error");
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+      return;
+    }
+
+    const current = pluginResourceBuffersRef.current[resourceId] ?? resource;
+    if (
+      typeof current.content !== "string" ||
+      current.content === current.originalContent
+    ) {
+      return;
+    }
+
+    const contentToSave = current.content;
+    const resourceAtStart = current;
+    pluginSyncInFlightRef.current.add(resourceId);
+    setNoteSyncState(resourceId, "syncing");
+
+    try {
+      const metadata = await nextProvider.writeText(
+        resourceId,
+        contentToSave,
+        resourceAtStart.metadata.contentRevision
+          ? {
+              expectedContentRevision:
+                resourceAtStart.metadata.contentRevision,
+            }
+          : resourceAtStart.metadata.revision
+            ? { expectedRevision: resourceAtStart.metadata.revision }
+            : undefined,
+      );
+
+      const latest =
+        pluginResourceBuffersRef.current[resourceId] ?? resourceAtStart;
+      const saved: OpenPluginResource = {
+        ...latest,
+        metadata,
+        originalContent: contentToSave,
+      };
+      putPluginResourceBuffer(saved);
+
+      if (activeTabIdRef.current === resourceId) {
+        activePluginResourceRef.current = saved;
+        setOpenPluginResource(saved);
+      }
+
+      if (
+        typeof latest.content === "string" &&
+        latest.content !== contentToSave
+      ) {
+        await pendingDraftStore.put({
+          workspaceId: workspace.id,
+          noteId: resourceId,
+          content: latest.content,
+          baseContent: contentToSave,
+          ...(metadata.revision
+            ? { baseRevision: metadata.revision }
+            : {}),
+          ...(metadata.contentRevision
+            ? { baseContentRevision: metadata.contentRevision }
+            : {}),
+          updatedAt: new Date().toISOString(),
+        });
+        setNoteSyncState(resourceId, "local");
+        schedulePluginDriveSync(resourceId, 0);
+      } else {
+        await pendingDraftStore.delete(workspace.id, resourceId);
+        setNoteSyncState(resourceId, "synced");
+      }
+
+      setStatus({
+        kind: "success",
+        message:
+          workspace.kind === "local"
+            ? t("status.savedLocalVault")
+            : t("status.saved"),
+      });
+    } catch (error) {
+      if (isDriveUnauthorized(error)) {
+        await persistPluginTextDraft(resourceId);
+        setNoteSyncState(resourceId, "local");
+        setStatus({
+          kind: "error",
+          message: t("status.driveReconnectRequired"),
+        });
+        return;
+      }
+      if (error instanceof StorageConflictError) {
+        await persistPluginTextDraft(resourceId);
+        setNoteSyncState(resourceId, "conflict");
+        setStatus({
+          kind: "error",
+          message: t("status.resourceConflict"),
+        });
+        return;
+      }
+      setNoteSyncState(resourceId, "error");
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    } finally {
+      pluginSyncInFlightRef.current.delete(resourceId);
+    }
+  }
+
   function setNoteSyncState(noteId: string, state: NoteSyncState) {
     const current = noteSyncStatesRef.current;
     if (current[noteId] === state) return;
@@ -2192,9 +2463,17 @@ export function App() {
     for (const timer of conflictRecoveryTimersRef.current.values()) {
       clearTimeout(timer);
     }
+    for (const timer of pluginLocalDraftTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    for (const timer of pluginDriveSyncTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
     localDraftTimersRef.current.clear();
     driveSyncTimersRef.current.clear();
     conflictRecoveryTimersRef.current.clear();
+    pluginLocalDraftTimersRef.current.clear();
+    pluginDriveSyncTimersRef.current.clear();
   }
 
   function scheduleConflictRecovery(
