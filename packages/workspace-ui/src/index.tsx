@@ -41,6 +41,7 @@ export type WorkspaceIconName =
   | "edit"
   | "save"
   | "file-plus"
+  | "canvas"
   | "folder-plus"
   | "refresh"
   | "attachment";
@@ -85,6 +86,8 @@ export function WorkspaceIcon({ name }: { readonly name: WorkspaceIconName }) {
       return <svg {...common}><path d="M5 3h12l3 3v15H4V3Z" /><path d="M8 3v6h8V3M8 21v-7h8v7" /></svg>;
     case "file-plus":
       return <svg {...common}><path d="M6 2h8l4 4v16H6Z" /><path d="M14 2v5h5M9 14h6m-3-3v6" /></svg>;
+    case "canvas":
+      return <svg {...common}><rect x="4" y="4" width="16" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><circle cx="15" cy="15" r="1.5" /><path d="m10.5 10.5 3 3" /></svg>;
     case "folder-plus":
       return <svg {...common}><path d="M3 6.5h6l2 2H21v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" /><path d="M12 12v5m-2.5-2.5h5" /></svg>;
     case "refresh":
