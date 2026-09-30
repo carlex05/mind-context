@@ -1,8 +1,11 @@
 export type WorkspacePanel = "files" | "search" | "graph" | "tags" | "settings";
 export type NoteViewMode = "edit" | "read";
+export type WorkspaceResourceKind = "markdown" | "plugin";
 
 export interface WorkspaceTab {
-  readonly noteId: string;
+  readonly resourceId: string;
+  readonly resourceKind: WorkspaceResourceKind;
+  readonly fileTypeId: string;
   readonly title: string;
   readonly path: string;
   readonly viewMode: NoteViewMode;
@@ -10,10 +13,12 @@ export interface WorkspaceTab {
 
 export interface PersistedWorkspaceUi {
   readonly tabs: readonly {
-    readonly noteId: string;
+    readonly resourceId: string;
+    readonly resourceKind: WorkspaceResourceKind;
+    readonly fileTypeId: string;
     readonly viewMode: NoteViewMode;
   }[];
-  readonly activeNoteId?: string;
+  readonly activeResourceId?: string;
   readonly homeActive?: boolean;
   readonly leftPanel: WorkspacePanel;
   readonly leftSidebarOpen: boolean;
@@ -26,28 +31,54 @@ export function readWorkspaceUi(workspaceId: string): PersistedWorkspaceUi {
   try {
     const raw = window.localStorage.getItem(`${PREFIX}${workspaceId}`);
     if (!raw) return defaultWorkspaceUi();
-    const value = JSON.parse(raw) as Partial<PersistedWorkspaceUi>;
-    const tabs = Array.isArray(value.tabs)
-      ? value.tabs.filter(
-          (
-            tab,
-          ): tab is {
-            readonly noteId: string;
-            readonly viewMode: NoteViewMode;
-          } =>
-            typeof tab === "object" &&
-            tab !== null &&
-            typeof (tab as { noteId?: unknown }).noteId === "string" &&
-            ((tab as { viewMode?: unknown }).viewMode === "edit" ||
-              (tab as { viewMode?: unknown }).viewMode === "read"),
-        )
-      : [];
+    const value = JSON.parse(raw) as Record<string, unknown>;
+    const rawTabs = Array.isArray(value.tabs) ? value.tabs : [];
+    const tabs = rawTabs.flatMap((rawTab) => {
+      if (typeof rawTab !== "object" || rawTab === null) return [];
+      const tab = rawTab as Record<string, unknown>;
+      const viewMode = isViewMode(tab.viewMode) ? tab.viewMode : "edit";
+
+      if (typeof tab.resourceId === "string") {
+        const resourceKind = isResourceKind(tab.resourceKind)
+          ? tab.resourceKind
+          : "markdown";
+        const fileTypeId =
+          typeof tab.fileTypeId === "string"
+            ? tab.fileTypeId
+            : resourceKind === "markdown"
+              ? "markdown"
+              : "unknown";
+        return [{
+          resourceId: tab.resourceId,
+          resourceKind,
+          fileTypeId,
+          viewMode,
+        }];
+      }
+
+      // Backward-compatible migration from the note-only workspace UI.
+      if (typeof tab.noteId === "string") {
+        return [{
+          resourceId: tab.noteId,
+          resourceKind: "markdown" as const,
+          fileTypeId: "markdown",
+          viewMode,
+        }];
+      }
+
+      return [];
+    });
+
+    const activeResourceId =
+      typeof value.activeResourceId === "string"
+        ? value.activeResourceId
+        : typeof value.activeNoteId === "string"
+          ? value.activeNoteId
+          : undefined;
 
     return {
       tabs,
-      ...(typeof value.activeNoteId === "string"
-        ? { activeNoteId: value.activeNoteId }
-        : {}),
+      ...(activeResourceId ? { activeResourceId } : {}),
       homeActive: value.homeActive === true,
       leftPanel: isPanel(value.leftPanel) ? value.leftPanel : "files",
       leftSidebarOpen:
@@ -92,4 +123,12 @@ function isPanel(value: unknown): value is WorkspacePanel {
     value === "tags" ||
     value === "settings"
   );
+}
+
+function isViewMode(value: unknown): value is NoteViewMode {
+  return value === "edit" || value === "read";
+}
+
+function isResourceKind(value: unknown): value is WorkspaceResourceKind {
+  return value === "markdown" || value === "plugin";
 }
