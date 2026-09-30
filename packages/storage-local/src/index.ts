@@ -69,10 +69,16 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    mediaType?: string,
   ): Promise<StorageObjectMetadata> {
     await this.assertCondition(id, condition);
     const handle = await this.fileHandleForId(id);
-    await writeToFile(handle, content);
+    await writeToFile(
+      handle,
+      mediaType
+        ? new Blob([content], { type: mediaType })
+        : content,
+    );
     return this.metadata(id);
   }
 
@@ -80,15 +86,23 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     parentId: string,
     name: string,
     content: string,
+    mediaType?: string,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeMarkdownFileName(name);
+    const normalizedName = mediaType
+      ? normalizeName(name)
+      : normalizeMarkdownFileName(name);
     const parentPath = this.pathForId(parentId);
     const directory = await this.directoryAt(parentPath);
     await assertNameAvailable(directory, normalizedName);
     const handle = await directory.getFileHandle(normalizedName, {
       create: true,
     });
-    await writeToFile(handle, content);
+    await writeToFile(
+      handle,
+      mediaType
+        ? new Blob([content], { type: mediaType })
+        : content,
+    );
     return this.metadataFor(
       joinPath(parentPath, normalizedName),
       handle,
@@ -571,7 +585,9 @@ function inferMediaType(name: string): string {
   const lower = name.toLocaleLowerCase();
   if (lower.endsWith(".md")) return "text/markdown";
   if (lower.endsWith(".txt")) return "text/plain";
-  if (lower.endsWith(".json")) return "application/json";
+  if (lower.endsWith(".json") || lower.endsWith(".canvas")) {
+    return "application/json";
+  }
   if (lower.endsWith(".yaml") || lower.endsWith(".yml")) {
     return "application/yaml";
   }
