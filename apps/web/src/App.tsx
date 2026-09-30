@@ -2349,7 +2349,7 @@ export function App() {
       clearNoteConflict(noteId);
       void markRecoveryCopiesResolvedForSource(
         provider,
-        conflict.remoteMetadata.name.replace(/\.md$/i, ""),
+        conflict.remoteMetadata.name,
       ).catch(() => {
         // Unresolved recovery artifacts are safer than deleting too early.
       });
@@ -2410,7 +2410,7 @@ export function App() {
       await applyRemoteCanonical(noteId, metadata, content);
       void markRecoveryCopiesResolvedForSource(
         provider,
-        conflict.remoteMetadata.name.replace(/\.md$/i, ""),
+        conflict.remoteMetadata.name,
       ).catch(() => {
         // Keep recovery artifacts unresolved if resolution bookkeeping fails.
       });
