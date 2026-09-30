@@ -610,9 +610,12 @@ export function App() {
 
   useEffect(() => {
     if (!provider || !activeWorkspace) return;
-    for (const [noteId, syncState] of Object.entries(noteSyncStates)) {
-      if (syncState === "local" && tabBuffersRef.current[noteId]) {
-        scheduleDriveSync(noteId);
+    for (const [resourceId, syncState] of Object.entries(noteSyncStates)) {
+      if (syncState !== "local") continue;
+      if (tabBuffersRef.current[resourceId]) {
+        scheduleDriveSync(resourceId);
+      } else if (pluginResourceBuffersRef.current[resourceId]) {
+        schedulePluginDriveSync(resourceId);
       }
     }
   }, [provider, activeWorkspace?.id, noteSyncStates]);
@@ -760,6 +763,20 @@ export function App() {
           if (buffer.draft === buffer.note.originalContent) continue;
           setNoteSyncState(noteId, "local");
           scheduleDriveSync(noteId, 0);
+        }
+        for (const [resourceId, resource] of Object.entries(
+          pluginResourceBuffersRef.current,
+        )) {
+          if (
+            resource.contentKind !== "text" ||
+            typeof resource.content !== "string" ||
+            resource.originalContent === undefined ||
+            resource.content === resource.originalContent
+          ) {
+            continue;
+          }
+          setNoteSyncState(resourceId, "local");
+          schedulePluginDriveSync(resourceId, 0);
         }
       }
     } catch (error) {
@@ -1069,6 +1086,7 @@ export function App() {
       setOpenNote(undefined);
       setDraft("");
       setOpenPluginResource(undefined);
+      replacePluginResourceBuffers({});
       setTabs([]);
       replaceTabBuffers({});
       noteSyncStatesRef.current = {};
@@ -1728,6 +1746,15 @@ export function App() {
       noteSyncStatesRef.current = nextSyncStates;
       setNoteSyncStates(nextSyncStates);
       clearNoteConflict(resourceId);
+    } else if (closingTab?.resourceKind === "plugin") {
+      await persistPluginTextDraft(resourceId);
+      cancelPluginLocalDraftTimer(resourceId);
+      cancelPluginDriveSyncTimer(resourceId);
+      removePluginResourceBuffer(resourceId);
+      const nextSyncStates = { ...noteSyncStatesRef.current };
+      delete nextSyncStates[resourceId];
+      noteSyncStatesRef.current = nextSyncStates;
+      setNoteSyncStates(nextSyncStates);
     }
 
     const remaining = tabs.filter((tab) => tab.resourceId !== resourceId);
@@ -3161,6 +3188,19 @@ export function App() {
         }
       }),
     );
+    const pluginEntries = Object.entries(
+      pluginResourceBuffersRef.current,
+    ).filter(([, resource]) =>
+      resource.contentKind === "text" &&
+      typeof resource.content === "string" &&
+      resource.originalContent !== undefined &&
+      resource.content !== resource.originalContent
+    );
+    await Promise.all(
+      pluginEntries.map(([resourceId]) =>
+        persistPluginTextDraft(resourceId),
+      ),
+    );
   }
 
   async function leaveWorkspace() {
@@ -3173,6 +3213,8 @@ export function App() {
     setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
+    setOpenPluginResource(undefined);
+    replacePluginResourceBuffers({});
     setTabs([]);
     replaceTabBuffers({});
     noteSyncStatesRef.current = {};
@@ -3210,6 +3252,8 @@ export function App() {
     setSelectedFolderId("");
     setOpenNote(undefined);
     setDraft("");
+    setOpenPluginResource(undefined);
+    replacePluginResourceBuffers({});
     setTabs([]);
     replaceTabBuffers({});
     noteSyncStatesRef.current = {};
@@ -3239,7 +3283,16 @@ export function App() {
         noteId !== activeTabId &&
         buffer.draft !== buffer.note.originalContent,
     );
-    if (!dirty && !hasDirtyBuffer) return true;
+    const hasDirtyPluginBuffer = Object.values(
+      pluginResourceBuffersRef.current,
+    ).some(
+      (resource) =>
+        resource.contentKind === "text" &&
+        typeof resource.content === "string" &&
+        resource.originalContent !== undefined &&
+        resource.content !== resource.originalContent,
+    );
+    if (!dirty && !hasDirtyBuffer && !hasDirtyPluginBuffer) return true;
     return window.confirm(t("confirm.discardOpenTabs"));
   }
 
