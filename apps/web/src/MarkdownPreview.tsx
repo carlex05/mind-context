@@ -190,7 +190,9 @@ export function MarkdownPreview({
                     provider={provider}
                     node={node}
                     component={Embed}
-                    onOpenWorkspaceFile={onOpenWorkspaceFile}
+                    {...(onOpenWorkspaceFile
+                      ? { onOpenWorkspaceFile }
+                      : {})}
                   />
                 );
               }
