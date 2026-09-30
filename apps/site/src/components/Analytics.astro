@@ -56,9 +56,9 @@ const copy =
           let analyticsLoaded = false;
           let analyticsAllowed = false;
 
-          const gtag = (...args) => {
+          const gtag = function () {
             window.dataLayer = window.dataLayer || [];
-            window.dataLayer.push(args);
+            window.dataLayer.push(arguments);
           };
 
           const trackOpenApp = (event) => {
@@ -90,9 +90,14 @@ const copy =
               ad_personalization: "denied",
             });
             gtag("js", new Date());
+            const analyticsDebug =
+              new URLSearchParams(window.location.search).get("analytics_debug") === "1";
+
             gtag("config", measurementId, {
               allow_google_signals: false,
               allow_ad_personalization_signals: false,
+              send_page_view: true,
+              ...(analyticsDebug ? { debug_mode: true } : {}),
             });
 
             const script = document.createElement("script");
@@ -101,6 +106,13 @@ const copy =
               "https://www.googletagmanager.com/gtag/js?id=" +
               encodeURIComponent(measurementId);
             script.dataset.mindcontextGa = measurementId;
+            script.addEventListener("load", () => {
+              document.documentElement.dataset.analyticsStatus = "loaded";
+            });
+            script.addEventListener("error", () => {
+              document.documentElement.dataset.analyticsStatus = "error";
+            });
+            document.documentElement.dataset.analyticsStatus = "loading";
             document.head.append(script);
 
             document.addEventListener("click", trackOpenApp);
