@@ -27,8 +27,11 @@ set of extension-specific conditionals. A registration declares:
 - its owner (core or plugin).
 
 Markdown remains a built-in core file type. JSON Canvas support is implemented
-as a bundled first-party plugin that registers `.canvas`. Excalidraw will use
-the same mechanism for `.excalidraw` and later compatibility variants.
+as a bundled first-party plugin that registers `.canvas`. Excalidraw is a
+second bundled first-party plugin that registers `.excalidraw` through the
+same mechanism. Markdown embeds are also extensible: plugins may register a
+renderer for file extensions while the host remains responsible for resolving
+and reading the canonical vault file.
 
 Plugins MUST NOT receive a `StorageProvider` or provider credentials. The host
 owns reading, writing, recovery, autosave, revision checks and conflict handling
@@ -42,9 +45,14 @@ third-party code loading, sandboxing or a marketplace exists.
 - adding a supported editable extension does not require extension checks in the
   explorer or storage adapters;
 - Canvas becomes the first real consumer used to shape the extension API;
-- future plugin views can reuse the host document lifecycle instead of
-  implementing independent synchronization;
+- Excalidraw validates the same file-view lifecycle with a separate visual
+  editor and validates plugin-owned Markdown embeds;
+- plugin views reuse the host document lifecycle instead of implementing
+  independent synchronization;
 - third-party plugin loading remains out of scope until an enforceable isolation
   boundary exists;
 - JSON Canvas remains ordinary user-owned `.canvas` text in the selected
-  storage provider.
+  storage provider;
+- Excalidraw remains ordinary user-owned plaintext JSON in `.excalidraw`;
+- bundled editors may ship application assets locally, but MUST NOT introduce
+  hidden content or font/CDN traffic that violates the privacy-first boundary.
