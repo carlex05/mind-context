@@ -121,6 +121,12 @@ function CanvasEditor({
   });
   const boardRef = useRef<HTMLDivElement>(null);
   const firstEmissionRef = useRef(true);
+  const extrasRef = useRef(initial.extras);
+  const onTextChangeRef = useRef(onTextChange);
+
+  useEffect(() => {
+    onTextChangeRef.current = onTextChange;
+  }, [onTextChange]);
 
   const patchNode = useCallback(
     (
@@ -154,8 +160,10 @@ function CanvasEditor({
       firstEmissionRef.current = false;
       return;
     }
-    onTextChange?.(serializeCanvas(initial.extras, nodes, edges));
-  }, [nodes, edges, initial.extras, onTextChange]);
+    onTextChangeRef.current?.(
+      serializeCanvas(extrasRef.current, nodes, edges),
+    );
+  }, [nodes, edges]);
 
   const onNodesChange = useCallback((changes: NodeChange<CanvasFlowNode>[]) => {
     setNodes((current) => applyNodeChanges(changes, current));
