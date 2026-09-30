@@ -88,6 +88,7 @@ const en = {
     reconnecting: "Reconnecting",
   },
   actions: {
+    createNew: "Create new",
     newNote: "New note",
     newCanvas: "New canvas",
     newExcalidraw: "New Excalidraw",
@@ -314,11 +315,33 @@ const en = {
   settings: {
     appearance: "Appearance",
     language: "Language",
+    addons: "Add-ons",
     localAi: "Local AI",
     recovery: "Recovery",
     workspace: "Workspace",
     switchWorkspace: "Switch workspace",
     workspaceState: "Tabs and panel layout are stored only in this browser. Your Markdown remains in the selected canonical storage.",
+  },
+  addons: {
+    description: "Enable only the capabilities you use. Disabled add-ons are not activated or loaded into the workspace runtime.",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    loading: "Applying…",
+    toggle: "Toggle {{name}}",
+    disabledViewTitle: "Add-on disabled",
+    disabledViewDescription: "Enable the add-on for {{name}} in Settings to open this file again.",
+    canvas: {
+      title: "Canvas",
+      description: "JSON Canvas visual boards and .canvas editing.",
+    },
+    excalidraw: {
+      title: "Excalidraw",
+      description: "Open and edit .excalidraw drawings and Markdown embeds.",
+    },
+    encryption: {
+      title: "Encryption",
+      description: "Encrypt selected Markdown and unlock protected blocks in Reading View.",
+    },
   },
   recovery: {
     description: "Conflict safety copies stored as hidden Markdown files inside your vault.",
@@ -615,6 +638,7 @@ const es = {
     reconnecting: "Reconectando",
   },
   actions: {
+    createNew: "Crear nuevo",
     newNote: "Nueva nota",
     newCanvas: "Nuevo canvas",
     newExcalidraw: "Nuevo Excalidraw",
@@ -841,11 +865,33 @@ const es = {
   settings: {
     appearance: "Apariencia",
     language: "Idioma",
+    addons: "Add-ons",
     localAi: "IA local",
     recovery: "Recuperación",
     workspace: "Second Brain",
     switchWorkspace: "Cambiar de Second Brain",
     workspaceState: "Las pestañas y el layout de paneles se guardan sólo en este navegador. Tu Markdown permanece en el almacenamiento canónico seleccionado.",
+  },
+  addons: {
+    description: "Activa solo las capacidades que uses. Los add-ons desactivados no se activan ni se cargan en el runtime del workspace.",
+    enabled: "Activado",
+    disabled: "Desactivado",
+    loading: "Aplicando…",
+    toggle: "Cambiar estado de {{name}}",
+    disabledViewTitle: "Add-on desactivado",
+    disabledViewDescription: "Activa el add-on correspondiente a {{name}} en Ajustes para volver a abrir este archivo.",
+    canvas: {
+      title: "Canvas",
+      description: "Tableros visuales JSON Canvas y edición de archivos .canvas.",
+    },
+    excalidraw: {
+      title: "Excalidraw",
+      description: "Abre y edita dibujos .excalidraw y sus embeds en Markdown.",
+    },
+    encryption: {
+      title: "Cifrado",
+      description: "Cifra selecciones Markdown y desbloquea bloques protegidos en la vista de lectura.",
+    },
   },
   recovery: {
     description: "Copias de seguridad de conflictos guardadas como Markdown oculto dentro de tu vault.",
