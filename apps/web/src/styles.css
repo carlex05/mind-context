@@ -4543,7 +4543,4 @@ h2 {
     padding-inline: 5px;
   }
 
-  .canvas-plugin-toolbar .canvas-color-swatch:nth-of-type(n + 5) {
-    display: none;
-  }
 }
