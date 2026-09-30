@@ -109,6 +109,43 @@ test("opens and edits an existing local Markdown vault without Google Drive", as
   expect(googleRequests).toHaveLength(0);
 });
 
+test("creates and edits a JSON Canvas through the plugin boundary", async ({
+  page,
+}, testInfo) => {
+  await prepareLocalVault(page);
+  await page.getByRole("button", { name: "Open local vault" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back" }),
+  ).toBeVisible();
+
+  await returnToExplorerOnMobile(page, testInfo.project.name);
+  await createCanvas(page, "Ideas");
+
+  const canvas = page.getByRole("region", { name: "Ideas.canvas" });
+  await expect(canvas).toBeVisible();
+
+  await canvas.getByRole("button", { name: "Text", exact: true }).click();
+  const textNode = canvas.getByPlaceholder("Write Markdown…");
+  await expect(textNode).toBeVisible();
+  await textNode.fill("# Canvas idea");
+
+  await expect(page.getByText("Saved to local vault.")).toBeVisible({
+    timeout: 10_000,
+  });
+
+  const raw = await page.evaluate(() =>
+    (window as any).__mindContextReadLocal("Ideas.canvas"),
+  );
+  const saved = JSON.parse(raw) as {
+    nodes?: Array<{ type?: string; text?: string }>;
+  };
+  expect(saved.nodes).toHaveLength(1);
+  expect(saved.nodes?.[0]).toMatchObject({
+    type: "text",
+    text: "# Canvas idea",
+  });
+});
+
 test("remembers a local vault identity across reload and folder reselection", async ({
   page,
 }, testInfo) => {
@@ -2103,6 +2140,21 @@ async function createNote(page: Page, name: string): Promise<void> {
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: `Edit ${name}.md` }),
+  ).toBeVisible();
+}
+
+async function createCanvas(page: Page, name: string): Promise<void> {
+  const files = page.getByRole("complementary", { name: "Files" });
+  if (!(await files.isVisible())) {
+    await page.getByRole("button", { name: "Files", exact: true }).click();
+    await expect(files).toBeVisible();
+  }
+  await files.getByRole("button", { name: "New canvas", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "New canvas" });
+  await dialog.getByLabel("Name").fill(name);
+  await dialog.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: `${name}.canvas` }),
   ).toBeVisible();
 }
 
