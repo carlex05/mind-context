@@ -381,9 +381,20 @@ export function App() {
   }>({ entries: [], index: -1 });
   const [status, setStatus] = useState<AppStatus>({ kind: "idle" });
 
+  const previousAddonPreferencesRef = useRef<AddonPreferences>();
+
   useEffect(() => {
     let cancelled = false;
-    const loading = new Set<AddonId>(ADDONS.map((addon) => addon.id));
+    const previous = previousAddonPreferencesRef.current;
+    const loading = new Set<AddonId>(
+      ADDONS.filter(
+        (addon) =>
+          previous === undefined
+            ? addonPreferences[addon.id]
+            : previous[addon.id] !== addonPreferences[addon.id],
+      ).map((addon) => addon.id),
+    );
+    previousAddonPreferencesRef.current = addonPreferences;
     setAddonLoadingIds(loading);
 
     const next = addonSyncPromiseRef.current.then(async () => {
@@ -1766,6 +1777,16 @@ export function App() {
     setActiveLeftPanel(panel);
     setLeftSidebarOpen(true);
     setMobileSidebarOpen(true);
+  }
+
+  function toggleAddon(id: AddonId, enabled: boolean) {
+    const next: AddonPreferences = {
+      ...addonPreferences,
+      [id]: enabled,
+    };
+    writeAddonPreferences(next);
+    setAddonLoadingIds(new Set([id]));
+    setAddonPreferences(next);
   }
 
   function setActiveViewMode(mode: NoteViewMode) {
@@ -3486,61 +3507,44 @@ export function App() {
         title={t("nav.files")}
         actions={
           <>
-            <button
-              type="button"
-              aria-label={t("actions.newNote")}
-              title={t("actions.newNote")}
+            <FilesCreateMenu
               disabled={workspaceLoading}
-              onClick={() =>
-                requestNewItem("note", selectedFolderId || provider.rootId)
+              canvasEnabled={addonEnabled(
+                addonPreferences,
+                "mindcontext.canvas",
+              )}
+              excalidrawEnabled={addonEnabled(
+                addonPreferences,
+                "mindcontext.excalidraw",
+              )}
+              onNewNote={() =>
+                requestNewItem(
+                  "note",
+                  selectedFolderId || provider.rootId,
+                )
               }
-            >
-              <Icon name="file-plus" />
-            </button>
-            <button
-              type="button"
-              aria-label={t("actions.newCanvas")}
-              title={t("actions.newCanvas")}
-              disabled={workspaceLoading}
-              onClick={() =>
-                requestNewItem("canvas", selectedFolderId || provider.rootId)
+              onNewCanvas={() =>
+                requestNewItem(
+                  "canvas",
+                  selectedFolderId || provider.rootId,
+                )
               }
-            >
-              <Icon name="canvas" />
-            </button>
-            <button
-              type="button"
-              aria-label={t("actions.newExcalidraw")}
-              title={t("actions.newExcalidraw")}
-              disabled={workspaceLoading}
-              onClick={() =>
-                requestNewItem("excalidraw", selectedFolderId || provider.rootId)
+              onNewExcalidraw={() =>
+                requestNewItem(
+                  "excalidraw",
+                  selectedFolderId || provider.rootId,
+                )
               }
-            >
-              <Icon name="drawing" />
-            </button>
-            <button
-              type="button"
-              aria-label={t("actions.newFolder")}
-              title={t("actions.newFolder")}
-              disabled={workspaceLoading}
-              onClick={() =>
-                requestNewItem("folder", selectedFolderId || provider.rootId)
+              onNewFolder={() =>
+                requestNewItem(
+                  "folder",
+                  selectedFolderId || provider.rootId,
+                )
               }
-            >
-              <Icon name="folder-plus" />
-            </button>
-            <button
-              type="button"
-              aria-label={t("actions.attachFiles")}
-              title={t("actions.attachFiles")}
-              disabled={workspaceLoading}
-              onClick={() =>
+              onAttachFiles={() =>
                 requestAttachFiles(selectedFolderId || provider.rootId)
               }
-            >
-              <Icon name="attachment" />
-            </button>
+            />
             <button
               type="button"
               aria-label={t("actions.refreshVault")}
@@ -3590,10 +3594,18 @@ export function App() {
           onSelectedFolderIdChange={setSelectedFolderId}
           onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
-          onRequestNewCanvas={(folderId) => requestNewItem("canvas", folderId)}
-          onRequestNewExcalidraw={(folderId) =>
-            requestNewItem("excalidraw", folderId)
-          }
+          {...(addonEnabled(addonPreferences, "mindcontext.canvas")
+            ? {
+                onRequestNewCanvas: (folderId: string) =>
+                  requestNewItem("canvas", folderId),
+              }
+            : {})}
+          {...(addonEnabled(addonPreferences, "mindcontext.excalidraw")
+            ? {
+                onRequestNewExcalidraw: (folderId: string) =>
+                  requestNewItem("excalidraw", folderId),
+              }
+            : {})}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onRequestAttachFiles={requestAttachFiles}
           onChanged={refreshWorkspaceState}
@@ -3723,6 +3735,14 @@ export function App() {
         <section className="settings-panel-section">
           <span className="section-label">{t("settings.language")}</span>
           <LanguageSelector />
+        </section>
+        <section className="settings-panel-section">
+          <span className="section-label">{t("settings.addons")}</span>
+          <AddonSettings
+            preferences={addonPreferences}
+            loadingIds={addonLoadingIds}
+            onToggle={toggleAddon}
+          />
         </section>
         <section className="settings-panel-section">
           <span className="section-label">{t("settings.localAi")}</span>
@@ -3855,6 +3875,14 @@ export function App() {
                 onTextChange={(content) => {
                   void extensionHost.writeCurrentText(content);
                 }}
+              />
+            ) : openPluginResource ? (
+              <PlaceholderPanel
+                icon="settings"
+                title={t("addons.disabledViewTitle")}
+                description={t("addons.disabledViewDescription", {
+                  name: openPluginResource.metadata.name,
+                })}
               />
             ) : openNote ? (
               <>
