@@ -1,10 +1,29 @@
+import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { defineConfig, normalizePath } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
-const dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
+function packageRoot(specifier: string): string {
+  let current = path.dirname(require.resolve(specifier));
+
+  while (true) {
+    if (fs.existsSync(path.join(current, "package.json"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) {
+      throw new Error(`Could not resolve package root for ${specifier}`);
+    }
+    current = parent;
+  }
+}
+
+const excalidrawFonts = path.join(
+  packageRoot("@excalidraw/excalidraw"),
+  "dist/prod/fonts/*",
+);
 
 export default defineConfig({
   base: "./",
@@ -13,12 +32,7 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: normalizePath(
-            path.resolve(
-              dirname,
-              "node_modules/@excalidraw/excalidraw/dist/prod/fonts/*",
-            ),
-          ),
+          src: normalizePath(excalidrawFonts),
           dest: "excalidraw-assets/fonts",
         },
       ],
