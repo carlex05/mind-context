@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   BrandMark,
+  KnowledgeLinkView,
   KnowledgePanelFrame,
+  KnowledgeSectionView,
   WorkspaceIcon,
   WorkspaceRailView,
   WorkspaceSidebarFrame,
@@ -56,8 +58,6 @@ export default function WorkspaceProductDemo({
   }, []);
 
   const activePanel = step === 2 ? "graph" : step === 3 ? "search" : "files";
-  const noteTitle = t.editorHeading;
-
   return (
     <div className="mc-demo" data-step={step} aria-label={t.aria}>
       <div className="mc-demo-frame">
@@ -179,7 +179,6 @@ export default function WorkspaceProductDemo({
 
           <KnowledgePanelFrame
             label={isEs ? "Contexto" : "Context"}
-            title={noteTitle}
             closeLabel={isEs ? "Cerrar contexto" : "Close context"}
           >
             <section className="mc-properties">
@@ -187,16 +186,16 @@ export default function WorkspaceProductDemo({
               <div className="mc-property-row"><span>{isEs ? "Etiquetas" : "Tags"}</span><div><b>#ai</b><b>#knowledge</b></div></div>
               <div className="mc-property-row"><span>Aliases</span><div className="mc-empty-input">{isEs ? "Añadir alias" : "Add alias"}</div></div>
             </section>
-            <section className="knowledge-section">
-              <h3>{isEs ? "Enlaces" : "Links"}</h3>
-              <div className="context-link"><span>MindContext</span><small>Notes/MindContext.md</small></div>
-              <div className="context-link"><span>Local AI</span><small>Notes/Local AI.md</small></div>
-            </section>
-            <section className="knowledge-section mc-backlinks">
-              <h3>Backlinks</h3>
-              <div className="context-link"><span>Project</span><small>Notes/Project.md</small></div>
-              <div className="context-link"><span>MindContext</span><small>Notes/MindContext.md</small></div>
-            </section>
+            <KnowledgeSectionView title={isEs ? "Enlaces" : "Links"}>
+              <KnowledgeLinkView title="MindContext" subtitle="Notes/MindContext.md" />
+              <KnowledgeLinkView title="Local AI" subtitle="Notes/Local AI.md" />
+            </KnowledgeSectionView>
+            <div className="mc-backlinks">
+              <KnowledgeSectionView title="Backlinks">
+                <KnowledgeLinkView title="Project" subtitle="Notes/Project.md" />
+                <KnowledgeLinkView title="MindContext" subtitle="Notes/MindContext.md" />
+              </KnowledgeSectionView>
+            </div>
           </KnowledgePanelFrame>
         </section>
       </div>
