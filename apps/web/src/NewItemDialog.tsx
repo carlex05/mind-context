@@ -6,7 +6,7 @@ import {
   type WorkspaceTreeNode,
 } from "./workspaceTree";
 
-export type CreateItemKind = "note" | "canvas" | "folder";
+export type CreateItemKind = "note" | "canvas" | "excalidraw" | "folder";
 
 export function NewItemDialog({
   open,
@@ -65,7 +65,9 @@ export function NewItemDialog({
       ? t("newItem.noteTitle")
       : kind === "canvas"
         ? t("newItem.canvasTitle")
-        : t("newItem.folderTitle");
+        : kind === "excalidraw"
+          ? t("newItem.excalidrawTitle")
+          : t("newItem.folderTitle");
 
   return (
     <div
@@ -111,7 +113,9 @@ export function NewItemDialog({
                 ? t("newItem.notePlaceholder")
                 : kind === "canvas"
                   ? t("newItem.canvasPlaceholder")
-                  : t("newItem.folderPlaceholder")
+                  : kind === "excalidraw"
+                    ? t("newItem.excalidrawPlaceholder")
+                    : t("newItem.folderPlaceholder")
             }
           />
         </label>
