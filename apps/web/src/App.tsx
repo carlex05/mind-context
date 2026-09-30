@@ -1934,6 +1934,15 @@ export function App() {
     attachmentInputRef.current?.click();
   }
 
+  async function openWorkspaceFileById(fileId: string) {
+    const node = findWorkspaceNode(tree, fileId);
+    if (node) {
+      await openWorkspaceFile(node);
+      return;
+    }
+    await openFileById(fileId);
+  }
+
   async function openWorkspaceFile(node: WorkspaceTreeNode) {
     const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
     const hasTextRenderer =
@@ -3229,7 +3238,7 @@ export function App() {
                     value={draft}
                     tree={tree}
                     onChange={updateActiveDraft}
-                    onOpenFile={(fileId) => void openFileById(fileId)}
+                    onOpenFile={(fileId) => void openWorkspaceFileById(fileId)}
                   />
                 ) : (
                   <div className="workspace-loading-v2">
