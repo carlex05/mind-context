@@ -1935,6 +1935,7 @@ export function App() {
           parentId,
           canvasName,
           '{\n  "nodes": [],\n  "edges": []\n}\n',
+          "application/json",
         );
         const parentNode =
           parentId === provider.rootId
@@ -2457,6 +2458,7 @@ export function App() {
           : resourceAtStart.metadata.revision
             ? { expectedRevision: resourceAtStart.metadata.revision }
             : undefined,
+        resourceAtStart.metadata.mediaType || "application/json",
       );
 
       const latest =
