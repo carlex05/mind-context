@@ -1883,7 +1883,9 @@ export function App() {
       message:
         kind === "note"
           ? t("status.creatingNote")
-          : t("status.creatingFolder"),
+          : kind === "canvas"
+            ? t("status.creatingCanvas")
+            : t("status.creatingFolder"),
     });
 
     try {
@@ -1894,6 +1896,33 @@ export function App() {
         setStatus({
           kind: "success",
           message: t("status.folderCreated", { name: metadata.name }),
+        });
+        return;
+      }
+
+      if (kind === "canvas") {
+        const canvasName = name.toLocaleLowerCase().endsWith(".canvas")
+          ? name
+          : `${name}.canvas`;
+        const metadata = await provider.createText(
+          parentId,
+          canvasName,
+          '{\n  "nodes": [],\n  "edges": []\n}\n',
+        );
+        const parentNode =
+          parentId === provider.rootId
+            ? undefined
+            : findWorkspaceNode(tree, parentId);
+        const node: WorkspaceTreeNode = {
+          metadata,
+          path: childPath(parentNode?.path ?? "", metadata.name),
+          children: [],
+        };
+        await refreshWorkspaceState();
+        await openPluginResourceByNode(node);
+        setStatus({
+          kind: "success",
+          message: t("status.canvasCreated", { name: metadata.name }),
         });
         return;
       }
@@ -3088,6 +3117,11 @@ export function App() {
 
   async function saveNote() {
     if (!activeTabId) return;
+    const tab = tabs.find((candidate) => candidate.resourceId === activeTabId);
+    if (tab?.resourceKind === "plugin") {
+      await syncPluginTextResource(activeTabId);
+      return;
+    }
     await syncNoteToDrive(activeTabId);
   }
 
@@ -3289,6 +3323,17 @@ export function App() {
             </button>
             <button
               type="button"
+              aria-label={t("actions.newCanvas")}
+              title={t("actions.newCanvas")}
+              disabled={workspaceLoading}
+              onClick={() =>
+                requestNewItem("canvas", selectedFolderId || provider.rootId)
+              }
+            >
+              <Icon name="canvas" />
+            </button>
+            <button
+              type="button"
               aria-label={t("actions.newFolder")}
               title={t("actions.newFolder")}
               disabled={workspaceLoading}
@@ -3358,6 +3403,7 @@ export function App() {
           onSelectedFolderIdChange={setSelectedFolderId}
           onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
+          onRequestNewCanvas={(folderId) => requestNewItem("canvas", folderId)}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onRequestAttachFiles={requestAttachFiles}
           onChanged={refreshWorkspaceState}
@@ -3611,6 +3657,10 @@ export function App() {
                 name={openPluginResource.metadata.name}
                 path={openPluginResource.path}
                 content={openPluginResource.content}
+                syncState={activeSyncState}
+                onTextChange={(content) => {
+                  void extensionHost.writeCurrentText(content);
+                }}
               />
             ) : openNote ? (
               <>
