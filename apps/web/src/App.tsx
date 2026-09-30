@@ -1762,7 +1762,10 @@ export function App() {
     if (!fileType || fileType.contentKind !== "text" || !creation) return;
 
     const defaultName = `Untitled${creation.defaultExtension}`;
-    const requested = window.prompt(creation.label, defaultName);
+    const requested = window.prompt(
+      `${t("common.create")} ${creation.label}`,
+      defaultName,
+    );
     if (requested === null || !requested.trim()) return;
 
     const trimmed = requested.trim();
@@ -1773,7 +1776,10 @@ export function App() {
       ? trimmed
       : `${trimmed}${creation.defaultExtension}`;
 
-    setStatus({ kind: "busy", message: creation.label });
+    setStatus({
+      kind: "busy",
+      message: `${t("common.create")} ${creation.label}…`,
+    });
     try {
       const metadata = await provider.createText(
         parentId,
@@ -1784,7 +1790,7 @@ export function App() {
       await openFileById(metadata.id);
       setStatus({
         kind: "success",
-        message: `${fileType.displayName ?? fileType.id} created`,
+        message: t("status.fileCreated", { name: metadata.name }),
       });
     } catch (error) {
       setStatus({ kind: "error", message: errorMessage(error, t) });
@@ -2800,8 +2806,8 @@ export function App() {
               <button
                 type="button"
                 key={fileType.id}
-                aria-label={fileType.create!.label}
-                title={fileType.create!.label}
+                aria-label={`${t("common.create")} ${fileType.create!.label}`}
+                title={`${t("common.create")} ${fileType.create!.label}`}
                 disabled={workspaceLoading}
                 onClick={() =>
                   void createRegisteredTextFile(
