@@ -183,6 +183,7 @@ interface OpenPluginResource {
   readonly path: string;
   readonly fileTypeId: string;
   readonly contentKind: "text" | "binary";
+  readonly originalContent?: string;
   readonly content: string | Uint8Array;
 }
 
@@ -219,6 +220,8 @@ export function App() {
     useState<ActiveWorkspace>();
   const [provider, setProvider] =
     useState<StorageProvider>();
+  const providerRef = useRef<StorageProvider | undefined>(undefined);
+  const activeWorkspaceRef = useRef<ActiveWorkspace | undefined>(undefined);
   const [tree, setTree] = useState<readonly WorkspaceTreeNode[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
@@ -234,8 +237,8 @@ export function App() {
         const content = activePluginResourceRef.current?.content;
         return typeof content === "string" ? content : undefined;
       },
-      writeCurrentText: async () => {
-        throw new Error("Plugin file editing is not enabled yet.");
+      writeCurrentText: async (content) => {
+        await handlePluginTextChange(content);
       },
     });
     host.fileTypes.register({
@@ -291,6 +294,13 @@ export function App() {
   const conflictRecoveryTimersRef = useRef<
     Map<string, ReturnType<typeof setTimeout>>
   >(new Map());
+  const pluginLocalDraftTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const pluginDriveSyncTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const pluginSyncInFlightRef = useRef<Set<string>>(new Set());
   const syncInFlightRef = useRef<Set<string>>(new Set());
   const [activeTabId, setActiveTabId] = useState<string>();
   const [activeLeftPanel, setActiveLeftPanel] =
@@ -367,9 +377,17 @@ export function App() {
   const dirty =
     activeBufferedNote !== undefined &&
     draft !== activeBufferedNote.originalContent;
+  const pluginDirty =
+    openPluginResource?.contentKind === "text" &&
+    typeof openPluginResource.content === "string" &&
+    openPluginResource.originalContent !== undefined &&
+    openPluginResource.content !== openPluginResource.originalContent;
   const activeSyncState: NoteSyncState = openNote
     ? noteSyncStates[openNote.metadata.id] ?? (dirty ? "local" : "synced")
-    : "synced";
+    : openPluginResource
+      ? noteSyncStates[openPluginResource.metadata.id] ??
+        (pluginDirty ? "local" : "synced")
+      : "synced";
   const activeConflict =
     activeTabId === undefined ? undefined : noteConflicts[activeTabId];
 
@@ -405,8 +423,19 @@ export function App() {
       if (buffer.draft !== buffer.note.originalContent) result.add(noteId);
     }
     if (activeTabId && dirty) result.add(activeTabId);
+    if (openPluginResource && pluginDirty) {
+      result.add(openPluginResource.metadata.id);
+    }
     return result;
-  }, [tabBuffers, activeTabId, dirty, draft, openNote]);
+  }, [
+    tabBuffers,
+    activeTabId,
+    dirty,
+    draft,
+    openNote,
+    openPluginResource,
+    pluginDirty,
+  ]);
 
   const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
 
@@ -501,6 +530,14 @@ export function App() {
   useEffect(() => {
     activePluginResourceRef.current = openPluginResource;
   }, [openPluginResource]);
+
+  useEffect(() => {
+    providerRef.current = provider;
+  }, [provider]);
+
+  useEffect(() => {
+    activeWorkspaceRef.current = activeWorkspace;
+  }, [activeWorkspace]);
 
   useEffect(() => {
     activeTabIdRef.current = activeTabId;
