@@ -14,6 +14,7 @@ import {
   findMarkdownNavigationOffset,
   type MarkdownNavigationTarget,
 } from "@mind-context/markdown";
+import type { RegisteredExtensionCommand } from "./extensions/ExtensionHost";
 import {
   executeMarkdownCommand,
   markdownCommandKeymap,
@@ -30,6 +31,11 @@ export interface EditorLinkTarget {
   readonly headings: readonly string[];
 }
 
+export interface MarkdownEditorBridge {
+  readSelection(): { readonly text: string; readonly empty: boolean };
+  replaceSelection(content: string): void;
+}
+
 export interface MarkdownEditorProps {
   readonly value: string;
   readonly label: string;
@@ -37,6 +43,10 @@ export interface MarkdownEditorProps {
   readonly tags?: readonly string[];
   readonly navigationTarget?: MarkdownNavigationTarget | undefined;
   readonly navigationKey?: number | undefined;
+  readonly extensionCommands?: readonly RegisteredExtensionCommand[];
+  readonly onEditorBridgeChange?: (
+    bridge: MarkdownEditorBridge | undefined,
+  ) => void;
   readonly onChange: (value: string) => void;
   readonly onAttachFiles?: (
     files: readonly File[],
@@ -53,6 +63,8 @@ export function MarkdownEditor({
   tags = [],
   navigationTarget,
   navigationKey = 0,
+  extensionCommands = [],
+  onEditorBridgeChange,
   onChange,
   onAttachFiles,
 }: MarkdownEditorProps) {
@@ -65,12 +77,14 @@ export function MarkdownEditor({
   const linkTargetsRef = useRef(linkTargets);
   const tagsRef = useRef(tags);
   const commandLabelsRef = useRef<CommandLabels>({});
+  const extensionCommandsRef = useRef(extensionCommands);
   const completionSourceRef = useRef(
     (context: CompletionContext): CompletionResult | null =>
       createKnowledgeCompletionSource(
         linkTargetsRef.current,
         tagsRef.current,
         commandLabelsRef.current,
+        extensionCommandsRef.current,
       )(context),
   );
 
@@ -78,6 +92,7 @@ export function MarkdownEditor({
   onAttachFilesRef.current = onAttachFiles;
   linkTargetsRef.current = linkTargets;
   tagsRef.current = tags;
+  extensionCommandsRef.current = extensionCommands;
   commandLabelsRef.current = Object.fromEntries(
     markdownCommands.map((command) => [
       command.id,
@@ -179,8 +194,31 @@ export function MarkdownEditor({
     });
 
     editorRef.current = editor;
+    onEditorBridgeChange?.({
+      readSelection: () => {
+        const selection = editor.state.selection.main;
+        return {
+          text: editor.state.sliceDoc(selection.from, selection.to),
+          empty: selection.empty,
+        };
+      },
+      replaceSelection: (content) => {
+        const selection = editor.state.selection.main;
+        editor.dispatch({
+          changes: {
+            from: selection.from,
+            to: selection.to,
+            insert: content,
+          },
+          selection: { anchor: selection.from + content.length },
+          scrollIntoView: true,
+        });
+        editor.focus();
+      },
+    });
 
     return () => {
+      onEditorBridgeChange?.(undefined);
       editor.destroy();
       editorRef.current = null;
     };
@@ -264,6 +302,22 @@ export function MarkdownEditor({
             </button>
           );
         })}
+        {extensionCommands
+          .filter((command) => command.toolbar)
+          .map((command) => (
+            <button
+              key={command.id}
+              type="button"
+              className="markdown-command-button markdown-extension-command"
+              data-command={command.id}
+              aria-label={command.title}
+              title={command.title}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => void command.handler()}
+            >
+              <span aria-hidden="true">{command.icon ?? "◇"}</span>
+            </button>
+          ))}
       </div>
       <div className="markdown-editor" ref={hostRef} />
       {draggingFiles ? (
@@ -311,6 +365,7 @@ function createKnowledgeCompletionSource(
   linkTargets: readonly EditorLinkTarget[],
   tags: readonly string[],
   commandLabels: CommandLabels,
+  extensionCommands: readonly RegisteredExtensionCommand[],
 ) {
   return (context: CompletionContext): CompletionResult | null => {
     const before = context.state.sliceDoc(
@@ -355,9 +410,35 @@ function createKnowledgeCompletionSource(
           };
         });
 
+      const extensionOptions: Completion[] = extensionCommands
+        .filter((command) => command.slash)
+        .filter((command) =>
+          [command.title, command.id, ...(command.keywords ?? [])].some(
+            (candidate) =>
+              candidate.toLocaleLowerCase().includes(normalized),
+          ),
+        )
+        .map((command) => ({
+          label: command.title,
+          type: "keyword",
+          apply: (
+            view: EditorView,
+            _completion: Completion,
+            _from: number,
+            to: number,
+          ) => {
+            view.dispatch({
+              changes: { from: slashFrom, to, insert: "" },
+              selection: { anchor: slashFrom },
+            });
+            view.focus();
+            void command.handler();
+          },
+        }));
+
       return {
         from: context.pos - typed.length,
-        options,
+        options: [...options, ...extensionOptions],
         filter: false,
       };
     }
