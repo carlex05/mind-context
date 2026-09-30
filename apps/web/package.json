@@ -36,7 +36,8 @@
     "rehype-mathjax": "^7.1.0",
     "rehype-prism-plus": "^2.0.2",
     "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0"
+    "remark-math": "^6.0.0",
+    "@mind-context/extension-api": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
