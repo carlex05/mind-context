@@ -4879,3 +4879,79 @@ button.encrypted-block:focus-visible {
     border-radius: 14px 14px 0 0;
   }
 }
+
+
+.secret-prompt-backdrop {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  place-items: center;
+  background: rgb(0 0 0 / 46%);
+  backdrop-filter: blur(4px);
+}
+
+.secret-prompt-dialog {
+  width: min(460px, 100%);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 26%);
+}
+
+.secret-prompt-dialog > header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.secret-prompt-dialog form {
+  display: grid;
+  padding: 16px;
+  gap: 12px;
+}
+
+.secret-prompt-dialog form > p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.secret-prompt-dialog label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.secret-prompt-dialog input {
+  min-height: 40px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.secret-prompt-error {
+  color: var(--danger) !important;
+}
+
+.secret-prompt-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .secret-prompt-backdrop {
+    padding: 10px;
+    align-items: end;
+  }
+
+  .secret-prompt-dialog {
+    width: 100%;
+    border-radius: 14px 14px 0 0;
+  }
+}
