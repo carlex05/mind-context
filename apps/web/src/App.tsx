@@ -1887,6 +1887,21 @@ export function App() {
     attachmentInputRef.current?.click();
   }
 
+  async function openWorkspaceFile(node: WorkspaceTreeNode) {
+    const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+    const hasTextRenderer =
+      fileType?.id === "markdown" ||
+      (fileType?.contentKind === "text" &&
+        fileViewRenderers.resolveText(fileType.viewType) !== undefined);
+
+    if (fileType?.contentKind === "text" && hasTextRenderer) {
+      await openFileById(node.metadata.id);
+      return;
+    }
+
+    await openAttachment(node);
+  }
+
   async function openAttachment(node: WorkspaceTreeNode) {
     if (!provider) return;
     setStatus({
@@ -2090,6 +2105,9 @@ export function App() {
     metadata: StorageObjectMetadata,
     content: string,
   ) {
+    if (extensionHost.fileTypes.resolve(metadata.name)?.id !== "markdown") {
+      return;
+    }
     if (!knowledgeIndex) return;
 
     const existing = getNote(knowledgeIndex, metadata.id);
