@@ -147,6 +147,89 @@ describe("GoogleDriveStorageProvider", () => {
     }
   });
 
+  it("creates generic JSON text without adding a Markdown suffix", async () => {
+    const requests: CapturedRequest[] = [];
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse({
+          id: "canvas-1",
+          name: "Architecture.canvas",
+          mimeType: "application/json",
+          version: "1",
+          parents: ["workspace-1"],
+        }),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: tokenProvider,
+      fetchImplementation,
+    });
+
+    const metadata = await provider.createText(
+      provider.rootId,
+      "Architecture.canvas",
+      '{\n  "nodes": [],\n  "edges": []\n}\n',
+      "application/json",
+    );
+
+    expect(metadata.name).toBe("Architecture.canvas");
+    expect(metadata.mediaType).toBe("application/json");
+    expect(requests).toHaveLength(1);
+    const body = String(requests[0]!.body);
+    expect(body).toContain('"name":"Architecture.canvas"');
+    expect(body).toContain('"mimeType":"application/json"');
+    expect(body).toContain(
+      "Content-Type: application/json; charset=UTF-8",
+    );
+  });
+
+  it("keeps the JSON media type when updating generic text", async () => {
+    const requests: CapturedRequest[] = [];
+    const fetchImplementation = createFetchMock(
+      [
+        jsonResponse({
+          id: "canvas-1",
+          name: "Architecture.canvas",
+          mimeType: "application/json",
+          version: "1",
+          headRevisionId: "content-1",
+          parents: ["workspace-1"],
+        }),
+        jsonResponse({
+          id: "canvas-1",
+          name: "Architecture.canvas",
+          mimeType: "application/json",
+          version: "2",
+          headRevisionId: "content-2",
+          parents: ["workspace-1"],
+        }),
+      ],
+      requests,
+    );
+
+    const provider = new GoogleDriveStorageProvider({
+      workspaceFolderId: "workspace-1",
+      accessTokenProvider: tokenProvider,
+      fetchImplementation,
+    });
+
+    await provider.writeText(
+      "canvas-1",
+      '{"nodes":[{"id":"a"}],"edges":[]}',
+      { expectedContentRevision: "content-1" },
+      "application/json",
+    );
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]!.method).toBe("PATCH");
+    expect(requests[1]!.headers.get("Content-Type")).toBe(
+      "application/json; charset=UTF-8",
+    );
+  });
+
   it("creates and reads arbitrary binary files without routing content through MindContext", async () => {
     const requests: CapturedRequest[] = [];
     const bytes = Uint8Array.from([0, 1, 2, 127, 255]);
