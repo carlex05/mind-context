@@ -20,7 +20,6 @@ import {
 import {
   findWorkspaceNode,
   isImageFile,
-  isMarkdownFile,
   workspaceFolders,
   type WorkspaceTreeNode,
 } from "./workspaceTree";
@@ -30,11 +29,10 @@ export function WorkspaceExplorer({
   tree,
   index,
   loading,
-  activeNoteId,
+  activeResourceId,
   selectedFolderId,
   onSelectedFolderIdChange,
-  onOpenNote,
-  onOpenAttachment,
+  onOpenFile,
   onRequestNewNote,
   onRequestNewFolder,
   onRequestAttachFiles,
@@ -45,11 +43,10 @@ export function WorkspaceExplorer({
   readonly tree: readonly WorkspaceTreeNode[];
   readonly index: KnowledgeIndexSnapshot | undefined;
   readonly loading: boolean;
-  readonly activeNoteId: string | undefined;
+  readonly activeResourceId: string | undefined;
   readonly selectedFolderId: string;
   readonly onSelectedFolderIdChange: (id: string) => void;
-  readonly onOpenNote: (id: string) => void;
-  readonly onOpenAttachment: (node: WorkspaceTreeNode) => void;
+  readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onRequestNewNote: (folderId: string) => void;
   readonly onRequestNewFolder: (folderId: string) => void;
   readonly onRequestAttachFiles: (folderId: string) => void;
@@ -212,7 +209,7 @@ export function WorkspaceExplorer({
           key={node.metadata.id}
           node={node}
           depth={0}
-          activeNoteId={activeNoteId}
+          activeResourceId={activeResourceId}
           selectedItemId={selectedItemId}
           selectedFolderId={selectedFolderId}
           menuItemId={menuItemId}
@@ -222,8 +219,7 @@ export function WorkspaceExplorer({
           onToggleFolder={toggleFolder}
           onSelectItem={setSelectedItemId}
           onSelectFolder={onSelectedFolderIdChange}
-          onOpenNote={onOpenNote}
-          onOpenAttachment={onOpenAttachment}
+          onOpenFile={onOpenFile}
           onMenuItem={setMenuItemId}
           onNewNote={onRequestNewNote}
           onNewFolder={onRequestNewFolder}
@@ -244,7 +240,7 @@ export function WorkspaceExplorer({
 function TreeNode({
   node,
   depth,
-  activeNoteId,
+  activeResourceId,
   selectedItemId,
   selectedFolderId,
   menuItemId,
@@ -254,8 +250,7 @@ function TreeNode({
   onToggleFolder,
   onSelectItem,
   onSelectFolder,
-  onOpenNote,
-  onOpenAttachment,
+  onOpenFile,
   onMenuItem,
   onNewNote,
   onNewFolder,
@@ -266,7 +261,7 @@ function TreeNode({
 }: {
   readonly node: WorkspaceTreeNode;
   readonly depth: number;
-  readonly activeNoteId: string | undefined;
+  readonly activeResourceId: string | undefined;
   readonly selectedItemId: string | undefined;
   readonly selectedFolderId: string;
   readonly menuItemId: string | undefined;
@@ -276,8 +271,7 @@ function TreeNode({
   readonly onToggleFolder: (id: string) => void;
   readonly onSelectItem: (id: string | undefined) => void;
   readonly onSelectFolder: (id: string) => void;
-  readonly onOpenNote: (id: string) => void;
-  readonly onOpenAttachment: (node: WorkspaceTreeNode) => void;
+  readonly onOpenFile: (node: WorkspaceTreeNode) => void;
   readonly onMenuItem: (id: string | undefined) => void;
   readonly onNewNote: (folderId: string) => void;
   readonly onNewFolder: (folderId: string) => void;
@@ -288,7 +282,6 @@ function TreeNode({
 }) {
   const { t } = useTranslation();
   const isFolder = node.metadata.kind === "directory";
-  const isMarkdown = !isFolder && isMarkdownFile(node.metadata);
   const isExpanded = expanded.has(node.metadata.id);
   const menuOpen = menuItemId === node.metadata.id;
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -302,9 +295,9 @@ function TreeNode({
     <div className="tree-node">
       <div
         className={`tree-row ${
-          activeNoteId === node.metadata.id ? "active" : ""
+          activeResourceId === node.metadata.id ? "active" : ""
         } ${
-          selectedItemId === node.metadata.id && !isMarkdown ? "selected" : ""
+          selectedItemId === node.metadata.id && isFolder ? "selected" : ""
         } ${
           selectedFolderId === node.metadata.id ? "folder-selected" : ""
         }`}
@@ -332,7 +325,7 @@ function TreeNode({
           className="tree-main"
           type="button"
           aria-current={
-            isMarkdown && activeNoteId === node.metadata.id
+            !isFolder && activeResourceId === node.metadata.id
               ? "page"
               : undefined
           }
@@ -342,12 +335,9 @@ function TreeNode({
               onSelectItem(node.metadata.id);
               onSelectFolder(node.metadata.id);
               if (!isExpanded) onToggleFolder(node.metadata.id);
-            } else if (isMarkdown) {
-              onSelectItem(undefined);
-              onOpenNote(node.metadata.id);
             } else {
-              onSelectItem(node.metadata.id);
-              onOpenAttachment(node);
+              onSelectItem(undefined);
+              onOpenFile(node);
             }
           }}
         >
@@ -449,7 +439,7 @@ function TreeNode({
               key={child.metadata.id}
               node={child}
               depth={depth + 1}
-              activeNoteId={activeNoteId}
+              activeResourceId={activeResourceId}
               selectedItemId={selectedItemId}
               selectedFolderId={selectedFolderId}
               menuItemId={menuItemId}
@@ -459,9 +449,8 @@ function TreeNode({
               onToggleFolder={onToggleFolder}
               onSelectItem={onSelectItem}
               onSelectFolder={onSelectFolder}
-              onOpenNote={onOpenNote}
-              onOpenAttachment={onOpenAttachment}
-              onMenuItem={onMenuItem}
+              onOpenFile={onOpenFile}
+                  onMenuItem={onMenuItem}
               onNewNote={onNewNote}
               onNewFolder={onNewFolder}
               onAttachFiles={onAttachFiles}
