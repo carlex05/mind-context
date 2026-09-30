@@ -78,7 +78,7 @@ import {
   markRecoveryCopiesResolvedForSource,
 } from "./recovery";
 import { RecoverySettings } from "./RecoverySettings";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { MarkdownEditor, type MarkdownEditorBridge } from "./MarkdownEditor";
 import {
   MarkdownPreview,
   type InternalMarkdownNavigationTarget,
@@ -102,6 +102,7 @@ import { WorkspaceExplorer } from "./WorkspaceExplorer";
 import { ExtensionHost } from "./extensions/ExtensionHost";
 import { canvasPlugin } from "./plugins/canvasPlugin";
 import { excalidrawPlugin } from "./plugins/excalidrawPlugin";
+import { encryptionPlugin } from "./plugins/encryptionPlugin";
 import { WorkspaceHome } from "./WorkspaceHome";
 import {
   WorkspaceOnboardingDialog,
@@ -239,6 +240,9 @@ export function App() {
     Readonly<Record<string, OpenPluginResource>>
   >({});
   const activePluginResourceRef = useRef<OpenPluginResource | undefined>(undefined);
+  const markdownEditorBridgeRef = useRef<MarkdownEditorBridge | undefined>(
+    undefined,
+  );
   const [extensionHost] = useState(() => {
     const host = new ExtensionHost({
       readCurrentText: async () => {
@@ -247,6 +251,32 @@ export function App() {
       },
       writeCurrentText: async (content) => {
         await handlePluginTextChange(content);
+      },
+      readEditorSelection: async () =>
+        markdownEditorBridgeRef.current?.readSelection(),
+      replaceEditorSelection: async (content) => {
+        markdownEditorBridgeRef.current?.replaceSelection(content);
+      },
+      promptSecret: async (request) => {
+        const first = window.prompt(
+          [request.title, request.message].filter(Boolean).join("\n\n"),
+        );
+        if (!first) return undefined;
+
+        if (request.confirm) {
+          const second = window.prompt(
+            request.confirmLabel ?? request.title,
+          );
+          if (second === null) return undefined;
+          if (first !== second) {
+            window.alert(
+              request.mismatchMessage ?? "The passphrases do not match.",
+            );
+            return undefined;
+          }
+        }
+
+        return first;
       },
     });
     host.fileTypes.register({
@@ -257,6 +287,7 @@ export function App() {
     });
     void host.activateBundle(canvasPlugin);
     void host.activateBundle(excalidrawPlugin);
+    void host.activateBundle(encryptionPlugin);
     return host;
   });
   const [workspaceName, setWorkspaceName] = useState(
@@ -3841,6 +3872,10 @@ export function App() {
                     tags={knownTags}
                     navigationTarget={activeMarkdownNavigation}
                     navigationKey={activeMarkdownNavigation?.key}
+                    extensionCommands={extensionHost.listCommands()}
+                    onEditorBridgeChange={(bridge) => {
+                      markdownEditorBridgeRef.current = bridge;
+                    }}
                     onChange={updateActiveDraft}
                     onAttachFiles={(files, source) =>
                       attachFiles(
@@ -3867,6 +3902,9 @@ export function App() {
                     navigationKey={activeMarkdownNavigation?.key}
                     resolvePluginEmbed={(fileName) =>
                       extensionHost.resolveMarkdownEmbed(fileName)?.component
+                    }
+                    resolvePluginBlock={(language) =>
+                      extensionHost.resolveMarkdownBlock(language)?.component
                     }
                     onOpenWorkspaceFile={(path) => {
                       void openWorkspaceFileByPath(path);
