@@ -3110,41 +3110,61 @@ export function App() {
                 >
                   {t("nav.files")}
                 </button>
-                {viewMode === "edit" ? (
-                  <MarkdownEditor
+                {activeIsMarkdown ? (
+                  viewMode === "edit" ? (
+                    <MarkdownEditor
+                      key={openFile.metadata.id}
+                      value={draft}
+                      label={t("editor.editFile", { name: openFile.metadata.name })}
+                      linkTargets={editorLinkTargets}
+                      tags={knownTags}
+                      navigationTarget={activeMarkdownNavigation}
+                      navigationKey={activeMarkdownNavigation?.key}
+                      onChange={updateActiveDraft}
+                      onAttachFiles={(files, source) =>
+                        attachFiles(
+                          files,
+                          openFile.metadata.parentIds[0] ?? provider.rootId,
+                          {
+                            appendReferences: false,
+                            autoRename: true,
+                            source,
+                          },
+                        )
+                      }
+                    />
+                  ) : (
+                    <MarkdownPreview
+                      content={draft}
+                      provider={provider}
+                      tree={tree}
+                      currentNotePath={
+                        currentIndexedNote?.path ?? openFile.metadata.name
+                      }
+                      outgoingLinks={outgoingLinks}
+                      navigationTarget={activeMarkdownNavigation}
+                      navigationKey={activeMarkdownNavigation?.key}
+                      onOpenNote={(target) => void openMarkdownTarget(target)}
+                    />
+                  )
+                ) : ActivePluginTextView ? (
+                  <ActivePluginTextView
                     key={openFile.metadata.id}
+                    file={{
+                      id: openFile.metadata.id,
+                      name: openFile.metadata.name,
+                      path: activeFilePath,
+                    }}
                     value={draft}
-                    label={t("editor.editFile", { name: openFile.metadata.name })}
-                    linkTargets={editorLinkTargets}
-                    tags={knownTags}
-                    navigationTarget={activeMarkdownNavigation}
-                    navigationKey={activeMarkdownNavigation?.key}
+                    tree={tree}
                     onChange={updateActiveDraft}
-                    onAttachFiles={(files, source) =>
-                      attachFiles(
-                        files,
-                        openFile.metadata.parentIds[0] ?? provider.rootId,
-                        {
-                          appendReferences: false,
-                          autoRename: true,
-                          source,
-                        },
-                      )
-                    }
+                    onOpenFile={(fileId) => void openFileById(fileId)}
                   />
                 ) : (
-                  <MarkdownPreview
-                    content={draft}
-                    provider={provider}
-                    tree={tree}
-                    currentNotePath={
-                      currentIndexedNote?.path ?? openFile.metadata.name
-                    }
-                    outgoingLinks={outgoingLinks}
-                    navigationTarget={activeMarkdownNavigation}
-                    navigationKey={activeMarkdownNavigation?.key}
-                    onOpenNote={(target) => void openMarkdownTarget(target)}
-                  />
+                  <div className="workspace-loading-v2">
+                    <h2>{openFile.metadata.name}</h2>
+                    <p>No renderer is registered for this file type.</p>
+                  </div>
                 )}
               </>
             ) : workspaceLoading ? (
