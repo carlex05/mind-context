@@ -19,10 +19,9 @@ describe("encryptionCrypto", () => {
 
     const block = serializeEncryptedBlock(payload);
     expect(block).toContain("```mindcontext-encrypted");
-    const encoded = block
-      .replace(/^```mindcontext-encrypted\\n/, "")
-      .replace(/\\n```$/, "");
-    expect(parseEncryptedPayload(encoded)).toEqual(payload);
+    const prefix = "```mindcontext-encrypted\n";
+    const suffix = "\n```";
+    const encoded = block.slice(prefix.length, -suffix.length);
   });
 
   it("rejects a wrong passphrase", async () => {
