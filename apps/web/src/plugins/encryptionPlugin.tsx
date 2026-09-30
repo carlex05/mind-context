@@ -51,6 +51,7 @@ export const encryptionPlugin: WebExtensionBundle = {
           const passphrase = await context.ui.promptSecret({
             title: String(i18n.t("encryption.encryptSelection")),
             message: String(i18n.t("encryption.passphraseHelp")),
+            inputLabel: String(i18n.t("encryption.passphrase")),
             confirm: true,
             confirmLabel: String(i18n.t("encryption.confirmPassphrase")),
             cancelLabel: String(i18n.t("common.cancel")),
