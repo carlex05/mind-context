@@ -180,7 +180,7 @@ describe("GoogleDriveStorageProvider", () => {
       provider.rootId,
       "Architecture.canvas",
       "{\"nodes\":[],\"edges\":[]}",
-      { mediaType: "application/json" },
+      { mediaType: "application/json", preserveName: true },
     );
 
     expect(created.name).toBe("Architecture.canvas");
