@@ -1034,21 +1034,38 @@ export function App() {
       setRecentNoteIds(readRecentNotes(workspace.id));
 
       const persistedUi = readWorkspaceUi(workspace.id);
-      const restoredTabs = persistedUi.tabs.flatMap((saved) => {
-        const note = getNote(rebuilt, saved.noteId);
-        return note
-          ? [{
-              noteId: note.id,
-              title: note.name.replace(/\.md$/i, ""),
-              path: note.path,
-              viewMode: saved.viewMode,
-            }]
-          : [];
-      });
+      const restoredTabCandidates = await Promise.all(
+        persistedUi.tabs.map(async (saved): Promise<WorkspaceTab | undefined> => {
+          try {
+            const metadata = await nextProvider.metadata(saved.resourceId);
+            const fileType = extensionHost.fileTypes.resolve(metadata.name);
+            if (!fileType || fileType.contentKind !== "text") return undefined;
+            const indexedNote =
+              fileType.id === "markdown"
+                ? getNote(rebuilt, saved.resourceId)
+                : undefined;
+            const node = findWorkspaceNode(nextTree, saved.resourceId);
+            return {
+              resourceId: saved.resourceId,
+              fileTypeId: fileType.id,
+              title: displayFileTitle(metadata.name),
+              path: indexedNote?.path ?? node?.path ?? metadata.name,
+              viewMode: fileType.id === "markdown" ? saved.viewMode : "edit",
+            };
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      const restoredTabs = restoredTabCandidates.filter(
+        (tab): tab is WorkspaceTab => tab !== undefined,
+      );
       const restoredActiveId = persistedUi.homeActive
         ? undefined
-        : restoredTabs.some((tab) => tab.resourceId === persistedUi.activeNoteId)
-          ? persistedUi.activeNoteId
+        : restoredTabs.some(
+              (tab) => tab.resourceId === persistedUi.activeResourceId,
+            )
+          ? persistedUi.activeResourceId
           : restoredTabs[0]?.resourceId;
 
       setTabs(restoredTabs);
@@ -1059,15 +1076,18 @@ export function App() {
 
       if (restoredActiveId) {
         const metadata = await nextProvider.metadata(restoredActiveId);
-        const cachedDocument = derived.searchSnapshot.documents.find(
-          (document) => document.noteId === restoredActiveId,
-        );
-        const content = canReuseSearchDocument(
-          cachedDocument,
-          metadata.revision,
-        )
-          ? cachedDocument.content
-          : await nextProvider.readText(restoredActiveId);
+        const restoredFileType = extensionHost.fileTypes.resolve(metadata.name);
+        const cachedDocument =
+          restoredFileType?.id === "markdown"
+            ? derived.searchSnapshot.documents.find(
+                (document) => document.noteId === restoredActiveId,
+              )
+            : undefined;
+        const content =
+          cachedDocument &&
+          canReuseSearchDocument(cachedDocument, metadata.revision)
+            ? cachedDocument.content
+            : await nextProvider.readText(restoredActiveId);
         const pendingDraft = await pendingDraftStore.get(
           workspace.id,
           restoredActiveId,
