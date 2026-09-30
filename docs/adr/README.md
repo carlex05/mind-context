@@ -16,6 +16,7 @@ Accepted decisions:
 | [ADR-010](ADR-010-persistent-local-drafts-and-deferred-drive-sync.md) | Persistent local drafts + deferred Drive synchronization | Accepted |
 | [ADR-011](ADR-011-content-aware-drive-conflicts-and-recovery-copies.md) | Content-aware Drive conflicts + recovery copies | Accepted |
 | [ADR-012](ADR-012-storage-agnostic-local-vaults.md) | Storage-agnostic workspaces + direct local-folder vaults | Accepted |
+| [ADR-013](ADR-013-plugin-driven-file-types-and-json-canvas.md) | Plugin-driven file types + JSON Canvas | Accepted |
 
 ## ADR rule
 

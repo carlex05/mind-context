@@ -2,6 +2,7 @@ import {
   StorageConflictError,
   type StorageObjectMetadata,
   type StorageProvider,
+  type TextContentOptions,
   type WriteCondition,
 } from "@mind-context/storage";
 
@@ -226,6 +227,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
     await this.assertRevision(id, condition);
 
@@ -239,7 +241,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
       {
         method: "PATCH",
         headers: {
-          "Content-Type": "text/markdown; charset=UTF-8",
+          "Content-Type": `${options?.mediaType ?? MARKDOWN_MIME_TYPE}; charset=UTF-8`,
         },
         body: content,
       },
@@ -262,12 +264,19 @@ export class GoogleDriveStorageProvider implements StorageProvider {
     parentId: string,
     name: string,
     content: string,
+    options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeFileName(name);
+    const normalizedName = options?.preserveName
+      ? normalizeObjectName(name)
+      : normalizeMarkdownFileName(name);
+    const mediaType = inferTextMediaType(
+      normalizedName,
+      options?.mediaType,
+    );
     const boundary = `mindcontext-${crypto.randomUUID()}`;
     const metadata = {
       name: normalizedName,
-      mimeType: MARKDOWN_MIME_TYPE,
+      mimeType: mediaType,
       parents: [parentId],
     };
 
@@ -277,7 +286,7 @@ export class GoogleDriveStorageProvider implements StorageProvider {
       JSON.stringify(metadata),
       "\r\n",
       `--${boundary}\r\n`,
-      "Content-Type: text/markdown; charset=UTF-8\r\n\r\n",
+      `Content-Type: ${mediaType}; charset=UTF-8\r\n\r\n`,
       content,
       "\r\n",
       `--${boundary}--`,
@@ -488,11 +497,33 @@ export class GoogleDriveStorageProvider implements StorageProvider {
   }
 }
 
-function normalizeFileName(name: string): string {
+function normalizeMarkdownFileName(name: string): string {
   const normalized = normalizeObjectName(name);
   return normalized.toLowerCase().endsWith(".md")
     ? normalized
     : `${normalized}.md`;
+}
+
+function inferTextMediaType(
+  name: string,
+  requested?: string,
+): string {
+  if (requested?.trim()) return requested.trim();
+  const lower = name.toLocaleLowerCase();
+  if (lower.endsWith(".md") || lower.endsWith(".excalidraw.md")) {
+    return MARKDOWN_MIME_TYPE;
+  }
+  if (
+    lower.endsWith(".json") ||
+    lower.endsWith(".canvas") ||
+    lower.endsWith(".excalidraw")
+  ) {
+    return "application/json";
+  }
+  if (lower.endsWith(".yaml") || lower.endsWith(".yml")) {
+    return "application/yaml";
+  }
+  return "text/plain";
 }
 
 function normalizeObjectName(name: string): string {

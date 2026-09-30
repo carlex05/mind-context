@@ -24,7 +24,8 @@ Preferred/open foundations:
 - Markdown text;
 - YAML properties/frontmatter;
 - standard Markdown links and images;
-- normal files for images, PDFs, audio and other attachments.
+- normal files for images, PDFs, audio and other attachments;
+- JSON Canvas 1.0 files (`.canvas`) when the bundled Canvas plugin is enabled.
 
 Compatibility syntax additionally understood:
 

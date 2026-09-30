@@ -89,7 +89,9 @@ The repository already contains:
 - Blank/PARA Second Brain onboarding with English/Spanish Markdown guides;
 - empty-existing-vault onboarding suggestion based on actual storage root
   emptiness;
-- desktop/mobile Playwright coverage and GitHub Pages deployment.
+- desktop/mobile Playwright coverage and GitHub Pages deployment;
+- plugin-driven file-type registry/ExtensionHost with Markdown as the built-in handler;
+- bundled first-party JSON Canvas plugin for `.canvas` files with the canonical format logic isolated in `@mind-context/json-canvas`.
 
 See `docs/architecture/current-state-and-roadmap.md` for what is complete,
 what needs hardening, and what should be implemented next.

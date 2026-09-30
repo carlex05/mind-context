@@ -2,6 +2,7 @@ import {
   StorageConflictError,
   type StorageObjectMetadata,
   type StorageProvider,
+  type TextContentOptions,
   type WriteCondition,
 } from "@mind-context/storage";
 
@@ -69,6 +70,7 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     id: string,
     content: string,
     condition?: WriteCondition,
+    _options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
     await this.assertCondition(id, condition);
     const handle = await this.fileHandleForId(id);
@@ -80,8 +82,11 @@ export class BrowserLocalStorageProvider implements StorageProvider {
     parentId: string,
     name: string,
     content: string,
+    options?: TextContentOptions,
   ): Promise<StorageObjectMetadata> {
-    const normalizedName = normalizeMarkdownFileName(name);
+    const normalizedName = options?.preserveName
+      ? normalizeName(name)
+      : normalizeMarkdownFileName(name);
     const parentPath = this.pathForId(parentId);
     const directory = await this.directoryAt(parentPath);
     await assertNameAvailable(directory, normalizedName);
@@ -571,7 +576,11 @@ function inferMediaType(name: string): string {
   const lower = name.toLocaleLowerCase();
   if (lower.endsWith(".md")) return "text/markdown";
   if (lower.endsWith(".txt")) return "text/plain";
-  if (lower.endsWith(".json")) return "application/json";
+  if (
+    lower.endsWith(".json") ||
+    lower.endsWith(".canvas") ||
+    lower.endsWith(".excalidraw")
+  ) return "application/json";
   if (lower.endsWith(".yaml") || lower.endsWith(".yml")) {
     return "application/yaml";
   }

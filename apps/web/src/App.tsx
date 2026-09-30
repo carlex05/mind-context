@@ -126,6 +126,7 @@ import {
   type WorkspacePanel,
   type WorkspaceTab,
 } from "./workspaceUi";
+import { extensionHost, fileViewRenderers } from "./bundledExtensions";
 import {
   childPath,
   findWorkspaceNode,
@@ -166,13 +167,13 @@ interface ActiveWorkspace {
   readonly kind: "google-drive" | "local";
 }
 
-interface OpenNote {
+interface OpenTextFile {
   readonly metadata: StorageObjectMetadata;
   readonly originalContent: string;
 }
 
-interface NoteBuffer {
-  readonly note: OpenNote;
+interface TextFileBuffer {
+  readonly note: OpenTextFile;
   readonly draft: string;
 }
 
@@ -213,7 +214,7 @@ export function App() {
   const [selectedFolderId, setSelectedFolderId] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const attachmentTargetFolderIdRef = useRef<string | undefined>(undefined);
-  const [openNote, setOpenNote] = useState<OpenNote>();
+  const [openFile, setOpenFile] = useState<OpenTextFile>();
   const [draft, setDraft] = useState("");
   const [workspaceName, setWorkspaceName] = useState(
     () => t("chooser.defaultName"),
@@ -238,7 +239,7 @@ export function App() {
   );
   const [tabs, setTabs] = useState<readonly WorkspaceTab[]>([]);
   const [tabBuffers, setTabBuffers] = useState<
-    Readonly<Record<string, NoteBuffer>>
+    Readonly<Record<string, TextFileBuffer>>
   >({});
   const [noteSyncStates, setNoteSyncStates] = useState<
     Readonly<Record<string, NoteSyncState>>
@@ -246,7 +247,7 @@ export function App() {
   const [noteConflicts, setNoteConflicts] = useState<
     Readonly<Record<string, NoteConflict>>
   >({});
-  const tabBuffersRef = useRef<Readonly<Record<string, NoteBuffer>>>({});
+  const tabBuffersRef = useRef<Readonly<Record<string, TextFileBuffer>>>({});
   const noteSyncStatesRef = useRef<Readonly<Record<string, NoteSyncState>>>({});
   const noteConflictsRef = useRef<Readonly<Record<string, NoteConflict>>>({});
   const activeTabIdRef = useRef<string | undefined>(undefined);
@@ -329,14 +330,26 @@ export function App() {
     [],
   );
 
-  const activeBufferedNote = openNote
-    ? tabBuffers[openNote.metadata.id]?.note ?? openNote
+  const activeFileType = openFile
+    ? extensionHost.fileTypes.resolve(openFile.metadata.name)
+    : undefined;
+  const activeIsMarkdown = activeFileType?.id === "markdown";
+  const ActivePluginTextView =
+    activeFileType && activeFileType.viewType !== "markdown"
+      ? fileViewRenderers.resolveText(activeFileType.viewType)
+      : undefined;
+  const activeFilePath = openFile
+    ? findWorkspaceNode(tree, openFile.metadata.id)?.path ?? openFile.metadata.name
+    : "";
+
+  const activeBufferedNote = openFile
+    ? tabBuffers[openFile.metadata.id]?.note ?? openFile
     : undefined;
   const dirty =
     activeBufferedNote !== undefined &&
     draft !== activeBufferedNote.originalContent;
-  const activeSyncState: NoteSyncState = openNote
-    ? noteSyncStates[openNote.metadata.id] ?? (dirty ? "local" : "synced")
+  const activeSyncState: NoteSyncState = openFile
+    ? noteSyncStates[openFile.metadata.id] ?? (dirty ? "local" : "synced")
     : "synced";
   const activeConflict =
     activeTabId === undefined ? undefined : noteConflicts[activeTabId];
@@ -367,33 +380,42 @@ export function App() {
                 ? "pending"
                 : "synced";
 
-  const dirtyNoteIds = useMemo(() => {
+  const dirtyResourceIds = useMemo(() => {
     const result = new Set<string>();
     for (const [noteId, buffer] of Object.entries(tabBuffers)) {
       if (buffer.draft !== buffer.note.originalContent) result.add(noteId);
     }
     if (activeTabId && dirty) result.add(activeTabId);
     return result;
-  }, [tabBuffers, activeTabId, dirty, draft, openNote]);
+  }, [tabBuffers, activeTabId, dirty, draft, openFile]);
 
-  const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
+  const parsedDraft = useMemo(
+    () => markdownParser.parse(activeIsMarkdown ? draft : ""),
+    [activeIsMarkdown, draft],
+  );
 
-  const currentIndexedNote = openNote
-    ? getNote(knowledgeIndex, openNote.metadata.id)
-    : undefined;
+  const currentIndexedNote =
+    activeIsMarkdown && openFile
+      ? getNote(knowledgeIndex, openFile.metadata.id)
+      : undefined;
   const activeMarkdownNavigation =
-    openNote && markdownNavigation?.noteId === openNote.metadata.id
+    activeIsMarkdown &&
+    openFile &&
+    markdownNavigation?.noteId === openFile.metadata.id
       ? markdownNavigation
       : undefined;
-  const outgoingLinks = openNote
-    ? getOutgoingLinks(knowledgeIndex, openNote.metadata.id)
-    : [];
-  const backlinks = openNote
-    ? getBacklinks(knowledgeIndex, openNote.metadata.id)
-    : [];
-  const brokenLinks = openNote
-    ? getBrokenLinks(knowledgeIndex, openNote.metadata.id)
-    : [];
+  const outgoingLinks =
+    activeIsMarkdown && openFile
+      ? getOutgoingLinks(knowledgeIndex, openFile.metadata.id)
+      : [];
+  const backlinks =
+    activeIsMarkdown && openFile
+      ? getBacklinks(knowledgeIndex, openFile.metadata.id)
+      : [];
+  const brokenLinks =
+    activeIsMarkdown && openFile
+      ? getBrokenLinks(knowledgeIndex, openFile.metadata.id)
+      : [];
   const frontmatterTags = stringListProperty(parsedDraft.frontmatter.tags);
   const frontmatterAliases = stringListProperty(parsedDraft.frontmatter.aliases);
   const canNavigateBack = navigation.index > 0;
@@ -566,10 +588,11 @@ export function App() {
     if (!activeWorkspace || !workspaceUiReady) return;
     writeWorkspaceUi(activeWorkspace.id, {
       tabs: tabs.map((tab) => ({
-        noteId: tab.noteId,
+        resourceId: tab.resourceId,
+        fileTypeId: tab.fileTypeId,
         viewMode: tab.viewMode,
       })),
-      ...(activeTabId ? { activeNoteId: activeTabId } : {}),
+      ...(activeTabId ? { activeResourceId: activeTabId } : {}),
       homeActive: activeTabId === undefined,
       leftPanel: activeLeftPanel,
       leftSidebarOpen,
@@ -972,7 +995,7 @@ export function App() {
       setProvider(nextProvider);
       setActiveWorkspace(workspace);
       setSelectedFolderId(nextProvider.rootId);
-      setOpenNote(undefined);
+      setOpenFile(undefined);
       setDraft("");
       setTabs([]);
       replaceTabBuffers({});
@@ -1011,22 +1034,39 @@ export function App() {
       setRecentNoteIds(readRecentNotes(workspace.id));
 
       const persistedUi = readWorkspaceUi(workspace.id);
-      const restoredTabs = persistedUi.tabs.flatMap((saved) => {
-        const note = getNote(rebuilt, saved.noteId);
-        return note
-          ? [{
-              noteId: note.id,
-              title: note.name.replace(/\.md$/i, ""),
-              path: note.path,
-              viewMode: saved.viewMode,
-            }]
-          : [];
-      });
+      const restoredTabCandidates = await Promise.all(
+        persistedUi.tabs.map(async (saved): Promise<WorkspaceTab | undefined> => {
+          try {
+            const metadata = await nextProvider.metadata(saved.resourceId);
+            const fileType = extensionHost.fileTypes.resolve(metadata.name);
+            if (!fileType || fileType.contentKind !== "text") return undefined;
+            const indexedNote =
+              fileType.id === "markdown"
+                ? getNote(rebuilt, saved.resourceId)
+                : undefined;
+            const node = findWorkspaceNode(nextTree, saved.resourceId);
+            return {
+              resourceId: saved.resourceId,
+              fileTypeId: fileType.id,
+              title: displayFileTitle(metadata.name),
+              path: indexedNote?.path ?? node?.path ?? metadata.name,
+              viewMode: fileType.id === "markdown" ? saved.viewMode : "edit",
+            };
+          } catch {
+            return undefined;
+          }
+        }),
+      );
+      const restoredTabs = restoredTabCandidates.filter(
+        (tab): tab is WorkspaceTab => tab !== undefined,
+      );
       const restoredActiveId = persistedUi.homeActive
         ? undefined
-        : restoredTabs.some((tab) => tab.noteId === persistedUi.activeNoteId)
-          ? persistedUi.activeNoteId
-          : restoredTabs[0]?.noteId;
+        : restoredTabs.some(
+              (tab) => tab.resourceId === persistedUi.activeResourceId,
+            )
+          ? persistedUi.activeResourceId
+          : restoredTabs[0]?.resourceId;
 
       setTabs(restoredTabs);
       setActiveTabId(restoredActiveId);
@@ -1036,15 +1076,18 @@ export function App() {
 
       if (restoredActiveId) {
         const metadata = await nextProvider.metadata(restoredActiveId);
-        const cachedDocument = derived.searchSnapshot.documents.find(
-          (document) => document.noteId === restoredActiveId,
-        );
-        const content = canReuseSearchDocument(
-          cachedDocument,
-          metadata.revision,
-        )
-          ? cachedDocument.content
-          : await nextProvider.readText(restoredActiveId);
+        const restoredFileType = extensionHost.fileTypes.resolve(metadata.name);
+        const cachedDocument =
+          restoredFileType?.id === "markdown"
+            ? derived.searchSnapshot.documents.find(
+                (document) => document.noteId === restoredActiveId,
+              )
+            : undefined;
+        const content =
+          cachedDocument &&
+          canReuseSearchDocument(cachedDocument, metadata.revision)
+            ? cachedDocument.content
+            : await nextProvider.readText(restoredActiveId);
         const pendingDraft = await pendingDraftStore.get(
           workspace.id,
           restoredActiveId,
@@ -1054,7 +1097,7 @@ export function App() {
           contentRevision: _remoteContentRevision,
           ...stableMetadata
         } = metadata;
-        const restoredNote: OpenNote = pendingDraft
+        const restoredNote: OpenTextFile = pendingDraft
           ? {
               metadata: {
                 ...stableMetadata,
@@ -1069,7 +1112,7 @@ export function App() {
             }
           : { metadata, originalContent: content };
         const restoredDraft = pendingDraft?.content ?? content;
-        setOpenNote(restoredNote);
+        setOpenFile(restoredNote);
         setDraft(restoredDraft);
         putTabBuffer(restoredActiveId, {
           note: restoredNote,
@@ -1080,7 +1123,7 @@ export function App() {
           pendingDraft ? "local" : "synced",
         );
         setViewMode(
-          restoredTabs.find((tab) => tab.noteId === restoredActiveId)?.viewMode ??
+          restoredTabs.find((tab) => tab.resourceId === restoredActiveId)?.viewMode ??
             "edit",
         );
         setNavigation({ entries: [restoredActiveId], index: 0 });
@@ -1145,51 +1188,64 @@ export function App() {
       setSearchIndex(derived.searchIndex);
       setTabs((current) =>
         current.flatMap((tab) => {
-          const note = getNote(rebuilt, tab.noteId);
-          return note
-            ? [{
-                ...tab,
-                title: note.name.replace(/\.md$/i, ""),
-                path: note.path,
-              }]
-            : [];
+          const node = findWorkspaceNode(nextTree, tab.resourceId);
+          if (!node || node.metadata.kind !== "file") return [];
+          const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+          if (!fileType || fileType.contentKind !== "text") return [];
+          const note =
+            fileType.id === "markdown"
+              ? getNote(rebuilt, tab.resourceId)
+              : undefined;
+          return [{
+            ...tab,
+            fileTypeId: fileType.id,
+            title: displayFileTitle(node.metadata.name),
+            path: note?.path ?? node.path,
+            viewMode: fileType.id === "markdown" ? tab.viewMode : "edit",
+          }];
         }),
       );
 
-      const sourceBuffers: Record<string, NoteBuffer> = {
+      const sourceBuffers: Record<string, TextFileBuffer> = {
         ...tabBuffersRef.current,
       };
-      if (activeTabId && openNote && !sourceBuffers[activeTabId]) {
-        sourceBuffers[activeTabId] = { note: openNote, draft };
+      if (activeTabId && openFile && !sourceBuffers[activeTabId]) {
+        sourceBuffers[activeTabId] = { note: openFile, draft };
       }
 
       const refreshedBufferEntries = await Promise.all(
         Object.entries(sourceBuffers)
-          .filter(([noteId]) =>
-            rebuilt.notes.some((note) => note.id === noteId),
-          )
+          .filter(([resourceId]) => {
+            const node = findWorkspaceNode(nextTree, resourceId);
+            if (!node || node.metadata.kind !== "file") return false;
+            const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+            return fileType?.contentKind === "text";
+          })
           .map(async ([noteId, buffer]) => {
             if (buffer.draft !== buffer.note.originalContent) {
               // Preserve the local baseline. Deferred synchronization performs
-              // content-aware reconciliation if Drive has changed.
+              // content-aware reconciliation if canonical storage has changed.
               return [noteId, buffer] as const;
             }
 
             try {
               const metadata = await provider.metadata(noteId);
-              const cachedDocument = derived.searchSnapshot.documents.find(
-                (document) => document.noteId === noteId,
-              );
-              const content = canReuseSearchDocument(
-                cachedDocument,
-                metadata.revision,
-              )
-                ? cachedDocument.content
-                : await provider.readText(noteId);
+              const fileType = extensionHost.fileTypes.resolve(metadata.name);
+              const cachedDocument =
+                fileType?.id === "markdown"
+                  ? derived.searchSnapshot.documents.find(
+                      (document) => document.noteId === noteId,
+                    )
+                  : undefined;
+              const content =
+                cachedDocument &&
+                canReuseSearchDocument(cachedDocument, metadata.revision)
+                  ? cachedDocument.content
+                  : await provider.readText(noteId);
               const note = { metadata, originalContent: content };
               return [
                 noteId,
-                { note, draft: content } satisfies NoteBuffer,
+                { note, draft: content } satisfies TextFileBuffer,
               ] as const;
             } catch {
               return undefined;
@@ -1199,7 +1255,7 @@ export function App() {
 
       const refreshedBuffers = Object.fromEntries(
         refreshedBufferEntries.filter(
-          (entry): entry is readonly [string, NoteBuffer] =>
+          (entry): entry is readonly [string, TextFileBuffer] =>
             entry !== undefined,
         ),
       );
@@ -1208,7 +1264,7 @@ export function App() {
       if (activeTabId) {
         const activeBuffer = refreshedBuffers[activeTabId];
         if (activeBuffer) {
-          setOpenNote(activeBuffer.note);
+          setOpenFile(activeBuffer.note);
           setDraft(activeBuffer.draft);
         }
       }
@@ -1233,52 +1289,59 @@ export function App() {
     }
   }
 
-  async function openNoteById(
+  async function openFileById(
     id: string,
     historyMode: "push" | "back" | "forward" = "push",
     storeCurrent = true,
   ): Promise<boolean> {
     if (!provider) return false;
 
-    if (activeTabId === id && openNote) {
+    if (activeTabId === id && openFile) {
       setMobileSidebarOpen(false);
       return true;
     }
 
-    if (storeCurrent && activeTabId && openNote) {
+    if (storeCurrent && activeTabId && openFile) {
       putTabBuffer(activeTabId, {
-        note: openNote,
+        note: openFile,
         draft,
       });
     }
 
-    const indexed = getNote(knowledgeIndex, id);
     const buffered = tabBuffersRef.current[id];
-    setStatus({
-      kind: "busy",
-      message: t("status.openingNote", {
-        name: indexed?.name ?? buffered?.note.metadata.name ?? "note",
-      }),
-    });
 
     try {
-      let nextNote: OpenNote;
+      const metadata = buffered?.note.metadata ?? (await provider.metadata(id));
+      const fileType = extensionHost.fileTypes.resolve(metadata.name);
+      if (!fileType || fileType.contentKind !== "text") return false;
+
+      const indexed =
+        fileType.id === "markdown" ? getNote(knowledgeIndex, id) : undefined;
+      setStatus({
+        kind: "busy",
+        message: t("status.openingNote", {
+          name: indexed?.name ?? metadata.name,
+        }),
+      });
+
+      let nextFile: OpenTextFile;
       let nextDraft: string;
 
       if (buffered) {
-        nextNote = buffered.note;
+        nextFile = buffered.note;
         nextDraft = buffered.draft;
       } else {
-        const metadata = await provider.metadata(id);
-        const cachedDocument = searchSnapshot?.documents.find(
-          (document) => document.noteId === id,
-        );
-        const content = canReuseSearchDocument(
-          cachedDocument,
-          metadata.revision,
-        )
-          ? cachedDocument.content
-          : await provider.readText(id);
+        const cachedDocument =
+          fileType.id === "markdown"
+            ? searchSnapshot?.documents.find(
+                (document) => document.noteId === id,
+              )
+            : undefined;
+        const content =
+          cachedDocument &&
+          canReuseSearchDocument(cachedDocument, metadata.revision)
+            ? cachedDocument.content
+            : await provider.readText(id);
         const pendingDraft = activeWorkspace
           ? await pendingDraftStore.get(activeWorkspace.id, id)
           : undefined;
@@ -1287,7 +1350,7 @@ export function App() {
           contentRevision: _remoteContentRevision,
           ...stableMetadata
         } = metadata;
-        nextNote = pendingDraft
+        nextFile = pendingDraft
           ? {
               metadata: {
                 ...stableMetadata,
@@ -1305,38 +1368,54 @@ export function App() {
               originalContent: content,
             };
         nextDraft = pendingDraft?.content ?? content;
-        putTabBuffer(id, { note: nextNote, draft: nextDraft });
+        putTabBuffer(id, { note: nextFile, draft: nextDraft });
         setNoteSyncState(id, pendingDraft ? "local" : "synced");
       }
 
-      setOpenNote(nextNote);
+      setOpenFile(nextFile);
       setDraft(nextDraft);
 
-      const existingTab = tabs.find((tab) => tab.noteId === id);
-      const note = getNote(knowledgeIndex, id);
+      const existingTab = tabs.find((tab) => tab.resourceId === id);
+      const node = findWorkspaceNode(tree, id);
+      const note =
+        fileType.id === "markdown" ? getNote(knowledgeIndex, id) : undefined;
       const nextTab: WorkspaceTab = {
-        noteId: id,
-        title: nextNote.metadata.name.replace(/\.md$/i, ""),
-        path: note?.path ?? nextNote.metadata.name,
-        viewMode: existingTab?.viewMode ?? "edit",
+        resourceId: id,
+        fileTypeId: fileType.id,
+        title: displayFileTitle(nextFile.metadata.name),
+        path: note?.path ?? node?.path ?? nextFile.metadata.name,
+        viewMode:
+          fileType.id === "markdown"
+            ? existingTab?.viewMode ?? "edit"
+            : "edit",
       };
       setTabs((current) =>
-        current.some((tab) => tab.noteId === id)
+        current.some((tab) => tab.resourceId === id)
           ? current.map((tab) =>
-              tab.noteId === id
-                ? { ...tab, title: nextTab.title, path: nextTab.path }
+              tab.resourceId === id
+                ? {
+                    ...tab,
+                    fileTypeId: fileType.id,
+                    title: nextTab.title,
+                    path: nextTab.path,
+                    viewMode: nextTab.viewMode,
+                  }
                 : tab,
             )
           : [...current, nextTab],
       );
       setActiveTabId(id);
       setViewMode(nextTab.viewMode);
+      if (fileType.id !== "markdown") {
+        setRightSidebarOpen(false);
+        setMarkdownNavigation(undefined);
+      }
       setMobileSidebarOpen(false);
       if (window.matchMedia("(max-width: 760px)").matches) {
         setRightSidebarOpen(false);
       }
 
-      if (activeWorkspace) {
+      if (activeWorkspace && fileType.id === "markdown") {
         setRecentNoteIds((current) =>
           rememberRecentNote(activeWorkspace.id, current, id),
         );
@@ -1372,7 +1451,7 @@ export function App() {
   async function openMarkdownTarget(
     target: InternalMarkdownNavigationTarget,
   ) {
-    const opened = await openNoteById(target.noteId);
+    const opened = await openFileById(target.noteId);
     if (!opened) return;
 
     markdownNavigationSequenceRef.current += 1;
@@ -1384,15 +1463,15 @@ export function App() {
   }
 
   function openHome() {
-    if (activeTabId && openNote) {
+    if (activeTabId && openFile) {
       putTabBuffer(activeTabId, {
-        note: openNote,
+        note: openFile,
         draft,
       });
     }
     activeTabIdRef.current = undefined;
     setActiveTabId(undefined);
-    setOpenNote(undefined);
+    setOpenFile(undefined);
     setDraft("");
     setRightSidebarOpen(false);
     setMobileSidebarOpen(false);
@@ -1405,15 +1484,15 @@ export function App() {
       direction === "back" ? navigation.index - 1 : navigation.index + 1;
     const target = navigation.entries[nextIndex];
     if (!target) return;
-    await openNoteById(target, direction);
+    await openFileById(target, direction);
   }
 
   function updateActiveDraft(value: string) {
     setDraft(value);
-    if (!activeTabId || !openNote) return;
+    if (!activeTabId || !openFile) return;
 
     const currentBuffer = tabBuffersRef.current[activeTabId];
-    const currentNote = currentBuffer?.note ?? openNote;
+    const currentNote = currentBuffer?.note ?? openFile;
     putTabBuffer(activeTabId, {
       note: currentNote,
       draft: value,
@@ -1479,19 +1558,19 @@ export function App() {
     if (!activeTabId) return;
     setTabs((current) =>
       current.map((tab) =>
-        tab.noteId === activeTabId ? { ...tab, viewMode: mode } : tab,
+        tab.resourceId === activeTabId ? { ...tab, viewMode: mode } : tab,
       ),
     );
   }
 
   async function closeTab(noteId: string) {
-    const index = tabs.findIndex((tab) => tab.noteId === noteId);
+    const index = tabs.findIndex((tab) => tab.resourceId === noteId);
     if (index < 0) return;
 
     const closingActive = activeTabId === noteId;
     const buffer =
       tabBuffersRef.current[noteId] ??
-      (closingActive && openNote ? { note: openNote, draft } : undefined);
+      (closingActive && openFile ? { note: openFile, draft } : undefined);
     const tabDirty =
       buffer !== undefined &&
       buffer.draft !== buffer.note.originalContent;
@@ -1525,7 +1604,7 @@ export function App() {
     cancelDriveSyncTimer(noteId);
     cancelConflictRecoveryTimer(noteId);
 
-    const remaining = tabs.filter((tab) => tab.noteId !== noteId);
+    const remaining = tabs.filter((tab) => tab.resourceId !== noteId);
     setTabs(remaining);
     removeTabBuffer(noteId);
     const nextSyncStates = { ...noteSyncStatesRef.current };
@@ -1539,13 +1618,13 @@ export function App() {
     const next = remaining[Math.min(index, remaining.length - 1)];
     if (!next) {
       setActiveTabId(undefined);
-      setOpenNote(undefined);
+      setOpenFile(undefined);
       setDraft("");
       setRightSidebarOpen(false);
       return;
     }
 
-    await openNoteById(next.noteId, "push", false);
+    await openFileById(next.resourceId, "push", false);
   }
 
   function enableSemanticSearch() {
@@ -1671,6 +1750,57 @@ export function App() {
     }
   }
 
+  async function createRegisteredTextFile(
+    fileTypeId: string,
+    parentId: string,
+  ) {
+    if (!provider) return;
+    const fileType = extensionHost.fileTypes
+      .list()
+      .find((candidate) => candidate.id === fileTypeId);
+    const creation = fileType?.create;
+    if (!fileType || fileType.contentKind !== "text" || !creation) return;
+
+    const defaultName = `Untitled${creation.defaultExtension}`;
+    const requested = window.prompt(
+      `${t("common.create")} ${creation.label}`,
+      defaultName,
+    );
+    if (requested === null || !requested.trim()) return;
+
+    const trimmed = requested.trim();
+    const hasKnownExtension = fileType.extensions.some((extension) =>
+      trimmed.toLocaleLowerCase().endsWith(extension),
+    );
+    const name = hasKnownExtension
+      ? trimmed
+      : `${trimmed}${creation.defaultExtension}`;
+
+    setStatus({
+      kind: "busy",
+      message: `${t("common.create")} ${creation.label}…`,
+    });
+    try {
+      const metadata = await provider.createText(
+        parentId,
+        name,
+        creation.initialText ?? "",
+        {
+          ...(fileType.mediaType ? { mediaType: fileType.mediaType } : {}),
+          preserveName: true,
+        },
+      );
+      await refreshWorkspaceState();
+      await openFileById(metadata.id);
+      setStatus({
+        kind: "success",
+        message: t("status.fileCreated", { name: metadata.name }),
+      });
+    } catch (error) {
+      setStatus({ kind: "error", message: errorMessage(error, t) });
+    }
+  }
+
   async function createWorkspaceItem(
     kind: CreateItemKind,
     name: string,
@@ -1700,7 +1830,7 @@ export function App() {
 
       const metadata = await provider.createText(parentId, name, "");
       await refreshWorkspaceState();
-      await openNoteById(metadata.id);
+      await openFileById(metadata.id);
       setStatus({
         kind: "success",
         message: t("status.noteCreated", { name: metadata.name }),
@@ -1751,8 +1881,8 @@ export function App() {
         return { file, name };
       });
 
-      const currentNotePath = openNote
-        ? getNote(knowledgeIndex, openNote.metadata.id)?.path
+      const currentNotePath = openFile
+        ? getNote(knowledgeIndex, openFile.metadata.id)?.path
         : undefined;
       const references: string[] = [];
 
@@ -1785,7 +1915,7 @@ export function App() {
       if (
         options.appendReferences !== false &&
         references.length > 0 &&
-        openNote
+        openFile
       ) {
         updateActiveDraft(appendMarkdownReferences(draft, references));
       }
@@ -1806,6 +1936,30 @@ export function App() {
   function requestAttachFiles(folderId: string) {
     attachmentTargetFolderIdRef.current = folderId;
     attachmentInputRef.current?.click();
+  }
+
+  async function openWorkspaceFileById(fileId: string) {
+    const node = findWorkspaceNode(tree, fileId);
+    if (node) {
+      await openWorkspaceFile(node);
+      return;
+    }
+    await openFileById(fileId);
+  }
+
+  async function openWorkspaceFile(node: WorkspaceTreeNode) {
+    const fileType = extensionHost.fileTypes.resolve(node.metadata.name);
+    const hasTextRenderer =
+      fileType?.id === "markdown" ||
+      (fileType?.contentKind === "text" &&
+        fileViewRenderers.resolveText(fileType.viewType) !== undefined);
+
+    if (fileType?.contentKind === "text" && hasTextRenderer) {
+      await openFileById(node.metadata.id);
+      return;
+    }
+
+    await openAttachment(node);
   }
 
   async function openAttachment(node: WorkspaceTreeNode) {
@@ -1854,12 +2008,12 @@ export function App() {
     setNoteSyncStates(next);
   }
 
-  function replaceTabBuffers(next: Readonly<Record<string, NoteBuffer>>) {
+  function replaceTabBuffers(next: Readonly<Record<string, TextFileBuffer>>) {
     tabBuffersRef.current = next;
     setTabBuffers(next);
   }
 
-  function putTabBuffer(noteId: string, buffer: NoteBuffer) {
+  function putTabBuffer(noteId: string, buffer: TextFileBuffer) {
     replaceTabBuffers({
       ...tabBuffersRef.current,
       [noteId]: buffer,
@@ -1914,7 +2068,7 @@ export function App() {
   function scheduleConflictRecovery(
     noteId: string,
     content: string,
-    note: OpenNote,
+    note: OpenTextFile,
     conflict: NoteConflict,
   ) {
     if (!provider) return;
@@ -2011,6 +2165,9 @@ export function App() {
     metadata: StorageObjectMetadata,
     content: string,
   ) {
+    if (extensionHost.fileTypes.resolve(metadata.name)?.id !== "markdown") {
+      return;
+    }
     if (!knowledgeIndex) return;
 
     const existing = getNote(knowledgeIndex, metadata.id);
@@ -2082,10 +2239,10 @@ export function App() {
     content: string,
   ) {
     if (!activeWorkspace) return;
-    const note: OpenNote = { metadata, originalContent: content };
+    const note: OpenTextFile = { metadata, originalContent: content };
     putTabBuffer(noteId, { note, draft: content });
     if (activeTabIdRef.current === noteId) {
-      setOpenNote(note);
+      setOpenFile(note);
       setDraft(content);
     }
     await pendingDraftStore.delete(activeWorkspace.id, noteId);
@@ -2096,7 +2253,7 @@ export function App() {
 
   async function reconcileDriveConflict(
     noteId: string,
-    noteAtStart: OpenNote,
+    noteAtStart: OpenTextFile,
   ) {
     if (!provider || !activeWorkspace) return;
 
@@ -2123,13 +2280,13 @@ export function App() {
     }
 
     if (remoteContent === baseContent) {
-      const rebasedNote: OpenNote = {
+      const rebasedNote: OpenTextFile = {
         metadata: remoteMetadata,
         originalContent: baseContent,
       };
       putTabBuffer(noteId, { note: rebasedNote, draft: localContent });
       if (activeTabIdRef.current === noteId) {
-        setOpenNote(rebasedNote);
+        setOpenFile(rebasedNote);
         setDraft(localContent);
       }
       await pendingDraftStore.put({
@@ -2238,21 +2395,26 @@ export function App() {
             : {}),
       });
 
-      const metadata = await provider.writeText(noteId, localToSave);
+      const metadata = await provider.writeText(
+        noteId,
+        localToSave,
+        undefined,
+        textContentOptionsFor(buffer.note.metadata.name),
+      );
       const latest = tabBuffersRef.current[noteId] ?? buffer;
-      const savedNote: OpenNote = {
+      const savedNote: OpenTextFile = {
         metadata,
         originalContent: localToSave,
       };
       putTabBuffer(noteId, { note: savedNote, draft: latest.draft });
       if (activeTabIdRef.current === noteId) {
-        setOpenNote(savedNote);
+        setOpenFile(savedNote);
         setDraft(latest.draft);
       }
       clearNoteConflict(noteId);
       void markRecoveryCopiesResolvedForSource(
         provider,
-        conflict.remoteMetadata.name.replace(/\.md$/i, ""),
+        conflict.remoteMetadata.name,
       ).catch(() => {
         // Unresolved recovery artifacts are safer than deleting too early.
       });
@@ -2313,7 +2475,7 @@ export function App() {
       await applyRemoteCanonical(noteId, metadata, content);
       void markRecoveryCopiesResolvedForSource(
         provider,
-        conflict.remoteMetadata.name.replace(/\.md$/i, ""),
+        conflict.remoteMetadata.name,
       ).catch(() => {
         // Keep recovery artifacts unresolved if resolution bookkeeping fails.
       });
@@ -2370,21 +2532,22 @@ export function App() {
           : noteAtStart.metadata.revision
             ? { expectedRevision: noteAtStart.metadata.revision }
             : undefined,
+        textContentOptionsFor(noteAtStart.metadata.name),
       );
 
       const latest = tabBuffersRef.current[noteId] ?? buffer;
-      const savedNote: OpenNote = {
+      const savedNote: OpenTextFile = {
         metadata,
         originalContent: contentToSave,
       };
-      const nextBuffer: NoteBuffer = {
+      const nextBuffer: TextFileBuffer = {
         note: savedNote,
         draft: latest.draft,
       };
       putTabBuffer(noteId, nextBuffer);
 
       if (activeTabIdRef.current === noteId) {
-        setOpenNote(savedNote);
+        setOpenFile(savedNote);
         setDraft(latest.draft);
       }
 
@@ -2501,7 +2664,7 @@ export function App() {
     setProvider(undefined);
     setTree([]);
     setSelectedFolderId("");
-    setOpenNote(undefined);
+    setOpenFile(undefined);
     setDraft("");
     setTabs([]);
     replaceTabBuffers({});
@@ -2538,7 +2701,7 @@ export function App() {
     setProvider(undefined);
     setTree([]);
     setSelectedFolderId("");
-    setOpenNote(undefined);
+    setOpenFile(undefined);
     setDraft("");
     setTabs([]);
     replaceTabBuffers({});
@@ -2634,6 +2797,13 @@ export function App() {
     );
   }
 
+  const creatableFileTypes = extensionHost.fileTypes
+    .list()
+    .filter(
+      (fileType) =>
+        fileType.contentKind === "text" && fileType.create !== undefined,
+    );
+
   const leftSidebar =
     activeLeftPanel === "files" ? (
       <SidebarFrame
@@ -2651,6 +2821,23 @@ export function App() {
             >
               <Icon name="file-plus" />
             </button>
+            {creatableFileTypes.map((fileType) => (
+              <button
+                type="button"
+                key={fileType.id}
+                aria-label={`${t("common.create")} ${fileType.create!.label}`}
+                title={`${t("common.create")} ${fileType.create!.label}`}
+                disabled={workspaceLoading}
+                onClick={() =>
+                  void createRegisteredTextFile(
+                    fileType.id,
+                    selectedFolderId || provider.rootId,
+                  )
+                }
+              >
+                <span aria-hidden="true">◇+</span>
+              </button>
+            ))}
             <button
               type="button"
               aria-label={t("actions.newFolder")}
@@ -2717,11 +2904,10 @@ export function App() {
           tree={tree}
           loading={workspaceLoading}
           index={knowledgeIndex}
-          activeNoteId={openNote?.metadata.id}
+          activeResourceId={openFile?.metadata.id}
           selectedFolderId={selectedFolderId || provider.rootId}
           onSelectedFolderIdChange={setSelectedFolderId}
-          onOpenNote={(noteId) => void openNoteById(noteId)}
-          onOpenAttachment={(node) => void openAttachment(node)}
+          onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
           onRequestNewFolder={(folderId) => requestNewItem("folder", folderId)}
           onRequestAttachFiles={requestAttachFiles}
@@ -2752,7 +2938,7 @@ export function App() {
           service={searchService}
           semantic={semanticUi}
           onEnableSemantic={enableSemanticSearch}
-          onOpenNote={(noteId) => void openNoteById(noteId)}
+          onOpenNote={(noteId) => void openFileById(noteId)}
         />
       </SidebarFrame>
     ) : activeLeftPanel === "graph" ? (
@@ -2784,8 +2970,8 @@ export function App() {
         </div>
         <LocalGraphPanel
           index={knowledgeIndex}
-          activeNoteId={openNote?.metadata.id}
-          onOpenNote={(noteId) => void openNoteById(noteId)}
+          activeNoteId={openFile?.metadata.id}
+          onOpenNote={(noteId) => void openFileById(noteId)}
         />
       </SidebarFrame>
     ) : activeLeftPanel === "tags" ? (
@@ -2809,7 +2995,7 @@ export function App() {
           index={knowledgeIndex}
           selectedTag={selectedTag}
           onSelectTag={setSelectedTag}
-          onOpenNote={(noteId) => void openNoteById(noteId)}
+          onOpenNote={(noteId) => void openFileById(noteId)}
         />
       </SidebarFrame>
     ) : (
@@ -2892,7 +3078,7 @@ export function App() {
             workspaceId={activeWorkspace.id}
             onRestored={async (metadata) => {
               await refreshWorkspaceState();
-              await openNoteById(metadata.id);
+              await openFileById(metadata.id);
             }}
           />
         </section>
@@ -2935,10 +3121,10 @@ export function App() {
         <section className="workspace-main">
           <TabBar
             tabs={tabs}
-            activeNoteId={activeTabId}
-            dirtyNoteIds={dirtyNoteIds}
-            onActivate={(noteId) => void openNoteById(noteId)}
-            onClose={(noteId) => void closeTab(noteId)}
+            activeResourceId={activeTabId}
+            dirtyResourceIds={dirtyResourceIds}
+            onActivate={(resourceId) => void openFileById(resourceId)}
+            onClose={(resourceId) => void closeTab(resourceId)}
             onNew={() =>
               requestNewItem("note", selectedFolderId || provider.rootId)
             }
@@ -2949,12 +3135,14 @@ export function App() {
             canBack={canNavigateBack}
             canForward={canNavigateForward}
             breadcrumb={
-              currentIndexedNote
-                ? `${activeWorkspace.name} / ${currentIndexedNote.path.replace(/\.md$/i, "")}`
+              openFile
+                ? `${activeWorkspace.name} / ${activeFilePath}`
                 : activeWorkspace.name
             }
             viewMode={viewMode}
-            hasNote={openNote !== undefined}
+            hasDocument={openFile !== undefined}
+            supportsViewMode={activeIsMarkdown}
+            supportsContext={activeIsMarkdown}
             dirty={dirty}
             syncState={activeSyncState}
             driveStatus={globalDriveStatus}
@@ -2969,9 +3157,9 @@ export function App() {
           />
 
           <section className="editor-panel-v2" aria-label={t("editor.aria")}>
-            {openNote ? (
+            {openFile ? (
               <>
-                {openNote && activeConflict ? (
+                {openFile && activeConflict ? (
                   <section className="conflict-banner" role="alert">
                     <div>
                       <strong>{t("conflict.title")}</strong>
@@ -2988,7 +3176,7 @@ export function App() {
                         type="button"
                         className="secondary-button"
                         onClick={() =>
-                          void resolveConflictUseDrive(openNote.metadata.id)
+                          void resolveConflictUseDrive(openFile.metadata.id)
                         }
                       >
                         {t("conflict.useDrive")}
@@ -2997,7 +3185,7 @@ export function App() {
                         type="button"
                         className="primary-button"
                         onClick={() =>
-                          void resolveConflictKeepLocal(openNote.metadata.id)
+                          void resolveConflictKeepLocal(openFile.metadata.id)
                         }
                       >
                         {t("conflict.keepMine")}
@@ -3012,41 +3200,61 @@ export function App() {
                 >
                   {t("nav.files")}
                 </button>
-                {viewMode === "edit" ? (
-                  <MarkdownEditor
-                    key={openNote.metadata.id}
+                {activeIsMarkdown ? (
+                  viewMode === "edit" ? (
+                    <MarkdownEditor
+                      key={openFile.metadata.id}
+                      value={draft}
+                      label={t("editor.editFile", { name: openFile.metadata.name })}
+                      linkTargets={editorLinkTargets}
+                      tags={knownTags}
+                      navigationTarget={activeMarkdownNavigation}
+                      navigationKey={activeMarkdownNavigation?.key}
+                      onChange={updateActiveDraft}
+                      onAttachFiles={(files, source) =>
+                        attachFiles(
+                          files,
+                          openFile.metadata.parentIds[0] ?? provider.rootId,
+                          {
+                            appendReferences: false,
+                            autoRename: true,
+                            source,
+                          },
+                        )
+                      }
+                    />
+                  ) : (
+                    <MarkdownPreview
+                      content={draft}
+                      provider={provider}
+                      tree={tree}
+                      currentNotePath={
+                        currentIndexedNote?.path ?? openFile.metadata.name
+                      }
+                      outgoingLinks={outgoingLinks}
+                      navigationTarget={activeMarkdownNavigation}
+                      navigationKey={activeMarkdownNavigation?.key}
+                      onOpenNote={(target) => void openMarkdownTarget(target)}
+                    />
+                  )
+                ) : ActivePluginTextView ? (
+                  <ActivePluginTextView
+                    key={openFile.metadata.id}
+                    file={{
+                      id: openFile.metadata.id,
+                      name: openFile.metadata.name,
+                      path: activeFilePath,
+                    }}
                     value={draft}
-                    label={t("editor.editFile", { name: openNote.metadata.name })}
-                    linkTargets={editorLinkTargets}
-                    tags={knownTags}
-                    navigationTarget={activeMarkdownNavigation}
-                    navigationKey={activeMarkdownNavigation?.key}
+                    tree={tree}
                     onChange={updateActiveDraft}
-                    onAttachFiles={(files, source) =>
-                      attachFiles(
-                        files,
-                        openNote.metadata.parentIds[0] ?? provider.rootId,
-                        {
-                          appendReferences: false,
-                          autoRename: true,
-                          source,
-                        },
-                      )
-                    }
+                    onOpenFile={(fileId) => void openWorkspaceFileById(fileId)}
                   />
                 ) : (
-                  <MarkdownPreview
-                    content={draft}
-                    provider={provider}
-                    tree={tree}
-                    currentNotePath={
-                      currentIndexedNote?.path ?? openNote.metadata.name
-                    }
-                    outgoingLinks={outgoingLinks}
-                    navigationTarget={activeMarkdownNavigation}
-                    navigationKey={activeMarkdownNavigation?.key}
-                    onOpenNote={(target) => void openMarkdownTarget(target)}
-                  />
+                  <div className="workspace-loading-v2">
+                    <h2>{openFile.metadata.name}</h2>
+                    <p>No renderer is registered for this file type.</p>
+                  </div>
                 )}
               </>
             ) : workspaceLoading ? (
@@ -3060,7 +3268,7 @@ export function App() {
                 workspaceName={activeWorkspace.name}
                 notes={knowledgeIndex?.notes ?? []}
                 recentNoteIds={recentNoteIds}
-                onOpenNote={(noteId) => void openNoteById(noteId)}
+                onOpenNote={(noteId) => void openFileById(noteId)}
                 onOpenLauncher={() => setQuickSwitcherOpen(true)}
                 onCreateNote={() =>
                   requestNewItem("note", selectedFolderId || provider.rootId)
@@ -3070,9 +3278,9 @@ export function App() {
           </section>
         </section>
 
-        {rightSidebarOpen && openNote ? (
+        {rightSidebarOpen && openFile && activeIsMarkdown ? (
           <KnowledgePanel
-            noteTitle={currentIndexedNote?.title ?? openNote.metadata.name}
+            noteTitle={currentIndexedNote?.title ?? openFile.metadata.name}
             outgoing={outgoingLinks}
             backlinks={backlinks}
             broken={brokenLinks}
@@ -3094,7 +3302,7 @@ export function App() {
         notes={knowledgeIndex?.notes ?? []}
         recentNoteIds={recentNoteIds}
         onClose={() => setQuickSwitcherOpen(false)}
-        onOpenNote={(noteId) => void openNoteById(noteId)}
+        onOpenNote={(noteId) => void openFileById(noteId)}
         onCreateNote={(name) =>
           requestNewItem(
             "note",
@@ -4022,4 +4230,22 @@ function formatPropertyValue(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+
+function displayFileTitle(name: string): string {
+  const registration = extensionHost.fileTypes.resolve(name);
+  const lower = name.toLocaleLowerCase();
+  const extension = registration?.extensions
+    .filter((candidate) => lower.endsWith(candidate))
+    .sort((left, right) => right.length - left.length)[0];
+  return extension ? name.slice(0, -extension.length) || name : name;
+}
+
+
+function textContentOptionsFor(
+  fileName: string,
+): { readonly mediaType: string } | undefined {
+  const mediaType = extensionHost.fileTypes.resolve(fileName)?.mediaType;
+  return mediaType ? { mediaType } : undefined;
 }

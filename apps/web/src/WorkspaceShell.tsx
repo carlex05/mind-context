@@ -74,18 +74,18 @@ export function SidebarFrame({
 
 export function TabBar({
   tabs,
-  activeNoteId,
-  dirtyNoteIds,
+  activeResourceId,
+  dirtyResourceIds,
   onActivate,
   onClose,
   onNew,
   onHome,
 }: {
   readonly tabs: readonly WorkspaceTab[];
-  readonly activeNoteId: string | undefined;
-  readonly dirtyNoteIds: ReadonlySet<string>;
-  readonly onActivate: (noteId: string) => void;
-  readonly onClose: (noteId: string) => void;
+  readonly activeResourceId: string | undefined;
+  readonly dirtyResourceIds: ReadonlySet<string>;
+  readonly onActivate: (resourceId: string) => void;
+  readonly onClose: (resourceId: string) => void;
   readonly onNew: () => void;
   readonly onHome: () => void;
 }) {
@@ -93,12 +93,12 @@ export function TabBar({
   return (
     <WorkspaceTabBarView
       tabs={tabs.map((tab) => ({
-        id: tab.noteId,
+        id: tab.resourceId,
         title: tab.title,
         path: tab.path,
-        dirty: dirtyNoteIds.has(tab.noteId),
+        dirty: dirtyResourceIds.has(tab.resourceId),
       }))}
-      {...(activeNoteId ? { activeId: activeNoteId } : {})}
+      {...(activeResourceId ? { activeId: activeResourceId } : {})}
       homeLabel={t("home.open")}
       newLabel={t("actions.newNote")}
       closeLabel={(title) => t("actions.closeTab", { title })}
@@ -115,7 +115,9 @@ export function WorkspaceHeader({
   canForward,
   breadcrumb,
   viewMode,
-  hasNote,
+  hasDocument,
+  supportsViewMode = true,
+  supportsContext = true,
   dirty,
   syncState,
   driveStatus,
@@ -132,7 +134,9 @@ export function WorkspaceHeader({
   readonly canForward: boolean;
   readonly breadcrumb?: string;
   readonly viewMode: NoteViewMode;
-  readonly hasNote: boolean;
+  readonly hasDocument: boolean;
+  readonly supportsViewMode?: boolean;
+  readonly supportsContext?: boolean;
   readonly dirty: boolean;
   readonly syncState: NoteSyncState;
   readonly driveStatus: DriveStatusState;
@@ -192,16 +196,24 @@ export function WorkspaceHeader({
         detail: driveLabel,
         title: driveTitle,
       }}
-      note={hasNote ? {
+      note={hasDocument ? {
         syncState,
         syncLabel,
         ...(syncState === "local"
           ? { syncTitle: t("actions.syncLocalDescription") }
           : {}),
-        viewIcon: viewMode === "edit" ? "book" : "edit",
-        viewLabel: modeLabel,
-        contextLabel: t("actions.context"),
-        contextTitle: t("actions.contextTitle"),
+        ...(supportsViewMode
+          ? {
+              viewIcon: viewMode === "edit" ? "book" : "edit",
+              viewLabel: modeLabel,
+            }
+          : {}),
+        ...(supportsContext
+          ? {
+              contextLabel: t("actions.context"),
+              contextTitle: t("actions.contextTitle"),
+            }
+          : {}),
         saveLabel: t("common.save"),
         rightSidebarOpen,
         saveDisabled: !dirty || syncState === "syncing" || syncState === "conflict",
