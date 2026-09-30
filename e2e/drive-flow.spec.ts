@@ -188,7 +188,9 @@ test("creates edits and embeds an Excalidraw plugin document", async ({
   const drawing = page.getByRole("region", { name: "Sketch.excalidraw" });
   await expect(drawing).toBeVisible();
 
-  const excalidrawCanvas = drawing.locator("canvas.excalidraw__canvas").first();
+  const excalidrawCanvas = drawing.locator(
+    "canvas.excalidraw__canvas.interactive",
+  );
   await expect(excalidrawCanvas).toBeVisible();
   const box = await excalidrawCanvas.boundingBox();
   expect(box).not.toBeNull();
