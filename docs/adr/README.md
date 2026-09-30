@@ -23,3 +23,5 @@ If a proposed implementation conflicts with an accepted ADR, do not silently
 change the implementation and documentation independently. Add a new ADR that
 records the new context, decision and consequences, and explicitly state which
 earlier decision is superseded or amended.
+
+- [ADR-013 — Plugin-driven file types and JSON Canvas](ADR-013-plugin-driven-file-types-and-json-canvas.md)
