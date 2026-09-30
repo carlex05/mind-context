@@ -3511,14 +3511,14 @@ export function App() {
           <>
             <FilesCreateMenu
               disabled={workspaceLoading}
-              canvasEnabled={addonEnabled(
-                addonPreferences,
-                "mindcontext.canvas",
-              )}
-              excalidrawEnabled={addonEnabled(
-                addonPreferences,
-                "mindcontext.excalidraw",
-              )}
+              canvasEnabled={
+                addonEnabled(addonPreferences, "mindcontext.canvas") &&
+                !addonLoadingIds.has("mindcontext.canvas")
+              }
+              excalidrawEnabled={
+                addonEnabled(addonPreferences, "mindcontext.excalidraw") &&
+                !addonLoadingIds.has("mindcontext.excalidraw")
+              }
               onNewNote={() =>
                 requestNewItem(
                   "note",
@@ -3596,13 +3596,15 @@ export function App() {
           onSelectedFolderIdChange={setSelectedFolderId}
           onOpenFile={(node) => void openWorkspaceFile(node)}
           onRequestNewNote={(folderId) => requestNewItem("note", folderId)}
-          {...(addonEnabled(addonPreferences, "mindcontext.canvas")
+          {...(addonEnabled(addonPreferences, "mindcontext.canvas") &&
+          !addonLoadingIds.has("mindcontext.canvas")
             ? {
                 onRequestNewCanvas: (folderId: string) =>
                   requestNewItem("canvas", folderId),
               }
             : {})}
-          {...(addonEnabled(addonPreferences, "mindcontext.excalidraw")
+          {...(addonEnabled(addonPreferences, "mindcontext.excalidraw") &&
+          !addonLoadingIds.has("mindcontext.excalidraw")
             ? {
                 onRequestNewExcalidraw: (folderId: string) =>
                   requestNewItem("excalidraw", folderId),
