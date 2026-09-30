@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run src/editorCommands.test.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",
@@ -36,7 +36,8 @@
     "rehype-mathjax": "^7.1.0",
     "rehype-prism-plus": "^2.0.2",
     "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0"
+    "remark-math": "^6.0.0",
+    "@mind-context/extension-api": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
