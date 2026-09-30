@@ -778,7 +778,7 @@ test("keeps a create-note intent open across Drive reconnect", async ({
   }
 
   const files = page.getByRole("complementary", { name: "Files" });
-  await files.getByRole("button", { name: "New note", exact: true }).click();
+  await openCreateMenuItem(page, files, "New note");
   const dialog = page.getByRole("dialog", { name: "New note" });
   await dialog.getByLabel("Name").fill("AfterReconnect");
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -2367,7 +2367,7 @@ async function createNote(page: Page, name: string): Promise<void> {
     await page.getByRole("button", { name: "Files", exact: true }).click();
     await expect(files).toBeVisible();
   }
-  await files.getByRole("button", { name: "New note", exact: true }).click();
+  await openCreateMenuItem(page, files, "New note");
   const dialog = page.getByRole("dialog", { name: "New note" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -2382,7 +2382,7 @@ async function createCanvas(page: Page, name: string): Promise<void> {
     await page.getByRole("button", { name: "Files", exact: true }).click();
     await expect(files).toBeVisible();
   }
-  await files.getByRole("button", { name: "New canvas", exact: true }).click();
+  await openCreateMenuItem(page, files, "New canvas");
   const dialog = page.getByRole("dialog", { name: "New canvas" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -2400,9 +2400,7 @@ async function createExcalidraw(
     await page.getByRole("button", { name: "Files", exact: true }).click();
     await expect(files).toBeVisible();
   }
-  await files
-    .getByRole("button", { name: "New Excalidraw", exact: true })
-    .click();
+  await openCreateMenuItem(page, files, "New Excalidraw");
   const dialog = page.getByRole("dialog", { name: "New Excalidraw" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
@@ -2417,10 +2415,21 @@ async function createFolder(page: Page, name: string): Promise<void> {
     await page.getByRole("button", { name: "Files", exact: true }).click();
     await expect(files).toBeVisible();
   }
-  await files.getByRole("button", { name: "New folder", exact: true }).click();
+  await openCreateMenuItem(page, files, "New folder");
   const dialog = page.getByRole("dialog", { name: "New folder" });
   await dialog.getByLabel("Name").fill(name);
   await dialog.getByRole("button", { name: "Create", exact: true }).click();
+}
+
+async function openCreateMenuItem(
+  page: Page,
+  files: ReturnType<Page["getByRole"]>,
+  itemName: string,
+): Promise<void> {
+  await files.getByRole("button", { name: "Create new", exact: true }).click();
+  const menu = page.getByRole("menu", { name: "Create new" });
+  await expect(menu).toBeVisible();
+  await menu.getByRole("menuitem", { name: itemName, exact: true }).click();
 }
 
 async function replaceEditorContent(
