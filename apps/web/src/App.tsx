@@ -1308,33 +1308,40 @@ export function App() {
       });
     }
 
-    const indexed = getNote(knowledgeIndex, id);
     const buffered = tabBuffersRef.current[id];
-    setStatus({
-      kind: "busy",
-      message: t("status.openingNote", {
-        name: indexed?.name ?? buffered?.note.metadata.name ?? "note",
-      }),
-    });
 
     try {
-      let nextNote: OpenTextFile;
+      const metadata = buffered?.note.metadata ?? (await provider.metadata(id));
+      const fileType = extensionHost.fileTypes.resolve(metadata.name);
+      if (!fileType || fileType.contentKind !== "text") return false;
+
+      const indexed =
+        fileType.id === "markdown" ? getNote(knowledgeIndex, id) : undefined;
+      setStatus({
+        kind: "busy",
+        message: t("status.openingNote", {
+          name: indexed?.name ?? metadata.name,
+        }),
+      });
+
+      let nextFile: OpenTextFile;
       let nextDraft: string;
 
       if (buffered) {
-        nextNote = buffered.note;
+        nextFile = buffered.note;
         nextDraft = buffered.draft;
       } else {
-        const metadata = await provider.metadata(id);
-        const cachedDocument = searchSnapshot?.documents.find(
-          (document) => document.noteId === id,
-        );
-        const content = canReuseSearchDocument(
-          cachedDocument,
-          metadata.revision,
-        )
-          ? cachedDocument.content
-          : await provider.readText(id);
+        const cachedDocument =
+          fileType.id === "markdown"
+            ? searchSnapshot?.documents.find(
+                (document) => document.noteId === id,
+              )
+            : undefined;
+        const content =
+          cachedDocument &&
+          canReuseSearchDocument(cachedDocument, metadata.revision)
+            ? cachedDocument.content
+            : await provider.readText(id);
         const pendingDraft = activeWorkspace
           ? await pendingDraftStore.get(activeWorkspace.id, id)
           : undefined;
@@ -1343,7 +1350,7 @@ export function App() {
           contentRevision: _remoteContentRevision,
           ...stableMetadata
         } = metadata;
-        nextNote = pendingDraft
+        nextFile = pendingDraft
           ? {
               metadata: {
                 ...stableMetadata,
@@ -1361,38 +1368,54 @@ export function App() {
               originalContent: content,
             };
         nextDraft = pendingDraft?.content ?? content;
-        putTabBuffer(id, { note: nextNote, draft: nextDraft });
+        putTabBuffer(id, { note: nextFile, draft: nextDraft });
         setNoteSyncState(id, pendingDraft ? "local" : "synced");
       }
 
-      setOpenFile(nextNote);
+      setOpenFile(nextFile);
       setDraft(nextDraft);
 
       const existingTab = tabs.find((tab) => tab.resourceId === id);
-      const note = getNote(knowledgeIndex, id);
+      const node = findWorkspaceNode(tree, id);
+      const note =
+        fileType.id === "markdown" ? getNote(knowledgeIndex, id) : undefined;
       const nextTab: WorkspaceTab = {
-        noteId: id,
-        title: nextNote.metadata.name.replace(/\.md$/i, ""),
-        path: note?.path ?? nextNote.metadata.name,
-        viewMode: existingTab?.viewMode ?? "edit",
+        resourceId: id,
+        fileTypeId: fileType.id,
+        title: displayFileTitle(nextFile.metadata.name),
+        path: note?.path ?? node?.path ?? nextFile.metadata.name,
+        viewMode:
+          fileType.id === "markdown"
+            ? existingTab?.viewMode ?? "edit"
+            : "edit",
       };
       setTabs((current) =>
         current.some((tab) => tab.resourceId === id)
           ? current.map((tab) =>
               tab.resourceId === id
-                ? { ...tab, title: nextTab.title, path: nextTab.path }
+                ? {
+                    ...tab,
+                    fileTypeId: fileType.id,
+                    title: nextTab.title,
+                    path: nextTab.path,
+                    viewMode: nextTab.viewMode,
+                  }
                 : tab,
             )
           : [...current, nextTab],
       );
       setActiveTabId(id);
       setViewMode(nextTab.viewMode);
+      if (fileType.id !== "markdown") {
+        setRightSidebarOpen(false);
+        setMarkdownNavigation(undefined);
+      }
       setMobileSidebarOpen(false);
       if (window.matchMedia("(max-width: 760px)").matches) {
         setRightSidebarOpen(false);
       }
 
-      if (activeWorkspace) {
+      if (activeWorkspace && fileType.id === "markdown") {
         setRecentNoteIds((current) =>
           rememberRecentNote(activeWorkspace.id, current, id),
         );
