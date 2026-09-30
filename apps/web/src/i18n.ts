@@ -143,6 +143,7 @@ const en = {
     saved: "Synced to Google Drive.",
     savedLocalVault: "Saved to local vault.",
     conflict: "This note changed in canonical storage after you opened it.",
+    resourceConflict: "This file changed in canonical storage after you opened it. Your local changes remain saved in this browser.",
     conflictRecoveryCreated: "A recovery copy was created in your vault: {{name}}",
     conflictRecoveryLocalOnly: "The conflict could not be backed up to canonical storage yet. Your draft remains saved locally.",
     resolvingConflict: "Resolving conflict…",
@@ -373,6 +374,23 @@ const en = {
   markdown: {
     mermaidDiagram: "Mermaid diagram",
     mermaidError: "This Mermaid diagram could not be rendered. Showing its source instead.",
+  },
+  canvas: {
+    tools: "Canvas tools",
+    text: "Text",
+    file: "File",
+    link: "Link",
+    group: "Group",
+    delete: "Delete",
+    requiresText: "Canvas requires text content.",
+    invalid: "This .canvas file does not contain valid JSON Canvas data.",
+    sync: {
+      synced: "Synced",
+      local: "Saved locally",
+      syncing: "Syncing…",
+      conflict: "Conflict",
+      error: "Sync failed",
+    },
   },
   landing: {
     eyebrow: "Privacy-first · Markdown-first · Your own files",
@@ -607,6 +625,7 @@ const es = {
     saved: "Sincronizado con Google Drive.",
     savedLocalVault: "Guardado en el vault local.",
     conflict: "Esta nota cambió en el almacenamiento canónico después de abrirla.",
+    resourceConflict: "Este archivo cambió en el almacenamiento canónico después de abrirlo. Tus cambios locales siguen guardados en este navegador.",
     conflictRecoveryCreated: "Se creó una copia de recuperación en tu vault: {{name}}",
     conflictRecoveryLocalOnly: "Aún no se pudo crear la copia de recuperación en el almacenamiento canónico. Tu borrador sigue guardado localmente.",
     resolvingConflict: "Resolviendo conflicto…",
@@ -837,6 +856,23 @@ const es = {
   markdown: {
     mermaidDiagram: "Diagrama Mermaid",
     mermaidError: "No se pudo renderizar este diagrama Mermaid. Se muestra el código fuente.",
+  },
+  canvas: {
+    tools: "Herramientas de Canvas",
+    text: "Texto",
+    file: "Archivo",
+    link: "Enlace",
+    group: "Grupo",
+    delete: "Eliminar",
+    requiresText: "Canvas requiere contenido de texto.",
+    invalid: "Este archivo .canvas no contiene datos JSON Canvas válidos.",
+    sync: {
+      synced: "Sincronizado",
+      local: "Guardado localmente",
+      syncing: "Sincronizando…",
+      conflict: "Conflicto",
+      error: "Error de sincronización",
+    },
   },
   landing: {
     eyebrow: "Privacidad primero · Markdown primero · Tus propios archivos",
