@@ -91,6 +91,7 @@ export interface CommandsApi {
 export interface SecretPromptRequest {
   readonly title: string;
   readonly message?: string;
+  readonly inputLabel?: string;
   readonly confirm?: boolean;
   readonly confirmLabel?: string;
   readonly cancelLabel?: string;
