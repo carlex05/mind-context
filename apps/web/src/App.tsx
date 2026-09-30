@@ -230,6 +230,12 @@ export function App() {
   const [draft, setDraft] = useState("");
   const [openPluginResource, setOpenPluginResource] =
     useState<OpenPluginResource>();
+  const [pluginResourceBuffers, setPluginResourceBuffers] = useState<
+    Readonly<Record<string, OpenPluginResource>>
+  >({});
+  const pluginResourceBuffersRef = useRef<
+    Readonly<Record<string, OpenPluginResource>>
+  >({});
   const activePluginResourceRef = useRef<OpenPluginResource | undefined>(undefined);
   const [extensionHost] = useState(() => {
     const host = new ExtensionHost({
@@ -423,8 +429,15 @@ export function App() {
       if (buffer.draft !== buffer.note.originalContent) result.add(noteId);
     }
     if (activeTabId && dirty) result.add(activeTabId);
-    if (openPluginResource && pluginDirty) {
-      result.add(openPluginResource.metadata.id);
+    for (const [resourceId, resource] of Object.entries(pluginResourceBuffers)) {
+      if (
+        resource.contentKind === "text" &&
+        typeof resource.content === "string" &&
+        resource.originalContent !== undefined &&
+        resource.content !== resource.originalContent
+      ) {
+        result.add(resourceId);
+      }
     }
     return result;
   }, [
@@ -433,8 +446,7 @@ export function App() {
     dirty,
     draft,
     openNote,
-    openPluginResource,
-    pluginDirty,
+    pluginResourceBuffers,
   ]);
 
   const parsedDraft = useMemo(() => markdownParser.parse(draft), [draft]);
@@ -530,6 +542,10 @@ export function App() {
   useEffect(() => {
     activePluginResourceRef.current = openPluginResource;
   }, [openPluginResource]);
+
+  useEffect(() => {
+    pluginResourceBuffersRef.current = pluginResourceBuffers;
+  }, [pluginResourceBuffers]);
 
   useEffect(() => {
     providerRef.current = provider;
