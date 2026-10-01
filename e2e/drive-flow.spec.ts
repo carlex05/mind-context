@@ -402,7 +402,7 @@ test("encrypts selected Markdown and unlocks it through the Reading View popup",
   const raw = await page.evaluate(() =>
     (window as any).__mindContextReadLocal("Private.md"),
   );
-  expect(raw).toContain("```mindcontext-encrypted");
+  expect(raw).toContain("```aes256");
   expect(raw).not.toContain("My private thought");
   expect(raw).not.toContain("second line.");
 
