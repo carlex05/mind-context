@@ -56,6 +56,7 @@ export interface WebMarkdownEmbedRegistration {
 
 export interface PluginMarkdownBlockProps {
   readonly content: string;
+  readonly language: string;
 }
 
 export interface WebMarkdownBlockRegistration {
@@ -84,6 +85,7 @@ export interface WebExtensionBundle {
   readonly fileViews?: readonly WebFileViewRegistration[];
   readonly markdownEmbeds?: readonly WebMarkdownEmbedRegistration[];
   readonly markdownBlocks?: readonly WebMarkdownBlockRegistration[];
+  readonly markdownSourceTransforms?: readonly ((source: string) => string)[];
 }
 
 export class ExtensionHost {
@@ -112,6 +114,10 @@ export class ExtensionHost {
   private readonly markdownBlockViewsByExtension = new Map<
     string,
     readonly string[]
+  >();
+  private readonly markdownSourceTransformsByExtension = new Map<
+    string,
+    readonly ((source: string) => string)[]
   >();
   private readonly commands = new Map<string, RegisteredExtensionCommand>();
   private readonly commandsByExtension = new Map<string, readonly string[]>();
@@ -142,6 +148,10 @@ export class ExtensionHost {
       bundle.extension.manifest.id,
       markdownBlockIds,
     );
+    this.markdownSourceTransformsByExtension.set(
+      bundle.extension.manifest.id,
+      bundle.markdownSourceTransforms ?? [],
+    );
 
     try {
       await this.activate(bundle.extension);
@@ -156,6 +166,9 @@ export class ExtensionHost {
       this.fileViewsByExtension.delete(bundle.extension.manifest.id);
       this.markdownEmbedViewsByExtension.delete(bundle.extension.manifest.id);
       this.markdownBlockViewsByExtension.delete(bundle.extension.manifest.id);
+      this.markdownSourceTransformsByExtension.delete(
+        bundle.extension.manifest.id,
+      );
       throw error;
     }
   }
@@ -182,6 +195,16 @@ export class ExtensionHost {
     if (!rendererId) return undefined;
     const component = this.markdownBlockViews.get(rendererId);
     return component ? { rendererId, component } : undefined;
+  }
+
+  transformMarkdownSource(source: string): string {
+    let transformed = source;
+    for (const transforms of this.markdownSourceTransformsByExtension.values()) {
+      for (const transform of transforms) {
+        transformed = transform(transformed);
+      }
+    }
+    return transformed;
   }
 
   listCommands(): readonly RegisteredExtensionCommand[] {
@@ -308,6 +331,7 @@ export class ExtensionHost {
     this.fileViewsByExtension.delete(id);
     this.markdownEmbedViewsByExtension.delete(id);
     this.markdownBlockViewsByExtension.delete(id);
+    this.markdownSourceTransformsByExtension.delete(id);
     this.commandsByExtension.delete(id);
     this.disposables.delete(id);
     this.extensions.delete(id);
