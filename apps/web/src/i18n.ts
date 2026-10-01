@@ -459,6 +459,15 @@ const en = {
     decrypting: "Decrypting…",
     wrongPassphrase: "Could not decrypt. Check the passphrase.",
     invalidBlock: "Encrypted block is invalid or unsupported.",
+    defaultFormat: "Format used when encrypting",
+    compatibilityHint: "Reading View automatically recognizes MindContext, Encrypt Selection, Meld Encrypt, and Inline Encrypter blocks while this add-on is enabled.",
+    passwordHint: "Password hint: {{hint}}",
+    codecs: {
+      encryptSelection: "Obsidian Encrypt Selection",
+      meld: "Meld Encrypt",
+      inlineEncrypter: "Inline Encrypter",
+      mindcontext: "MindContext native",
+    },
   },
   landing: {
     eyebrow: "Privacy-first · Markdown-first · Your own files",
@@ -1009,6 +1018,15 @@ const es = {
     decrypting: "Descifrando…",
     wrongPassphrase: "No se pudo descifrar. Revisa la frase de contraseña.",
     invalidBlock: "El bloque cifrado no es válido o no es compatible.",
+    defaultFormat: "Formato usado al cifrar",
+    compatibilityHint: "La vista de lectura reconoce automáticamente bloques de MindContext, Encrypt Selection, Meld Encrypt e Inline Encrypter mientras este add-on esté activo.",
+    passwordHint: "Pista de contraseña: {{hint}}",
+    codecs: {
+      encryptSelection: "Obsidian Encrypt Selection",
+      meld: "Meld Encrypt",
+      inlineEncrypter: "Inline Encrypter",
+      mindcontext: "MindContext nativo",
+    },
   },
   landing: {
     eyebrow: "Privacidad primero · Markdown primero · Tus propios archivos",
