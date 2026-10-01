@@ -158,7 +158,7 @@ export function MarkdownPreview({
               resolvePluginBlock
             ) {
               const Block = resolvePluginBlock(pluginLanguage);
-              if (Block) return <Block content={pluginSource} />;
+              if (Block) return <Block content={pluginSource} language={pluginLanguage} />;
             }
 
             const source = (
