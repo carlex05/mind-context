@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -5,6 +6,12 @@ import {
   type AddonId,
   type AddonPreferences,
 } from "./addons";
+import {
+  ENCRYPTION_CODEC_OPTIONS,
+  readEncryptionPreferences,
+  writeEncryptionPreferences,
+  type EncryptionCodecId,
+} from "./plugins/encryptionPreferences";
 
 export function AddonSettings({
   preferences,
@@ -16,6 +23,15 @@ export function AddonSettings({
   readonly onToggle: (id: AddonId, enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const [encryptionPreferences, setEncryptionPreferences] = useState(
+    () => readEncryptionPreferences(),
+  );
+
+  function setEncryptionCodec(defaultCodec: EncryptionCodecId) {
+    const next = { defaultCodec };
+    writeEncryptionPreferences(next);
+    setEncryptionPreferences(next);
+  }
 
   return (
     <div className="addon-settings">
@@ -52,6 +68,28 @@ export function AddonSettings({
                       : t("addons.disabled")}
                 </span>
               </button>
+              {addon.id === "mindcontext.encryption" && enabled ? (
+                <div className="addon-encryption-options">
+                  <label>
+                    <span>{t("encryption.defaultFormat")}</span>
+                    <select
+                      value={encryptionPreferences.defaultCodec}
+                      onChange={(event) =>
+                        setEncryptionCodec(
+                          event.target.value as EncryptionCodecId,
+                        )
+                      }
+                    >
+                      {ENCRYPTION_CODEC_OPTIONS.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {t(option.labelKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <small>{t("encryption.compatibilityHint")}</small>
+                </div>
+              ) : null}
             </div>
           );
         })}
