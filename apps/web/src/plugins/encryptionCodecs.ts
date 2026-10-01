@@ -157,18 +157,10 @@ export function transformEncryptionMarkdownSource(markdown: string): string {
       `\n\n\`\`\`mindcontext-secret-inline\n${payload}\n\`\`\`\n\n`,
   );
 
-  const hiddenMeld =
-    /%%🔐(?:β|α)?\s+(?:💡[^💡\n]*💡)?[A-Za-z0-9+/=]+\s+🔐%%/g;
+  const meldMarker =
+    /%%🔐(?:β|α)?\s+(?:💡[^💡\n]*💡)?[A-Za-z0-9+/=]+\s+🔐%%|🔐(?:β|α)?\s+(?:💡[^💡\n]*💡)?[A-Za-z0-9+/=]+\s+🔐/g;
   result = result.replace(
-    hiddenMeld,
-    (marker) =>
-      `\n\n\`\`\`mindcontext-meld\n${marker}\n\`\`\`\n\n`,
-  );
-
-  const visibleMeld =
-    /🔐(?:β|α)?\s+(?:💡[^💡\n]*💡)?[A-Za-z0-9+/=]+\s+🔐/g;
-  result = result.replace(
-    visibleMeld,
+    meldMarker,
     (marker) =>
       `\n\n\`\`\`mindcontext-meld\n${marker}\n\`\`\`\n\n`,
   );
