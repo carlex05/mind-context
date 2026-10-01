@@ -3959,7 +3959,7 @@ export function App() {
                   />
                 ) : (
                   <MarkdownPreview
-                    content={draft}
+                    content={extensionHost.transformMarkdownSource(draft)}
                     provider={provider}
                     tree={tree}
                     currentNotePath={
