@@ -328,6 +328,15 @@ test("keeps Files actions scalable and toggles bundled add-ons", async ({
   const encryptionToggle = settings.getByRole("switch", {
     name: "Toggle Encryption",
   });
+  const encryptionFormat = settings.getByLabel(
+    "Format used when encrypting",
+    { exact: true },
+  );
+  await expect(encryptionFormat).toHaveValue("encrypt-selection");
+  await encryptionFormat.selectOption("meld");
+  await expect(encryptionFormat).toHaveValue("meld");
+  await encryptionFormat.selectOption("encrypt-selection");
+
   await encryptionToggle.click();
   await expect(encryptionToggle).toHaveAttribute("aria-checked", "false");
   await expect(encryptionToggle).toBeEnabled();
