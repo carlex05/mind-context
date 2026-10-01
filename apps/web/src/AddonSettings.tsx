@@ -73,6 +73,7 @@ export function AddonSettings({
                   <label>
                     <span>{t("encryption.defaultFormat")}</span>
                     <select
+                      aria-label={t("encryption.defaultFormat")}
                       value={encryptionPreferences.defaultCodec}
                       onChange={(event) =>
                         setEncryptionCodec(
