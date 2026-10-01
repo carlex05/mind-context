@@ -82,6 +82,8 @@ describe("encryption codecs", () => {
       "before %%🔐β QUJDRA== 🔐%% after",
     );
     expect(hidden).toContain("```mindcontext-meld");
+    expect(hidden.match(/```mindcontext-meld/g)).toHaveLength(1);
+    expect(hidden).toContain("%%🔐β QUJDRA== 🔐%%");
   });
 
   it("rejects the wrong password for interoperable codecs", async () => {
