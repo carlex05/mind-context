@@ -5106,3 +5106,34 @@ button.encrypted-block:focus-visible {
     width: min(280px, calc(100vw - 20px));
   }
 }
+
+
+.addon-encryption-options {
+  display: grid;
+  padding-top: 8px;
+  gap: 7px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.addon-encryption-options label {
+  display: grid;
+  gap: 5px;
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+}
+
+.addon-encryption-options select {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 7px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+
+.addon-encryption-options > small {
+  color: var(--ink-muted);
+  font-size: 0.67rem;
+  line-height: 1.4;
+}
