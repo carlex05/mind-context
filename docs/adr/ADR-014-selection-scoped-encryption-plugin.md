@@ -32,22 +32,35 @@ The extension receives only these capabilities:
 It does **not** receive a `StorageProvider`, Drive credentials, whole-vault
 access or a network capability.
 
-The canonical syntax is a fenced Markdown block:
+Encryption uses a codec registry rather than one canonical encrypted syntax.
 
-~~~markdown
-```mindcontext-encrypted
-{"v":1,"alg":"AES-GCM","kdf":"PBKDF2-SHA256",...}
-```
-~~~
+The default format for newly encrypted selections is **Obsidian Encrypt
+Selection**, using its interoperable `aes256` fenced block format. The registry
+also supports:
 
-Version 1 uses:
+- Meld Encrypt current in-place `🔐β … 🔐` markers;
+- Inline Encrypter `secret` blocks/inline tokens;
+- the original MindContext `mindcontext-encrypted` block for backward
+  compatibility with already-created vault content.
 
-- AES-GCM with a 256-bit key;
-- PBKDF2-HMAC-SHA256;
-- 310,000 PBKDF2 iterations;
-- a random 16-byte salt per encrypted block;
-- a random 12-byte IV per encrypted block;
-- authenticated additional data identifying the format version.
+Reading View automatically recognizes all supported codecs while the Encryption
+add-on is enabled. The user can choose the output codec in Settings without
+changing how existing encrypted content is detected.
+
+The codec implementations reproduce the upstream formats rather than merely
+using equivalent cryptographic primitives:
+
+- Encrypt Selection: versioned binary header, PBKDF2-HMAC-SHA256, 600,000
+  iterations by default, AES-256-GCM, authenticated header, 16-byte salt and
+  12-byte IV;
+- Meld Encrypt beta/current: PBKDF2-HMAC-SHA512, 210,000 iterations,
+  AES-256-GCM, 16-byte IV + 16-byte salt + ciphertext, wrapped in the `🔐β`
+  marker syntax;
+- Inline Encrypter: PBKDF2-HMAC-SHA512, 262,144 iterations, AES-256-GCM,
+  16-byte IV + 16-byte salt + ciphertext, wrapped in `secret` Markdown;
+- MindContext legacy/native: the original versioned AES-256-GCM /
+  PBKDF2-HMAC-SHA256 payload remains readable and writable as an explicit
+  compatibility option.
 
 The passphrase is never written into Markdown, localStorage, IndexedDB, provider
 storage or plugin settings. The host password dialog keeps it only in component
@@ -81,6 +94,10 @@ provider artifacts require separate retention/cleanup policies.
 
 - Encryption validates editor/command/Markdown-renderer plugin seams without
   widening plugins to storage access.
+- Newly encrypted content can be opened by the selected compatible Obsidian
+  plugin when its codec is chosen.
+- Existing Encrypt Selection, Meld Encrypt and Inline Encrypter content can be
+  unlocked in MindContext Reading View without rewriting the source.
 - The encrypted representation remains ordinary Markdown and can be preserved
   by editors that know nothing about MindContext.
 - Forgetting the passphrase makes the encrypted block unrecoverable by
